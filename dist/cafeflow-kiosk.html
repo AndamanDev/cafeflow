@@ -1474,6 +1474,361 @@ window.showToast = function (m) { if (window.CFKiosk) CFKiosk.toast(m, 2400); };
 </script>
 
 <script>
+/* ===== cf-consts.js ===== */
+/**
+ * CafeFlow — ค่าคงที่ที่ใช้ร่วมทั้งระบบ
+ * ------------------------------------------------------------
+ * ⚠️ ไฟล์ในโฟลเดอร์ shared/ ถูกโหลดสามที่: เบราว์เซอร์ (<script>),
+ *    เซิร์ฟเวอร์ Node (require) และอาร์ติแฟกต์คีออสก์ (ต่อไฟล์)
+ *    จึงต้องเป็น "ตรรกะบริสุทธิ์" เท่านั้น — ห้ามอ้าง window, document,
+ *    CFStore, fetch, localStorage หรือ process
+ *
+ * เดิมค่าเหล่านี้อยู่ใน cf-data.js ย้ายออกมาเพื่อให้เซิร์ฟเวอร์ใช้ชุดเดียวกัน
+ */
+(function (root, factory) {
+    const m = factory();
+    if (typeof module === 'object' && module.exports) module.exports = m;
+    else Object.keys(m).forEach((k) => { root[k] = m[k]; });
+})(typeof self !== 'undefined' ? self : this, function () {
+    'use strict';
+
+    /** สถานีผลิต — สินค้าทุกตัวต้องผูกกับสถานีเสมอ (§18) */
+    const CF_STATIONS = {
+        BAR:     { label: 'บาร์เครื่องดื่ม', icon: 'cup-soda' },
+        KITCHEN: { label: 'ครัวอาหาร',      icon: 'utensils' },
+        BAKERY:  { label: 'เบเกอรี่',        icon: 'croissant' },
+        DESSERT: { label: 'ของหวาน',         icon: 'cake-slice' },
+    };
+
+    /**
+     * แบบเสิร์ฟ — แกนที่กำหนด "ราคา" ของสินค้า
+     * ป้ายหน้าร้านมีสามคอลัมน์ ร้อน/เย็น/ปั่น และช่องที่เป็น '–' คือไม่มีขาย
+     * STD ใช้กับของที่ไม่มีแกนนี้ (อาหาร เบเกอรี่ ของหวาน)
+     */
+    const CF_SERVE = {
+        HOT:    { label: 'ร้อน', short: 'ร้อน', icon: 'flame' },
+        ICED:   { label: 'เย็น', short: 'เย็น', icon: 'snowflake' },
+        FRAPPE: { label: 'ปั่น', short: 'ปั่น', icon: 'blend' },
+        STD:    { label: 'ปกติ', short: '',     icon: 'utensils' },
+    };
+    const CF_SERVE_ORDER = ['HOT', 'ICED', 'FRAPPE', 'STD'];
+
+    /** ป้ายสถานะภาษาไทย + สีชิปของ design system */
+    const CF_STATUS = {
+        DRAFT:           { label: 'ร่าง',            chip: 'sip-chip-muted' },
+        ORDER_CONFIRMED: { label: 'ยืนยันออเดอร์',    chip: 'sip-chip-muted' },
+        WAITING_CASH:    { label: 'รอชำระเงินสด',     chip: 'sip-chip-active' },
+        WAITING_PAYMENT: { label: 'รอชำระ QR',        chip: 'sip-chip-active' },
+        PAYMENT_TIMEOUT: { label: 'QR หมดเวลา',       chip: 'sip-chip-danger' },
+        PAYMENT_REVIEW:  { label: 'รอตรวจสอบการชำระ', chip: 'sip-chip-danger' },
+        PAYMENT_FAILED:  { label: 'ชำระไม่สำเร็จ',    chip: 'sip-chip-danger' },
+        PAID:            { label: 'ชำระแล้ว',         chip: 'sip-chip-success' },
+        SENT_TO_KITCHEN: { label: 'ส่งเข้าครัวแล้ว',  chip: 'sip-chip-progress' },
+        PREPARING:       { label: 'กำลังจัดเตรียม',   chip: 'sip-chip-progress' },
+        READY:           { label: 'พร้อมรับ',         chip: 'sip-chip-success' },
+        SERVED:          { label: 'ส่งมอบแล้ว',       chip: 'sip-chip-success' },
+        COMPLETED:       { label: 'เสร็จสิ้น',        chip: 'sip-chip-muted' },
+        CANCELLED:       { label: 'ยกเลิก',           chip: 'sip-chip-danger' },
+        VOIDED:          { label: 'ยกเลิกบิล',        chip: 'sip-chip-danger' },
+        REFUNDED:        { label: 'คืนเงิน',          chip: 'sip-chip-danger' },
+    };
+
+    /** รูปแบบการรับสินค้า — ป้าย/ภาพอยู่ที่เดียว หน้าอื่นจะได้ไม่เขียนสตริงซ้ำ */
+    const CF_DINING = {
+        DINE_IN:   { label: 'กินที่ร้าน', en: 'Dine in',   icon: 'store', art: 'dinein',   tint: 'C-FOOD' },
+        TAKE_AWAY: { label: 'กลับบ้าน',   en: 'Take away', icon: 'cart',  art: 'takeaway', tint: 'C-BAKERY' },
+    };
+    /** โหมดที่ตั้งได้จากหลังบ้าน — ร้านกลับบ้านอย่างเดียวไม่ต้องให้ลูกค้าตอบคำถามที่มีคำตอบเดียว */
+    const CF_DINING_MODES = [
+        { v: 'ASK',       label: 'ให้ลูกค้าเลือก' },
+        { v: 'DINE_IN',   label: 'กินที่ร้านอย่างเดียว' },
+        { v: 'TAKE_AWAY', label: 'กลับบ้านอย่างเดียว' },
+    ];
+
+    /**
+     * อ่านโหมดจาก settings พร้อมรองรับฐานข้อมูลรุ่นก่อน — ทางเดียวที่ควรอ่านค่านี้
+     * เครื่องที่บันทึก kioskDiningStep:false ไว้ เคยได้พฤติกรรม "บังคับกินที่ร้าน"
+     * จึงต้องแปลงเป็น DINE_IN ไม่ใช่ ASK ไม่งั้นค่าที่ผู้จัดการตั้งไว้เปลี่ยนเองเงียบ ๆ
+     * (ด้วยเหตุนี้ kioskDiningMode จึงห้ามอยู่ใน CF_KIOSK_DEFAULTS — ค่า default
+     *  จะถูก merge ทับจนแยกไม่ออกว่า "ตั้งเป็น ASK" กับ "ยังไม่เคยตั้ง" ต่างกันตรงไหน)
+     */
+    function CF_DINING_MODE(s) {
+        if (s && CF_DINING_MODES.some((m) => m.v === s.kioskDiningMode)) return s.kioskDiningMode;
+        if (s && s.kioskDiningStep === false) return 'DINE_IN';
+        return 'ASK';
+    }
+
+    /**
+     * ค่าเริ่มต้นของคีออสก์ — ประกาศที่เดียว ใช้ทั้งหน้าคีออสก์และหน้าตั้งค่าหลังบ้าน
+     * อ่านผ่านตัว merge เสมอ ฐานข้อมูลเก่าที่ยังไม่มีคีย์จึงไม่พัง
+     */
+    const CF_KIOSK_DEFAULTS = {
+        kioskOrientation: 'PORTRAIT',   // PORTRAIT | LANDSCAPE
+        kioskScale: 1,                  // จอ 21" ใช้ 1.25 · 32" ใช้ 0.95
+        kioskFrame: true,
+        // ⚠️ kioskDiningMode ไม่อยู่ในนี้โดยตั้งใจ — ดูเหตุผลที่ CF_DINING_MODE()
+        kioskUpsell: true,
+        kioskImages: true,
+        kioskIdleSec: 90,
+        kioskDoneSec: 12,
+    };
+    /** พรีเซ็ตขนาดจอ — พิกเซลเท่ากันแต่ขนาดกายภาพต่างกันเกือบ 1.5 เท่า */
+    const CF_KIOSK_SIZES = [
+        { in: '21"', scale: 1.25 }, { in: '24"', scale: 1.1 },
+        { in: '27"', scale: 1.0 },  { in: '32"', scale: 0.95 },
+    ];
+
+    return {
+        CF_STATIONS, CF_SERVE, CF_SERVE_ORDER, CF_STATUS,
+        CF_DINING, CF_DINING_MODES, CF_DINING_MODE,
+        CF_KIOSK_DEFAULTS, CF_KIOSK_SIZES,
+    };
+});
+
+/* ===== cf-flow.js ===== */
+/**
+ * CafeFlow — ผังสถานะออเดอร์ (§7)
+ * ------------------------------------------------------------
+ * แหล่งความจริงเพียงที่เดียวของ state machine — ใช้ร่วมกันสามที่:
+ * เบราว์เซอร์ (สร้างปุ่ม), เซิร์ฟเวอร์ (ตัดสินจริงในทรานแซกชัน), อาร์ติแฟกต์คีออสก์
+ *
+ * ⚠️ ตรรกะบริสุทธิ์เท่านั้น — ห้ามอ้าง window / CFStore / showToast / fetch
+ */
+(function (root, factory) {
+    const m = factory();
+    if (typeof module === 'object' && module.exports) module.exports = m;
+    else Object.keys(m).forEach((k) => { root[k] = m[k]; });
+})(typeof self !== 'undefined' ? self : this, function () {
+    'use strict';
+
+    /** key = สถานะปัจจุบัน, value = ไปต่อได้ที่ไหนบ้าง */
+    const CF_FLOW = {
+        DRAFT:           ['ORDER_CONFIRMED', 'CANCELLED'],
+        ORDER_CONFIRMED: ['WAITING_CASH', 'WAITING_PAYMENT', 'CANCELLED'],
+        WAITING_CASH:    ['PAID', 'CANCELLED'],
+        WAITING_PAYMENT: ['PAID', 'PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'CANCELLED'],
+        PAYMENT_TIMEOUT: ['PAYMENT_REVIEW', 'CANCELLED'],
+        PAYMENT_REVIEW:  ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
+        PAYMENT_FAILED:  ['WAITING_PAYMENT', 'CANCELLED'],
+        PAID:            ['SENT_TO_KITCHEN', 'VOIDED', 'REFUNDED'],
+        SENT_TO_KITCHEN: ['PREPARING', 'READY', 'VOIDED'],
+        PREPARING:       ['READY', 'VOIDED'],
+        READY:           ['SERVED'],
+        SERVED:          ['COMPLETED'],
+        COMPLETED:       ['REFUNDED'],
+        CANCELLED: [], VOIDED: [], REFUNDED: [],
+    };
+
+    /** สถานะที่ต้องมีเหตุผลกำกับเสมอ — ระบบตรวจสอบย้อนหลังได้ */
+    const CF_REASON_REQUIRED = ['CANCELLED', 'VOIDED', 'REFUNDED', 'PAYMENT_FAILED'];
+
+    /** ป้ายปุ่มภาษาไทยของแต่ละสถานะปลายทาง */
+    const CF_ACTION_LABEL = {
+        ORDER_CONFIRMED: 'ยืนยันออเดอร์',
+        WAITING_CASH:    'ส่งไปรอเงินสด',
+        WAITING_PAYMENT: 'ออก QR ชำระเงิน',
+        PAID:            'ยืนยันการชำระ',
+        PAYMENT_REVIEW:  'ส่งตรวจสอบการชำระ',
+        PAYMENT_TIMEOUT: 'หมดเวลาชำระ',
+        PAYMENT_FAILED:  'ชำระไม่สำเร็จ',
+        SENT_TO_KITCHEN: 'ส่งเข้าครัว',
+        PREPARING:       'เริ่มจัดเตรียม',
+        READY:           'พร้อมรับ',
+        SERVED:          'ส่งมอบลูกค้า',
+        COMPLETED:       'ปิดรายการ',
+        CANCELLED:       'ยกเลิกออเดอร์',
+        VOIDED:          'ยกเลิกบิล',
+        REFUNDED:        'คืนเงิน',
+    };
+
+    /**
+     * สถานะ → ชื่อช่องเวลาที่ต้องปั๊ม
+     * ฝั่งเบราว์เซอร์ลงใน order.ts[...] · ฝั่งเซิร์ฟเวอร์เป็นชื่อคอลัมน์ (snake_case)
+     */
+    const CF_STAMP = {
+        PAID: 'paidAt', SENT_TO_KITCHEN: 'sentAt', PREPARING: 'preparingAt',
+        READY: 'readyAt', SERVED: 'servedAt', COMPLETED: 'completedAt',
+        CANCELLED: 'cancelledAt', VOIDED: 'voidedAt', REFUNDED: 'refundedAt',
+    };
+
+    /** สถานะถัดไปที่ถูกกฎ — ใช้ generate ปุ่ม จึงไม่มีปุ่มที่กดแล้วพัง */
+    function nextStates(status) { return CF_FLOW[status] || []; }
+    function canGo(status, to) { return nextStates(status).indexOf(to) !== -1; }
+    function needsReason(status) { return CF_REASON_REQUIRED.indexOf(status) !== -1; }
+    function stampFor(status) { return CF_STAMP[status] || null; }
+
+    /** สถานะที่ถือว่าจบแล้ว ไม่มีทางไปต่อ */
+    function isTerminal(status) { return nextStates(status).length === 0; }
+
+    // ค่าคงที่ขึ้นต้น CF_ ปล่อยเป็น global ได้ (ชื่อเฉพาะพอ) ส่วนฟังก์ชันรวมเป็น CFFlow
+    return {
+        CF_FLOW, CF_REASON_REQUIRED, CF_ACTION_LABEL, CF_STAMP,
+        CFFlow: { nextStates, canGo, needsReason, stampFor, isTerminal },
+    };
+});
+
+/* ===== cf-pricing.js ===== */
+/**
+ * CafeFlow — โมเดลราคา
+ * ------------------------------------------------------------
+ * สูตรคิดราคาชุดเดียวของทั้งระบบ ถ้าเบราว์เซอร์กับเซิร์ฟเวอร์คิดคนละแบบเมื่อไหร่
+ * ราคาที่ลูกค้าเห็นกับที่ร้านเก็บเงินจะไม่ตรงกัน — นั่นคือบั๊กที่ลูกค้าจับได้ก่อนเรา
+ *
+ * **สินค้าเก็บราคาเป็น sparse map `prices: {HOT:50, ICED:50}`
+ *   คีย์ที่ไม่มี = ไม่มีขายแบบนั้น ('–' บนป้ายหน้าร้าน) ซึ่งต่างจากราคา 0**
+ *
+ * ⚠️ ตรรกะบริสุทธิ์เท่านั้น — ห้ามอ้าง window / CFStore / fetch
+ */
+(function (root, factory) {
+    const m = factory();
+    if (typeof module === 'object' && module.exports) module.exports = m;
+    else Object.keys(m).forEach((k) => { root[k] = m[k]; });
+})(typeof self !== 'undefined' ? self : this, function () {
+    'use strict';
+
+    const ORDER = ['HOT', 'ICED', 'FRAPPE', 'STD'];
+
+    /** แบบเสิร์ฟที่สินค้านี้มีขายจริง เรียงตามลำดับบนป้าย */
+    function serveTypesOf(product) {
+        if (!product || !product.prices) return [];
+        return ORDER.filter((k) => product.prices[k] != null);
+    }
+
+    /**
+     * ทางเดียวที่อ่านราคาสินค้า — ห้ามอ่าน product.price ตรง ๆ ที่ไหนอีก
+     * คืน null เมื่อแบบเสิร์ฟนั้นไม่มีขาย ซึ่งต่างจากราคา 0
+     */
+    function priceOf(product, serveType) {
+        if (!product || !product.prices) return null;
+        if (serveType && product.prices[serveType] != null) return product.prices[serveType];
+        if (serveType) return null;
+        const first = serveTypesOf(product)[0];
+        return first ? product.prices[first] : null;
+    }
+
+    /** ราคาต่ำสุดของสินค้า — ใช้แสดง "เริ่มต้น ฿xx" บนการ์ดคีออสก์ */
+    function minPriceOf(product) {
+        const vals = serveTypesOf(product).map((k) => product.prices[k]);
+        return vals.length ? Math.min.apply(null, vals) : 0;
+    }
+
+    /** ราคาต่อหน่วยหลังรวมส่วนเพิ่มของตัวเลือก */
+    function unitPriceOf(product, serveType, mods) {
+        const base = priceOf(product, serveType);
+        if (base == null) return null;
+        return base + (mods || []).reduce((s, m) => s + (m.priceDelta || 0), 0);
+    }
+
+    /** ยอดของหนึ่งบรรทัดในตะกร้า/ออเดอร์ */
+    function lineTotal(product, serveType, mods, qty) {
+        const unit = unitPriceOf(product, serveType, mods);
+        return unit == null ? 0 : unit * (qty || 1);
+    }
+
+    /** ยอดรวมทั้งตะกร้า — lines = [{product, serveType, mods, qty}] */
+    function cartTotal(lines) {
+        return (lines || []).reduce(
+            (s, l) => s + lineTotal(l.product, l.serveType, l.mods, l.qty), 0);
+    }
+
+    // ส่งออกเป็นก้อนเดียวชื่อ CFPricing — ชื่อสั้น ๆ อย่าง priceOf ถ้าหลุดเป็น
+    // global ในเบราว์เซอร์มีโอกาสชนกับสคริปต์อื่นสูงเกินไป
+    return { CFPricing: { serveTypesOf, priceOf, minPriceOf, unitPriceOf, lineTotal, cartTotal } };
+});
+
+/* ===== cf-rules.js ===== */
+/**
+ * CafeFlow — กฎตัวเลือกสินค้า (§11)
+ * ------------------------------------------------------------
+ * ผูกกับ "แบบเสิร์ฟ" และ "หมวด" ไม่ใช่ hard-code ต่อสินค้า
+ * ทั้งหน้าจัดการเมนู หน้าคีออสก์ และเซิร์ฟเวอร์ต้องใช้ชุดเดียวกัน
+ * ถ้าสองที่คิดกฎต่างกันเมื่อไหร่ ตัวเลือกที่ลูกค้าเห็นกับที่ร้านตั้งจะไม่ตรงกัน
+ *
+ * ⚠️ รุ่นนี้เป็น pure — รับ `data` เข้ามาแทนการอ่าน CFStore ตรง ๆ
+ *    เพราะเซิร์ฟเวอร์ไม่มี CFStore · ฝั่งเบราว์เซอร์มี adapter ใน cf-app.js
+ *    ที่ฉีด CFStore.db ให้ ลายเซ็นที่หน้าเว็บเรียกอยู่จึงไม่เปลี่ยน
+ *
+ *    data = { modifierRules, modifierGroups, modifierOptions }  (array ทั้งสามตัว)
+ */
+(function (root, factory) {
+    const m = factory();
+    if (typeof module === 'object' && module.exports) module.exports = m;
+    else Object.keys(m).forEach((k) => { root[k] = m[k]; });
+})(typeof self !== 'undefined' ? self : this, function () {
+    'use strict';
+
+    const arr = (x) => (Array.isArray(x) ? x : []);
+
+    /** กลุ่มตัวเลือกที่ต้องแสดง สำหรับสินค้า + แบบเสิร์ฟหนึ่ง ๆ */
+    function groupsFor(serveType, categoryId, data) {
+        data = data || {};
+        const groups = arr(data.modifierGroups);
+        const seen = {};
+        return arr(data.modifierRules)
+            .filter((r) => (r.serveType && r.serveType === serveType) ||
+                           (r.categoryId && r.categoryId === categoryId))
+            .sort((a, b) => a.sort - b.sort)
+            .map((r) => groups.find((g) => g.id === r.groupId))
+            .filter((g) => {
+                if (!g || seen[g.id]) return false;
+                seen[g.id] = true;
+                return true;
+            });
+    }
+
+    /** กลุ่มที่ถูกกฎซ่อน — ใช้อธิบายให้ผู้ใช้เห็นว่ามี rule engine อยู่จริง */
+    function hiddenFor(serveType, categoryId, data) {
+        const shown = {};
+        groupsFor(serveType, categoryId, data).forEach((g) => { shown[g.id] = true; });
+        return arr((data || {}).modifierGroups).filter((g) => !shown[g.id]);
+    }
+
+    function optionsOf(groupId, data) {
+        return arr((data || {}).modifierOptions)
+            .filter((o) => o.groupId === groupId)
+            .sort((a, b) => a.sort - b.sort);
+    }
+
+    /** ตัวเลือกเริ่มต้นของสินค้า + แบบเสิร์ฟ — คีออสก์ใช้ตั้งค่าเริ่มต้นให้ลูกค้า */
+    function defaultsFor(serveType, categoryId, data) {
+        const out = [];
+        groupsFor(serveType, categoryId, data).forEach((g) => {
+            if (g.type !== 'SINGLE') return;
+            const d = optionsOf(g.id, data).find((o) => o.isDefault);
+            if (d) {
+                out.push({
+                    groupId: g.id, optionId: d.id, label: d.nameTh,
+                    shortLabel: d.shortLabel, priceDelta: d.priceDelta,
+                });
+            }
+        });
+        return out;
+    }
+
+    /**
+     * ตรวจว่าตัวเลือกที่ส่งมาถูกกฎไหม — เซิร์ฟเวอร์ใช้ตอนรับออเดอร์
+     * คืน array ของข้อความปัญหา (ว่าง = ผ่าน)
+     */
+    function validate(serveType, categoryId, mods, data) {
+        const problems = [];
+        const groups = groupsFor(serveType, categoryId, data);
+        const allowed = {};
+        groups.forEach((g) => { optionsOf(g.id, data).forEach((o) => { allowed[o.id] = g; }); });
+
+        arr(mods).forEach((m) => {
+            if (!allowed[m.optionId]) problems.push('ตัวเลือก "' + (m.label || m.optionId) + '" ไม่ถูกกฎของสินค้านี้');
+        });
+        groups.forEach((g) => {
+            const picked = arr(mods).filter((m) => m.groupId === g.id);
+            if (g.required && picked.length === 0) problems.push('ต้องเลือก "' + g.nameTh + '"');
+            if (g.type === 'SINGLE' && picked.length > 1) problems.push('"' + g.nameTh + '" เลือกได้อย่างเดียว');
+        });
+        return problems;
+    }
+
+    return { CFRulesCore: { groupsFor, hiddenFor, optionsOf, defaultsFor, validate } };
+});
+
 /* ===== cf-data.js ===== */
 /**
  * CafeFlow — SEED DATA
@@ -1488,93 +1843,11 @@ window.showToast = function (m) { if (window.CFKiosk) CFKiosk.toast(m, 2400); };
  */
 
 /* ══════════════════════════════════════════════════════════
-   ค่าคงที่ที่ใช้ร่วมทั้งแอป
+   ค่าคงที่ที่ใช้ร่วมทั้งแอป — ย้ายไป shared/cf-consts.js แล้ว
+   (CF_STATIONS · CF_SERVE · CF_SERVE_ORDER · CF_STATUS · CF_DINING ·
+    CF_DINING_MODES · CF_DINING_MODE · CF_KIOSK_DEFAULTS · CF_KIOSK_SIZES)
+   เซิร์ฟเวอร์ Node ต้องใช้ชุดเดียวกับเบราว์เซอร์ — shared/ จึงต้องโหลดก่อนไฟล์นี้เสมอ
    ══════════════════════════════════════════════════════════ */
-const CF_STATIONS = {
-    BAR:     { label: 'บาร์เครื่องดื่ม', icon: 'cup-soda' },
-    KITCHEN: { label: 'ครัวอาหาร',      icon: 'utensils' },
-    BAKERY:  { label: 'เบเกอรี่',        icon: 'croissant' },
-    DESSERT: { label: 'ของหวาน',         icon: 'cake-slice' },
-};
-
-/**
- * แบบเสิร์ฟ — แกนที่กำหนด "ราคา" ของสินค้า
- * ป้ายหน้าร้านมีสามคอลัมน์ ร้อน/เย็น/ปั่น และช่องที่เป็น '–' คือไม่มีขาย
- * STD ใช้กับของที่ไม่มีแกนนี้ (อาหาร เบเกอรี่ ของหวาน) — คีออสก์จะไม่แสดงตัวเลือกให้เลือก
- */
-const CF_SERVE = {
-    HOT:    { label: 'ร้อน', short: 'ร้อน', icon: 'flame' },
-    ICED:   { label: 'เย็น', short: 'เย็น', icon: 'snowflake' },
-    FRAPPE: { label: 'ปั่น', short: 'ปั่น', icon: 'blend' },
-    STD:    { label: 'ปกติ', short: '',     icon: 'utensils' },
-};
-const CF_SERVE_ORDER = ['HOT', 'ICED', 'FRAPPE', 'STD'];
-
-/**
- * ค่าเริ่มต้นของคีออสก์ — ประกาศที่เดียว ใช้ทั้งหน้าคีออสก์และหน้าตั้งค่าหลังบ้าน
- * อ่านผ่านตัว merge เสมอ ฐานข้อมูลเก่าที่ยังไม่มีคีย์จึงไม่พัง (ไม่ต้อง bump SCHEMA)
- */
-const CF_KIOSK_DEFAULTS = {
-    kioskOrientation: 'PORTRAIT',   // PORTRAIT | LANDSCAPE
-    kioskScale: 1,                  // จอ 21" ใช้ 1.25 · 32" ใช้ 0.95
-    kioskFrame: true,
-    // ⚠️ kioskDiningMode ไม่อยู่ในนี้โดยตั้งใจ — ถ้าใส่ ค่า default จะบังหน้าคีย์รุ่นก่อน
-    //    (kioskDiningStep) จนตัวแปลงค่ามองไม่เห็น อ่านผ่าน CF_DINING_MODE() เท่านั้น
-    kioskUpsell: true,
-    kioskImages: true,
-    kioskIdleSec: 90,
-    kioskDoneSec: 12,
-};
-/** พรีเซ็ตขนาดจอ — พิกเซลเท่ากันแต่ขนาดกายภาพต่างกันเกือบ 1.5 เท่า */
-const CF_KIOSK_SIZES = [
-    { in: '21"', scale: 1.25 }, { in: '24"', scale: 1.1 },
-    { in: '27"', scale: 1.0 },  { in: '32"', scale: 0.95 },
-];
-
-/** รูปแบบการรับสินค้า — ป้าย/ภาพอยู่ที่เดียว หน้าอื่นจะได้ไม่เขียนสตริงซ้ำ */
-const CF_DINING = {
-    DINE_IN:   { label: 'กินที่ร้าน', en: 'Dine in',   icon: 'store', art: 'dinein',   tint: 'C-FOOD' },
-    TAKE_AWAY: { label: 'กลับบ้าน',   en: 'Take away', icon: 'cart',  art: 'takeaway', tint: 'C-BAKERY' },
-};
-/** โหมดที่ตั้งได้จากหลังบ้าน — ร้านกลับบ้านอย่างเดียวไม่ต้องให้ลูกค้าตอบคำถามที่มีคำตอบเดียว */
-const CF_DINING_MODES = [
-    { v: 'ASK',       label: 'ให้ลูกค้าเลือก' },
-    { v: 'DINE_IN',   label: 'กินที่ร้านอย่างเดียว' },
-    { v: 'TAKE_AWAY', label: 'กลับบ้านอย่างเดียว' },
-];
-
-/**
- * อ่านโหมดจาก settings พร้อมรองรับฐานข้อมูลรุ่นก่อน — ทางเดียวที่ควรอ่านค่านี้
- * เครื่องที่บันทึก kioskDiningStep:false ไว้ เคยได้พฤติกรรม "บังคับกินที่ร้าน"
- * จึงต้องแปลงเป็น DINE_IN ไม่ใช่ ASK ไม่งั้นค่าที่ผู้จัดการตั้งไว้เปลี่ยนเองเงียบ ๆ
- * (ด้วยเหตุนี้ kioskDiningMode จึงห้ามอยู่ใน CF_KIOSK_DEFAULTS — ค่า default
- *  จะถูก merge ทับจนแยกไม่ออกว่า "ตั้งเป็น ASK" กับ "ยังไม่เคยตั้ง" ต่างกันตรงไหน)
- */
-function CF_DINING_MODE(s) {
-    if (s && CF_DINING_MODES.some((m) => m.v === s.kioskDiningMode)) return s.kioskDiningMode;
-    if (s && s.kioskDiningStep === false) return 'DINE_IN';
-    return 'ASK';
-}
-
-/** ป้ายสถานะภาษาไทย + สีชิปของ design system */
-const CF_STATUS = {
-    DRAFT:           { label: 'ร่าง',            chip: 'sip-chip-muted' },
-    ORDER_CONFIRMED: { label: 'ยืนยันออเดอร์',    chip: 'sip-chip-muted' },
-    WAITING_CASH:    { label: 'รอชำระเงินสด',     chip: 'sip-chip-active' },
-    WAITING_PAYMENT: { label: 'รอชำระ QR',        chip: 'sip-chip-active' },
-    PAYMENT_TIMEOUT: { label: 'QR หมดเวลา',       chip: 'sip-chip-danger' },
-    PAYMENT_REVIEW:  { label: 'รอตรวจสอบการชำระ', chip: 'sip-chip-danger' },
-    PAYMENT_FAILED:  { label: 'ชำระไม่สำเร็จ',    chip: 'sip-chip-danger' },
-    PAID:            { label: 'ชำระแล้ว',         chip: 'sip-chip-success' },
-    SENT_TO_KITCHEN: { label: 'ส่งเข้าครัวแล้ว',  chip: 'sip-chip-progress' },
-    PREPARING:       { label: 'กำลังจัดเตรียม',   chip: 'sip-chip-progress' },
-    READY:           { label: 'พร้อมรับ',         chip: 'sip-chip-success' },
-    SERVED:          { label: 'ส่งมอบแล้ว',       chip: 'sip-chip-success' },
-    COMPLETED:       { label: 'เสร็จสิ้น',        chip: 'sip-chip-muted' },
-    CANCELLED:       { label: 'ยกเลิก',           chip: 'sip-chip-danger' },
-    VOIDED:          { label: 'ยกเลิกบิล',        chip: 'sip-chip-danger' },
-    REFUNDED:        { label: 'คืนเงิน',          chip: 'sip-chip-danger' },
-};
 
 /* ══════════════════════════════════════════════════════════
    SEED
@@ -2044,6 +2317,10 @@ function CF_SEED(now) {
     };
 }
 
+
+/* ให้เซิร์ฟเวอร์ require() ไปใช้ seed ฐานข้อมูลจริงได้ — เบราว์เซอร์ข้ามบรรทัดนี้ */
+if (typeof module === 'object' && module.exports) module.exports = { CF_SEED };
+
 /* ===== cf-app.js ===== */
 /**
  * CafeFlow — APP SHELL
@@ -2158,29 +2435,20 @@ const CFApp = {
        แบบเสิร์ฟ (ร้อน / เย็น / ปั่น) — แกนที่กำหนดราคา
        ══════════════════════════════════════════════════════ */
 
+    /* สูตรจริงอยู่ที่ shared/cf-pricing.js — เซิร์ฟเวอร์ใช้ตัวเดียวกัน
+       ที่นี่เหลือแค่ทางผ่าน เพื่อให้ลายเซ็นที่หน้าเว็บเรียกอยู่ไม่เปลี่ยน */
+
     /** แบบเสิร์ฟที่สินค้านี้มีขายจริง เรียงตามลำดับบนป้าย */
-    serveTypesOf(product) {
-        if (!product || !product.prices) return [];
-        return CF_SERVE_ORDER.filter((k) => product.prices[k] != null);
-    },
+    serveTypesOf(product) { return CFPricing.serveTypesOf(product); },
 
     /**
      * ทางเดียวที่อ่านราคาสินค้า — ห้ามอ่าน product.price ตรง ๆ ที่ไหนอีก
      * คืน null เมื่อแบบเสิร์ฟนั้นไม่มีขาย ('–' บนป้าย) ซึ่งต่างจากราคา 0
      */
-    priceOf(product, serveType) {
-        if (!product || !product.prices) return null;
-        if (serveType && product.prices[serveType] != null) return product.prices[serveType];
-        if (serveType) return null;
-        const first = this.serveTypesOf(product)[0];
-        return first ? product.prices[first] : null;
-    },
+    priceOf(product, serveType) { return CFPricing.priceOf(product, serveType); },
 
     /** ราคาต่ำสุดของสินค้า — ใช้แสดง "เริ่มต้น ฿xx" บนการ์ดคีออสก์ */
-    minPriceOf(product) {
-        const vals = this.serveTypesOf(product).map((k) => product.prices[k]);
-        return vals.length ? Math.min(...vals) : 0;
-    },
+    minPriceOf(product) { return CFPricing.minPriceOf(product); },
 
     serveLabel(k) { return (CF_SERVE[k] || {}).label || ''; },
 
@@ -2246,47 +2514,26 @@ const CFApp = {
 };
 
 /**
- * กฎตัวเลือกสินค้า (§11)
+ * กฎตัวเลือกสินค้า (§11) — ตัวเชื่อมฝั่งเบราว์เซอร์
  * ------------------------------------------------------------
- * ผูกกับ "แบบเสิร์ฟ" และ "หมวด" ไม่ใช่ hard-code ต่อสินค้า
- * อยู่ที่นี่เพราะทั้งหน้าจัดการเมนูและหน้าคีออสก์ต้องใช้ตัวเดียวกัน
- * ถ้าสองที่คิดกฎต่างกันเมื่อไหร่ ราคาที่ลูกค้าเห็นกับที่ร้านตั้งจะไม่ตรงกัน
+ * กฎจริงเป็นฟังก์ชันบริสุทธิ์อยู่ที่ shared/cf-rules.js (เซิร์ฟเวอร์ใช้ตัวเดียวกัน)
+ * ที่นี่แค่ฉีดข้อมูลจาก CFStore เข้าไปให้ เพื่อให้ลายเซ็นที่หน้าเว็บเรียกอยู่
+ * — `CFRules.groupsFor(serveType, categoryId)` — ไม่เปลี่ยน
  */
-const CFRules = {
-
-    /** กลุ่มตัวเลือกที่ต้องแสดง สำหรับสินค้า + แบบเสิร์ฟหนึ่ง ๆ */
-    groupsFor(serveType, categoryId) {
-        const seen = new Set();
-        return CFStore.all('modifierRules')
-            .filter((r) => (r.serveType && r.serveType === serveType) ||
-                           (r.categoryId && r.categoryId === categoryId))
-            .sort((a, b) => a.sort - b.sort)
-            .map((r) => CFStore.byId('modifierGroups', r.groupId))
-            .filter((g) => g && !seen.has(g.id) && seen.add(g.id));
-    },
-
-    /** กลุ่มที่ถูกกฎซ่อน — ใช้อธิบายให้ผู้ใช้เห็นว่ามี rule engine อยู่จริง */
-    hiddenFor(serveType, categoryId) {
-        const shown = new Set(this.groupsFor(serveType, categoryId).map((g) => g.id));
-        return CFStore.all('modifierGroups').filter((g) => !shown.has(g.id));
-    },
-
-    optionsOf(groupId) {
-        return CFStore.where('modifierOptions', (o) => o.groupId === groupId)
-            .sort((a, b) => a.sort - b.sort);
-    },
-
-    /** ตัวเลือกเริ่มต้นของสินค้า + แบบเสิร์ฟ — คีออสก์ใช้ตั้งค่าเริ่มต้นให้ลูกค้า */
-    defaultsFor(serveType, categoryId) {
-        const out = [];
-        this.groupsFor(serveType, categoryId).forEach((g) => {
-            if (g.type !== 'SINGLE') return;
-            const d = this.optionsOf(g.id).find((o) => o.isDefault);
-            if (d) out.push({ groupId: g.id, optionId: d.id, label: d.nameTh, shortLabel: d.shortLabel, priceDelta: d.priceDelta });
-        });
-        return out;
-    },
-};
+const CFRules = (function () {
+    const data = () => ({
+        modifierRules:   CFStore.all('modifierRules'),
+        modifierGroups:  CFStore.all('modifierGroups'),
+        modifierOptions: CFStore.all('modifierOptions'),
+    });
+    return {
+        groupsFor:   (s, c) => CFRulesCore.groupsFor(s, c, data()),
+        hiddenFor:   (s, c) => CFRulesCore.hiddenFor(s, c, data()),
+        optionsOf:   (g)    => CFRulesCore.optionsOf(g, data()),
+        defaultsFor: (s, c) => CFRulesCore.defaultsFor(s, c, data()),
+        validate:    (s, c, mods) => CFRulesCore.validate(s, c, mods, data()),
+    };
+})();
 
 window.CFRules = CFRules;
 window.CFApp = CFApp;
@@ -2299,52 +2546,16 @@ window.CFApp = CFApp;
  * เพื่อให้ (ก) เดินตามผังชีวิตจริง (ข) มี audit log ทุกครั้ง
  */
 
-/* ── ผังสถานะ §7 — key = สถานะปัจจุบัน, value = ไปต่อได้ที่ไหนบ้าง ── */
-const CF_FLOW = {
-    DRAFT:           ['ORDER_CONFIRMED', 'CANCELLED'],
-    ORDER_CONFIRMED: ['WAITING_CASH', 'WAITING_PAYMENT', 'CANCELLED'],
-    WAITING_CASH:    ['PAID', 'CANCELLED'],
-    WAITING_PAYMENT: ['PAID', 'PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'CANCELLED'],
-    PAYMENT_TIMEOUT: ['PAYMENT_REVIEW', 'CANCELLED'],
-    PAYMENT_REVIEW:  ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
-    PAYMENT_FAILED:  ['WAITING_PAYMENT', 'CANCELLED'],
-    PAID:            ['SENT_TO_KITCHEN', 'VOIDED', 'REFUNDED'],
-    SENT_TO_KITCHEN: ['PREPARING', 'READY', 'VOIDED'],
-    PREPARING:       ['READY', 'VOIDED'],
-    READY:           ['SERVED'],
-    SERVED:          ['COMPLETED'],
-    COMPLETED:       ['REFUNDED'],
-    CANCELLED: [], VOIDED: [], REFUNDED: [],
-};
-
-/** สถานะที่ต้องมีเหตุผลกำกับเสมอ — ระบบตรวจสอบย้อนหลังได้ */
-const CF_REASON_REQUIRED = ['CANCELLED', 'VOIDED', 'REFUNDED', 'PAYMENT_FAILED'];
-
-/** ป้ายปุ่มภาษาไทยของแต่ละสถานะปลายทาง */
-const CF_ACTION_LABEL = {
-    ORDER_CONFIRMED: 'ยืนยันออเดอร์',
-    WAITING_CASH:    'ส่งไปรอเงินสด',
-    WAITING_PAYMENT: 'ออก QR ชำระเงิน',
-    PAID:            'ยืนยันการชำระ',
-    PAYMENT_REVIEW:  'ส่งตรวจสอบการชำระ',
-    PAYMENT_TIMEOUT: 'หมดเวลาชำระ',
-    PAYMENT_FAILED:  'ชำระไม่สำเร็จ',
-    SENT_TO_KITCHEN: 'ส่งเข้าครัว',
-    PREPARING:       'เริ่มจัดเตรียม',
-    READY:           'พร้อมรับ',
-    SERVED:          'ส่งมอบลูกค้า',
-    COMPLETED:       'ปิดรายการ',
-    CANCELLED:       'ยกเลิกออเดอร์',
-    VOIDED:          'ยกเลิกบิล',
-    REFUNDED:        'คืนเงิน',
-};
+/* ── ผังสถานะ CF_FLOW · CF_REASON_REQUIRED · CF_ACTION_LABEL ──
+   ย้ายไป shared/cf-flow.js แล้ว เพราะเซิร์ฟเวอร์ต้องตัดสินด้วยผังเดียวกับหน้าจอ
+   ไฟล์นี้เหลือเฉพาะ "การกระทำ" ส่วน "กฎ" อยู่ที่ shared/ */
 
 const CFOrders = {
 
     /** สถานะถัดไปที่ถูกกฎ — ใช้ generate ปุ่ม จึงไม่มีปุ่มที่กดแล้วพัง */
-    nextStates(order) { return CF_FLOW[order.status] || []; },
+    nextStates(order) { return CFFlow.nextStates(order.status); },
 
-    canGo(order, to) { return this.nextStates(order).includes(to); },
+    canGo(order, to) { return CFFlow.canGo(order.status, to); },
 
     /**
      * เปลี่ยนสถานะออเดอร์
@@ -2366,7 +2577,7 @@ const CFOrders = {
 
         // (2) เหตุผลบังคับ — ผู้เรียกต้องเก็บมาก่อน
         const reason = (opts.reason || '').trim();
-        if (CF_REASON_REQUIRED.includes(newStatus) && !reason) {
+        if (CFFlow.needsReason(newStatus) && !reason) {
             showToast('ต้องระบุเหตุผลก่อนทำรายการนี้', 'error');
             return false;
         }
@@ -2382,11 +2593,7 @@ const CFOrders = {
             o.status = newStatus;
             if (reason) o.cancelReason = reason;
 
-            const stamp = {
-                PAID: 'paidAt', SENT_TO_KITCHEN: 'sentAt', PREPARING: 'preparingAt',
-                READY: 'readyAt', SERVED: 'servedAt', COMPLETED: 'completedAt',
-                CANCELLED: 'cancelledAt', VOIDED: 'voidedAt', REFUNDED: 'refundedAt',
-            }[newStatus];
+            const stamp = CFFlow.stampFor(newStatus);
             if (stamp) { o.ts = o.ts || {}; o.ts[stamp] = nowIso; }
 
             this._audit(db, orderId, 'STATUS_CHANGE', from, newStatus, actor, reason, opts.device);

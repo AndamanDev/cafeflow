@@ -111,29 +111,20 @@ const CFApp = {
        แบบเสิร์ฟ (ร้อน / เย็น / ปั่น) — แกนที่กำหนดราคา
        ══════════════════════════════════════════════════════ */
 
+    /* สูตรจริงอยู่ที่ shared/cf-pricing.js — เซิร์ฟเวอร์ใช้ตัวเดียวกัน
+       ที่นี่เหลือแค่ทางผ่าน เพื่อให้ลายเซ็นที่หน้าเว็บเรียกอยู่ไม่เปลี่ยน */
+
     /** แบบเสิร์ฟที่สินค้านี้มีขายจริง เรียงตามลำดับบนป้าย */
-    serveTypesOf(product) {
-        if (!product || !product.prices) return [];
-        return CF_SERVE_ORDER.filter((k) => product.prices[k] != null);
-    },
+    serveTypesOf(product) { return CFPricing.serveTypesOf(product); },
 
     /**
      * ทางเดียวที่อ่านราคาสินค้า — ห้ามอ่าน product.price ตรง ๆ ที่ไหนอีก
      * คืน null เมื่อแบบเสิร์ฟนั้นไม่มีขาย ('–' บนป้าย) ซึ่งต่างจากราคา 0
      */
-    priceOf(product, serveType) {
-        if (!product || !product.prices) return null;
-        if (serveType && product.prices[serveType] != null) return product.prices[serveType];
-        if (serveType) return null;
-        const first = this.serveTypesOf(product)[0];
-        return first ? product.prices[first] : null;
-    },
+    priceOf(product, serveType) { return CFPricing.priceOf(product, serveType); },
 
     /** ราคาต่ำสุดของสินค้า — ใช้แสดง "เริ่มต้น ฿xx" บนการ์ดคีออสก์ */
-    minPriceOf(product) {
-        const vals = this.serveTypesOf(product).map((k) => product.prices[k]);
-        return vals.length ? Math.min(...vals) : 0;
-    },
+    minPriceOf(product) { return CFPricing.minPriceOf(product); },
 
     serveLabel(k) { return (CF_SERVE[k] || {}).label || ''; },
 
@@ -199,47 +190,26 @@ const CFApp = {
 };
 
 /**
- * กฎตัวเลือกสินค้า (§11)
+ * กฎตัวเลือกสินค้า (§11) — ตัวเชื่อมฝั่งเบราว์เซอร์
  * ------------------------------------------------------------
- * ผูกกับ "แบบเสิร์ฟ" และ "หมวด" ไม่ใช่ hard-code ต่อสินค้า
- * อยู่ที่นี่เพราะทั้งหน้าจัดการเมนูและหน้าคีออสก์ต้องใช้ตัวเดียวกัน
- * ถ้าสองที่คิดกฎต่างกันเมื่อไหร่ ราคาที่ลูกค้าเห็นกับที่ร้านตั้งจะไม่ตรงกัน
+ * กฎจริงเป็นฟังก์ชันบริสุทธิ์อยู่ที่ shared/cf-rules.js (เซิร์ฟเวอร์ใช้ตัวเดียวกัน)
+ * ที่นี่แค่ฉีดข้อมูลจาก CFStore เข้าไปให้ เพื่อให้ลายเซ็นที่หน้าเว็บเรียกอยู่
+ * — `CFRules.groupsFor(serveType, categoryId)` — ไม่เปลี่ยน
  */
-const CFRules = {
-
-    /** กลุ่มตัวเลือกที่ต้องแสดง สำหรับสินค้า + แบบเสิร์ฟหนึ่ง ๆ */
-    groupsFor(serveType, categoryId) {
-        const seen = new Set();
-        return CFStore.all('modifierRules')
-            .filter((r) => (r.serveType && r.serveType === serveType) ||
-                           (r.categoryId && r.categoryId === categoryId))
-            .sort((a, b) => a.sort - b.sort)
-            .map((r) => CFStore.byId('modifierGroups', r.groupId))
-            .filter((g) => g && !seen.has(g.id) && seen.add(g.id));
-    },
-
-    /** กลุ่มที่ถูกกฎซ่อน — ใช้อธิบายให้ผู้ใช้เห็นว่ามี rule engine อยู่จริง */
-    hiddenFor(serveType, categoryId) {
-        const shown = new Set(this.groupsFor(serveType, categoryId).map((g) => g.id));
-        return CFStore.all('modifierGroups').filter((g) => !shown.has(g.id));
-    },
-
-    optionsOf(groupId) {
-        return CFStore.where('modifierOptions', (o) => o.groupId === groupId)
-            .sort((a, b) => a.sort - b.sort);
-    },
-
-    /** ตัวเลือกเริ่มต้นของสินค้า + แบบเสิร์ฟ — คีออสก์ใช้ตั้งค่าเริ่มต้นให้ลูกค้า */
-    defaultsFor(serveType, categoryId) {
-        const out = [];
-        this.groupsFor(serveType, categoryId).forEach((g) => {
-            if (g.type !== 'SINGLE') return;
-            const d = this.optionsOf(g.id).find((o) => o.isDefault);
-            if (d) out.push({ groupId: g.id, optionId: d.id, label: d.nameTh, shortLabel: d.shortLabel, priceDelta: d.priceDelta });
-        });
-        return out;
-    },
-};
+const CFRules = (function () {
+    const data = () => ({
+        modifierRules:   CFStore.all('modifierRules'),
+        modifierGroups:  CFStore.all('modifierGroups'),
+        modifierOptions: CFStore.all('modifierOptions'),
+    });
+    return {
+        groupsFor:   (s, c) => CFRulesCore.groupsFor(s, c, data()),
+        hiddenFor:   (s, c) => CFRulesCore.hiddenFor(s, c, data()),
+        optionsOf:   (g)    => CFRulesCore.optionsOf(g, data()),
+        defaultsFor: (s, c) => CFRulesCore.defaultsFor(s, c, data()),
+        validate:    (s, c, mods) => CFRulesCore.validate(s, c, mods, data()),
+    };
+})();
 
 window.CFRules = CFRules;
 window.CFApp = CFApp;

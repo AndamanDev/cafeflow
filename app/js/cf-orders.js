@@ -5,52 +5,16 @@
  * เพื่อให้ (ก) เดินตามผังชีวิตจริง (ข) มี audit log ทุกครั้ง
  */
 
-/* ── ผังสถานะ §7 — key = สถานะปัจจุบัน, value = ไปต่อได้ที่ไหนบ้าง ── */
-const CF_FLOW = {
-    DRAFT:           ['ORDER_CONFIRMED', 'CANCELLED'],
-    ORDER_CONFIRMED: ['WAITING_CASH', 'WAITING_PAYMENT', 'CANCELLED'],
-    WAITING_CASH:    ['PAID', 'CANCELLED'],
-    WAITING_PAYMENT: ['PAID', 'PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'CANCELLED'],
-    PAYMENT_TIMEOUT: ['PAYMENT_REVIEW', 'CANCELLED'],
-    PAYMENT_REVIEW:  ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
-    PAYMENT_FAILED:  ['WAITING_PAYMENT', 'CANCELLED'],
-    PAID:            ['SENT_TO_KITCHEN', 'VOIDED', 'REFUNDED'],
-    SENT_TO_KITCHEN: ['PREPARING', 'READY', 'VOIDED'],
-    PREPARING:       ['READY', 'VOIDED'],
-    READY:           ['SERVED'],
-    SERVED:          ['COMPLETED'],
-    COMPLETED:       ['REFUNDED'],
-    CANCELLED: [], VOIDED: [], REFUNDED: [],
-};
-
-/** สถานะที่ต้องมีเหตุผลกำกับเสมอ — ระบบตรวจสอบย้อนหลังได้ */
-const CF_REASON_REQUIRED = ['CANCELLED', 'VOIDED', 'REFUNDED', 'PAYMENT_FAILED'];
-
-/** ป้ายปุ่มภาษาไทยของแต่ละสถานะปลายทาง */
-const CF_ACTION_LABEL = {
-    ORDER_CONFIRMED: 'ยืนยันออเดอร์',
-    WAITING_CASH:    'ส่งไปรอเงินสด',
-    WAITING_PAYMENT: 'ออก QR ชำระเงิน',
-    PAID:            'ยืนยันการชำระ',
-    PAYMENT_REVIEW:  'ส่งตรวจสอบการชำระ',
-    PAYMENT_TIMEOUT: 'หมดเวลาชำระ',
-    PAYMENT_FAILED:  'ชำระไม่สำเร็จ',
-    SENT_TO_KITCHEN: 'ส่งเข้าครัว',
-    PREPARING:       'เริ่มจัดเตรียม',
-    READY:           'พร้อมรับ',
-    SERVED:          'ส่งมอบลูกค้า',
-    COMPLETED:       'ปิดรายการ',
-    CANCELLED:       'ยกเลิกออเดอร์',
-    VOIDED:          'ยกเลิกบิล',
-    REFUNDED:        'คืนเงิน',
-};
+/* ── ผังสถานะ CF_FLOW · CF_REASON_REQUIRED · CF_ACTION_LABEL ──
+   ย้ายไป shared/cf-flow.js แล้ว เพราะเซิร์ฟเวอร์ต้องตัดสินด้วยผังเดียวกับหน้าจอ
+   ไฟล์นี้เหลือเฉพาะ "การกระทำ" ส่วน "กฎ" อยู่ที่ shared/ */
 
 const CFOrders = {
 
     /** สถานะถัดไปที่ถูกกฎ — ใช้ generate ปุ่ม จึงไม่มีปุ่มที่กดแล้วพัง */
-    nextStates(order) { return CF_FLOW[order.status] || []; },
+    nextStates(order) { return CFFlow.nextStates(order.status); },
 
-    canGo(order, to) { return this.nextStates(order).includes(to); },
+    canGo(order, to) { return CFFlow.canGo(order.status, to); },
 
     /**
      * เปลี่ยนสถานะออเดอร์
@@ -72,7 +36,7 @@ const CFOrders = {
 
         // (2) เหตุผลบังคับ — ผู้เรียกต้องเก็บมาก่อน
         const reason = (opts.reason || '').trim();
-        if (CF_REASON_REQUIRED.includes(newStatus) && !reason) {
+        if (CFFlow.needsReason(newStatus) && !reason) {
             showToast('ต้องระบุเหตุผลก่อนทำรายการนี้', 'error');
             return false;
         }
@@ -88,11 +52,7 @@ const CFOrders = {
             o.status = newStatus;
             if (reason) o.cancelReason = reason;
 
-            const stamp = {
-                PAID: 'paidAt', SENT_TO_KITCHEN: 'sentAt', PREPARING: 'preparingAt',
-                READY: 'readyAt', SERVED: 'servedAt', COMPLETED: 'completedAt',
-                CANCELLED: 'cancelledAt', VOIDED: 'voidedAt', REFUNDED: 'refundedAt',
-            }[newStatus];
+            const stamp = CFFlow.stampFor(newStatus);
             if (stamp) { o.ts = o.ts || {}; o.ts[stamp] = nowIso; }
 
             this._audit(db, orderId, 'STATUS_CHANGE', from, newStatus, actor, reason, opts.device);

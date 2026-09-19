@@ -32,7 +32,13 @@ CSS_FILES = [
 ]
 
 # ── JS: ลำดับสำคัญ — CF_SEED ต้องมีก่อน CFStore.init() ที่ท้ายสุด ──
+# shared/ ต้องมาก่อนทุกอย่าง เพราะ cf-data/cf-app/cf-orders อ่านค่าคงที่กับกฎจากที่นั่น
+# (ไฟล์ใน shared/ เป็นตรรกะบริสุทธิ์ ไม่มี fetch/localStorage จึงผ่านด่านตรวจ)
 JS_FILES = [
+    ROOT / 'shared' / 'cf-consts.js',
+    ROOT / 'shared' / 'cf-flow.js',
+    ROOT / 'shared' / 'cf-pricing.js',
+    ROOT / 'shared' / 'cf-rules.js',
     APP / 'js' / 'cf-data.js',        # เมนูจริง หมวด กฎตัวเลือก ออเดอร์ตัวอย่าง
     APP / 'js' / 'cf-app.js',         # formatter + CFRules (กฎ §11)
     APP / 'js' / 'cf-orders.js',      # state machine §7 — ห้าม fork
