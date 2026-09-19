@@ -18,6 +18,7 @@ const { buildSnapshot } = require('./routes/bootstrap');
 const { registerStream, publish } = require('./routes/stream');
 const { registerAuth } = require('./routes/auth');
 const { registerOrders } = require('./routes/orders');
+const { registerAdmin } = require('./routes/admin');
 
 loadEnv();
 
@@ -113,7 +114,8 @@ app.post('/api/devices/:id/heartbeat', async (req, reply) => {
 
 registerStream(app, () => BRANCH_ID);
 registerAuth(app, { query, branchId: () => BRANCH_ID });
-registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
+const helpers = registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
+registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

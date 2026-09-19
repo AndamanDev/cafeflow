@@ -498,6 +498,21 @@ const MenuPage = {
 
         if (!name) { showToast('ต้องระบุชื่อกลุ่ม', 'error'); return; }
 
+        const done = () => {
+            this._groupType = null;
+            this._groupRequired = null;
+            showToast('บันทึกกลุ่มตัวเลือกแล้ว', 'success');
+            Drawer.close();     // → restore drawer สินค้า แล้ว onClose จะ refresh ให้
+        };
+
+        if (CFStore.mode === 'api') {
+            CFStore.cmd('patch', '/api/modifier-groups/' + encodeURIComponent(id),
+                { nameTh: name, type, required: req })
+                .then(done)
+                .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
+            return;
+        }
+
         CFStore.mutate((db) => {
             const g = db.modifierGroups.find((x) => x.id === id);
             g.nameTh = name;
@@ -505,10 +520,7 @@ const MenuPage = {
             if (req != null) g.required = req;
         }, 'group-save');
 
-        this._groupType = null;
-        this._groupRequired = null;
-        showToast('บันทึกกลุ่มตัวเลือกแล้ว', 'success');
-        Drawer.close();     // → restore drawer สินค้า แล้ว onClose จะ refresh ให้
+        done();
     },
 
     /* ══════════════════════════════════════════════════════
@@ -525,6 +537,25 @@ const MenuPage = {
         if (bad) { showToast('ราคาแบบ "' + CF_SERVE[bad].label + '" ต้องมากกว่า 0', 'error'); return; }
 
         const isNew = !d.id;
+
+        if (CFStore.mode === 'api') {
+            // เซิร์ฟเวอร์ออก id และตรวจราคาซ้ำอีกชั้น — ที่นี่แค่ส่งสิ่งที่ผู้ใช้กรอก
+            const body = {
+                categoryId: d.categoryId, groupTh: d.groupTh, nameTh: d.nameTh, nameEn: d.nameEn,
+                imageUrl: d.imageUrl, artKey: d.artKey, station: d.station,
+                active: d.active !== false, soldOut: !!d.soldOut, recommended: !!d.recommended,
+                prices: d.prices,
+            };
+            CFStore.cmd(isNew ? 'post' : 'put',
+                isNew ? '/api/products' : '/api/products/' + encodeURIComponent(d.id), body)
+                .then(() => {
+                    Drawer.close();
+                    showToast(isNew ? 'เพิ่มสินค้าแล้ว' : 'บันทึกการแก้ไขแล้ว', 'success');
+                })
+                .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
+            return;
+        }
+
         CFStore.mutate((db) => {
             if (isNew) {
                 d.id = 'P-NEW-' + Date.now().toString(36);
@@ -552,12 +583,21 @@ const MenuPage = {
         });
         if (!ok) return;
 
-        CFStore.mutate((db) => {
-            const x = db.products.find((y) => y.id === id);
-            x.active = false;
-            CFOrders._audit(db, null, 'PRODUCT_UPDATE', null, null,
-                (CFAuth.getUser() || {}).id, 'ปิดการขาย ' + x.nameTh);
-        }, 'product-archive');
+        if (CFStore.mode === 'api') {
+            try {
+                await CFStore.cmd('post', '/api/products/' + encodeURIComponent(id) + '/archive', {});
+            } catch (err) {
+                showToast(err.message || 'ปิดการขายไม่สำเร็จ', 'error', 4000);
+                return;
+            }
+        } else {
+            CFStore.mutate((db) => {
+                const x = db.products.find((y) => y.id === id);
+                x.active = false;
+                CFOrders._audit(db, null, 'PRODUCT_UPDATE', null, null,
+                    (CFAuth.getUser() || {}).id, 'ปิดการขาย ' + x.nameTh);
+            }, 'product-archive');
+        }
 
         showToast('ปิดการขาย ' + p.nameTh + ' แล้ว', 'success');
     },

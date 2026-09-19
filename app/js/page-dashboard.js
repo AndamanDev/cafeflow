@@ -262,6 +262,23 @@ const DashPage = {
         // ไม่งั้นค่าเก่ายังนั่งอยู่ในฐานข้อมูลและไปโผล่ในตัวแปลงค่าเวลาคีย์ใหม่หาย
         d.kioskDiningMode = CF_DINING_MODE(d);
         delete d.kioskDiningStep;
+
+        if (CFStore.mode === 'api') {
+            // ส่งเฉพาะคีย์ของคีออสก์ ไม่เหวี่ยง settings ทั้งก้อนกลับไป
+            // ไม่งั้นค่าที่คนอื่นเพิ่งแก้จากอีกเครื่องจะถูกทับด้วยค่าเก่าที่เราโหลดมาตอนเปิด drawer
+            const keys = Object.keys(CF_KIOSK_DEFAULTS)
+                .concat(['kioskDiningMode', 'qrTimeoutSec']);
+            const patch = {};
+            keys.forEach((k) => { if (d[k] !== undefined) patch[k] = d[k]; });
+            CFStore.cmd('patch', '/api/settings', patch)
+                .then(() => {
+                    Drawer.close();
+                    showToast('บันทึกการตั้งค่าคีออสก์แล้ว', 'success');
+                })
+                .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
+            return;
+        }
+
         CFStore.mutate((db) => {
             Object.assign(db.settings, d);
             delete db.settings.kioskDiningStep;
