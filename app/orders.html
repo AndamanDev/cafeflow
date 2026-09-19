@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — จัดการออเดอร์ (§7, §8, §19)
+  โครง: .ds-shell.cols-3 → ต้องมี class="ds-shell-page" ที่ <body>
+  หน้านี้เป็นบ้านหลักของ print-preview drawer
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — จัดการออเดอร์</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init(); CFAuth.guard();</script>
+</head>
+<body data-page="orders" class="ds-shell-page">
+
+<nav id="appNavbar"></nav>
+
+<div class="ds-shell cols-3" id="shell">
+
+    <!-- ══════ ซ้าย: รายการออเดอร์ ══════ -->
+    <aside class="ds-pane-left" id="paneLeft">
+        <div class="ds-pane-header">
+            <h3><i data-lucide="receipt" class="mi"></i> ออเดอร์</h3>
+            <span class="ds-pane-count" id="listCount">0</span>
+        </div>
+        <div class="ds-pane-tools">
+            <select class="sip-select" id="groupSelect" onchange="OrdersPage.setGroup(this.value)">
+                <option value="recent">เรียง: ใหม่ล่าสุด</option>
+                <option value="oldest">เรียง: เก่าสุด</option>
+                <option value="amount">เรียง: ยอดสูงสุด</option>
+            </select>
+        </div>
+        <div class="ds-pilltabs" id="pillTabs"></div>
+        <input class="ds-pane-search" id="listSearch" placeholder="ค้นหาเลขออเดอร์ / คีออสก์"
+               oninput="OrdersPage.setQuery(this.value)">
+        <div class="ds-pane-scroll" id="listContainer"></div>
+    </aside>
+
+    <!-- ══════ กลาง: รายละเอียด ══════ -->
+    <main class="ds-pane-main" id="paneMain">
+
+        <div class="ds-empty-state" id="emptyState">
+            <div class="ds-empty-state-icon"><i data-lucide="receipt-text"></i></div>
+            <div class="ds-empty-state-title">เลือกออเดอร์จากรายการทางซ้าย</div>
+            <div class="ds-empty-state-desc">เพื่อดูรายการสินค้า การชำระเงิน และประวัติการทำงาน</div>
+        </div>
+
+        <div id="detailWrap" style="display:none">
+            <div class="ds-context-bar">
+                <button class="ds-pane-toggle" onclick="OrdersPage.toggleLeft()" title="ซ่อน/แสดงรายการ">
+                    <i data-lucide="panel-left" class="icon-sm"></i>
+                </button>
+                <div class="ds-context-avatar" id="ctxAvatar">A</div>
+                <div class="ds-context-info">
+                    <div class="ds-context-name">
+                        <span id="ctxNo">—</span>
+                        <span id="ctxChip"></span>
+                    </div>
+                    <div class="ds-context-meta">
+                        <span id="ctxKiosk"></span>
+                        <span id="ctxTime"></span>
+                        <span id="ctxTotal"></span>
+                        <span id="ctxMethod"></span>
+                    </div>
+                </div>
+                <div class="ds-context-aside" id="ctxAside"></div>
+            </div>
+
+            <div style="padding:16px 24px 32px">
+                <div class="ds-stepper" id="stepper" style="margin-bottom:16px"></div>
+
+                <div class="ds-tabs">
+                    <button class="ds-tab active" onclick="OrdersPage.setTab('items')">รายการสินค้า</button>
+                    <button class="ds-tab" onclick="OrdersPage.setTab('payment')">การชำระเงิน</button>
+                    <button class="ds-tab" onclick="OrdersPage.setTab('audit')">
+                        ประวัติ <span class="tab-notif" id="auditBadge">0</span>
+                    </button>
+                </div>
+
+                <div class="ds-tab-content active" id="tabItems"></div>
+                <div class="ds-tab-content" id="tabPayment"></div>
+                <div class="ds-tab-content" id="tabAudit"><div class="ds-timeline" id="auditList"></div></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ══════ ขวา: การดำเนินการ ══════ -->
+    <aside class="ds-pane-right" id="paneRight">
+        <div class="ds-pane-header"><h3>การดำเนินการ</h3></div>
+        <div class="ds-pane-scroll" id="actionPane">
+            <div class="ds-empty-sm">ยังไม่ได้เลือกออเดอร์</div>
+        </div>
+    </aside>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="dsPrintStage"></div>
+
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-print.js"></script>
+<script src="js/cf-docs.js"></script>
+<script src="js/cf-export.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script>window.CF_DEVICE_ID = 'CASHIER-01';</script>
+<script src="js/page-orders.js"></script>
+</body>
+</html>

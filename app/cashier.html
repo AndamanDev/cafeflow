@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — แคชเชียร์ (§24)
+  โครง: .page-container (หน้าเลื่อนปกติ — ห้ามใส่ ds-shell-page)
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — แคชเชียร์</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init(); CFAuth.guard('PAY_RECEIVE');</script>
+</head>
+<body data-page="cashier">
+
+<nav id="appNavbar"></nav>
+
+<div class="page-container">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">
+                <i data-lucide="banknote" class="mi"></i>
+                <span>แคชเชียร์</span>
+            </div>
+            <div class="page-subtitle" id="cashierSub">—</div>
+        </div>
+        <div class="section-actions">
+            <a class="btn btn-outline" href="closing.html">
+                <i data-lucide="file-text" class="icon-sm"></i> ปิดรอบ
+            </a>
+        </div>
+    </div>
+
+    <div class="ds-kpi-grid" id="kpiStrip"></div>
+
+    <div class="section-card">
+        <div class="section-header" style="padding-bottom:0; border-bottom:none">
+            <div class="ds-tabs" id="tabs" style="border-bottom:none">
+                <button class="ds-tab active" onclick="CashierPage.setTab('cash')">
+                    รอเงินสด <span class="tab-notif" id="cntCash">0</span>
+                </button>
+                <button class="ds-tab" onclick="CashierPage.setTab('review')">
+                    ตรวจสอบการชำระ <span class="tab-notif" id="cntReview">0</span>
+                </button>
+                <button class="ds-tab" onclick="CashierPage.setTab('ready')">
+                    พร้อมรับ <span class="tab-notif" id="cntReady">0</span>
+                </button>
+                <button class="ds-tab" onclick="CashierPage.setTab('search')">ค้นหาออเดอร์</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="searchBar" class="ds-toolbar" style="display:none">
+                <input class="sip-input" id="searchBox" style="max-width:260px"
+                       placeholder="เลขออเดอร์ / คีออสก์" oninput="CashierPage.onSearch(this.value)">
+                <select class="sip-select" id="searchStatus" style="max-width:200px"
+                        onchange="CashierPage.onStatus(this.value)">
+                    <option value="">ทุกสถานะ</option>
+                </select>
+                <span class="ds-hint" id="searchHint"></span>
+            </div>
+            <div id="orderArea"></div>
+        </div>
+    </div>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="dsPrintStage"></div>
+
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-print.js"></script>
+<script src="js/cf-docs.js"></script>
+<script src="js/cf-export.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script>window.CF_DEVICE_ID = 'CASHIER-01';</script>
+<script src="js/page-cashier.js"></script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — เข้าสู่ระบบ
+  ใช้ .login-overlay / .login-card จาก ds-landing.css (ธีมทับเป็นโทนเขียว)
+  ต่างจาก page-landing.html ตรงที่นี่เป็นหน้าเดี่ยว ไม่ใช่ overlay คลุมแอป
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — เข้าสู่ระบบ</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-landing.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>
+        CFStore.init();
+        // ล็อกอินอยู่แล้ว → ข้ามไปหน้าหลักเลย
+        if (CFAuth.isLoggedIn()) location.replace('dashboard.html');
+    </script>
+</head>
+<body data-page="login">
+
+<div class="login-overlay">
+    <div class="login-card">
+
+        <div class="login-logo-wrap">
+            <div class="login-logo-mark">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 8h1a4 4 0 0 1 0 8h-1"/>
+                    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+                    <line x1="6" y1="1" x2="6" y2="4"/>
+                    <line x1="10" y1="1" x2="10" y2="4"/>
+                    <line x1="14" y1="1" x2="14" y2="4"/>
+                </svg>
+            </div>
+            <div class="login-logo-text">
+                <h1>CafeFlow</h1>
+                <p>AndamanTech Smart Operations</p>
+            </div>
+        </div>
+
+        <div class="login-divider"></div>
+
+        <div class="login-error" id="loginError"></div>
+
+        <form onsubmit="LoginPage.submit(event)">
+            <label class="login-label" for="loginUser">ชื่อผู้ใช้</label>
+            <input class="login-input" id="loginUser" autocomplete="username" autofocus>
+
+            <label class="login-label" for="loginPass">รหัสผ่าน</label>
+            <input class="login-input" id="loginPass" type="password" autocomplete="current-password">
+
+            <button class="login-btn" type="submit">เข้าสู่ระบบ</button>
+        </form>
+
+        <!-- บัญชีตัวอย่าง — คลิกเพื่อเติมฟอร์มแล้วเข้าสู่ระบบทันที
+             มีไว้ให้สลับ role ดูความต่างของเมนูและสิทธิ์ได้ในคลิกเดียว -->
+        <div class="login-divider" style="margin:26px 0 14px"></div>
+        <div class="login-label" style="margin-bottom:8px">บัญชีตัวอย่าง (รหัสผ่าน demo)</div>
+        <div class="cf-demo-row" id="demoRow"></div>
+
+        <div class="login-divider" style="margin:22px 0 14px"></div>
+        <a class="btn btn-outline btn-block" href="kiosk.html">
+            เปิดโหมดคีออสก์ (ลูกค้าสั่งเอง)
+        </a>
+
+        <div class="login-footer">CafeFlow V1 · ระบบเดโม ข้อมูลเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น</div>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="../design-system-2/js/ds-toast.js"></script>
+<script src="js/page-login.js"></script>
+</body>
+</html>

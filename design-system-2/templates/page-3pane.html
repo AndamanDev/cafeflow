@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  TEMPLATE: workspace 3 คอลัมน์ (รายการซ้าย / เนื้อหากลาง / แผงขวา)
+  โครงหลักของหน้าทำงานหนัก ๆ — ไม่เลื่อนทั้งหน้า แต่ละคอลัมน์เลื่อนเอง
+
+  ใช้ .ds-shell.cols-2 แทนถ้าไม่ต้องการแผงขวา
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediCore — Workspace</title>
+
+    <link rel="stylesheet" href="../css/ds-tokens.css">
+    <link rel="stylesheet" href="../css/ds-base.css">
+    <link rel="stylesheet" href="../css/ds-navbar.css">
+    <link rel="stylesheet" href="../css/ds-layout.css">
+    <link rel="stylesheet" href="../css/ds-components.css">
+    <link rel="stylesheet" href="../css/ds-overlays.css">
+    <link rel="stylesheet" href="../css/ds-print.css">
+</head>
+<!-- ds-shell-page = fallback ล็อกการเลื่อนสำหรับเบราว์เซอร์ที่ไม่รองรับ :has() -->
+<body data-page="page-3pane" class="ds-shell-page">
+
+    <nav id="appNavbar"></nav>
+
+    <div class="ds-shell cols-3" id="shell">
+
+        <!-- ══════════ คอลัมน์ซ้าย — รายการ ══════════ -->
+        <aside class="ds-pane-left" id="paneLeft">
+            <div class="ds-pane-header">
+                <h3><i data-lucide="list" class="mi"></i> รายการ</h3>
+                <span class="ds-pane-count" id="listCount">0 รายการ</span>
+            </div>
+
+            <div class="ds-pane-tools">
+                <select class="sip-select" id="groupSelect" onchange="Workspace.onGroupChange()">
+                    <option value="all">ทั้งหมด</option>
+                    <option value="g1">กลุ่ม 1</option>
+                    <option value="g2">กลุ่ม 2</option>
+                </select>
+            </div>
+
+            <!-- แท็บกรองแบบ pill + ตัวนับ -->
+            <div class="ds-pilltabs">
+                <button class="ds-pilltab active" data-filter="all" onclick="Workspace.setFilter('all', this)">
+                    ทั้งหมด <span class="tab-count" id="cntAll">0</span>
+                </button>
+                <button class="ds-pilltab" data-filter="open" onclick="Workspace.setFilter('open', this)">
+                    ค้างอยู่ <span class="tab-count" id="cntOpen">0</span>
+                </button>
+                <button class="ds-pilltab" data-filter="urgent" onclick="Workspace.setFilter('urgent', this)">
+                    ด่วน <span class="tab-count" id="cntUrgent">0</span>
+                </button>
+            </div>
+
+            <input type="text" class="ds-pane-search" id="listSearch"
+                   placeholder="ค้นหา..." oninput="Workspace.onSearch()">
+
+            <div class="ds-pane-scroll" id="listContainer"><!-- render ด้วย JS --></div>
+        </aside>
+
+        <!-- ══════════ คอลัมน์กลาง — เนื้อหา ══════════ -->
+        <main class="ds-pane-main" id="paneMain">
+
+            <!-- ว่างตอนยังไม่เลือกรายการ -->
+            <div class="ds-empty-state" id="emptyState">
+                <div class="ds-empty-state-icon"><i data-lucide="mouse-pointer-click"></i></div>
+                <div class="ds-empty-state-title">เลือกรายการจากด้านซ้าย</div>
+                <div class="ds-empty-state-desc">เพื่อดูรายละเอียดและเริ่มทำงาน</div>
+            </div>
+
+            <div id="detailWrap" style="display:none">
+
+                <!-- แถบข้อมูลหลักของรายการที่เลือก (sticky) -->
+                <div class="ds-context-bar">
+                    <button class="ds-pane-toggle" onclick="Workspace.toggleLeft()" title="ซ่อน/แสดงรายการ">
+                        <i data-lucide="menu" class="mi"></i>
+                    </button>
+                    <div class="ds-context-avatar" id="ctxAvatar">A</div>
+                    <div class="ds-context-info">
+                        <div class="ds-context-name">
+                            <span id="ctxName">—</span>
+                            <span class="sip-chip sip-chip-active" id="ctxChip">กำลังดำเนินการ</span>
+                        </div>
+                        <div class="ds-context-meta">
+                            <span id="ctxId">รหัส: —</span>
+                            <span id="ctxOwner">ผู้รับผิดชอบ: —</span>
+                            <span id="ctxDate">อัปเดต: —</span>
+                        </div>
+                    </div>
+                    <div class="ds-context-aside">
+                        <div class="ds-alert-card" id="ctxAlert" style="display:none" onclick="Workspace.showAlert()">
+                            <i data-lucide="alert-triangle" class="ac-ico"></i>
+                            <div class="ac-body">
+                                <span class="ac-label">ข้อควรระวัง</span>
+                                <strong id="ctxAlertText">—</strong>
+                            </div>
+                            <i data-lucide="eye" class="ac-view"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="padding:0 16px 24px">
+                    <!-- แท็บเนื้อหาแบบขีดเส้นใต้ -->
+                    <div class="ds-tabs">
+                        <button class="ds-tab active" onclick="Workspace.switchTab('overview', this)">
+                            <i data-lucide="layout-grid" class="mi"></i> ภาพรวม
+                        </button>
+                        <button class="ds-tab" onclick="Workspace.switchTab('history', this)">
+                            <i data-lucide="history" class="mi"></i> ประวัติ
+                            <span class="tab-notif" id="histBadge" style="display:none">0</span>
+                        </button>
+                        <button class="ds-tab" onclick="Workspace.switchTab('files', this)">
+                            <i data-lucide="paperclip" class="mi"></i> เอกสาร
+                        </button>
+                    </div>
+
+                    <div class="ds-tab-content active" id="tabOverview">
+                        <div class="cards-row">
+                            <div class="clinical-card">
+                                <div class="card-title">สรุป</div>
+                                <div id="ovSummary">—</div>
+                            </div>
+                            <div class="clinical-card">
+                                <div class="card-title">รายละเอียด</div>
+                                <div id="ovDetail">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ds-tab-content" id="tabHistory">
+                        <div class="ds-timeline" id="historyList"></div>
+                    </div>
+
+                    <div class="ds-tab-content" id="tabFiles">
+                        <div class="ds-empty">ยังไม่มีเอกสารแนบ</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ══════════ คอลัมน์ขวา — แผงทำงาน ══════════ -->
+        <aside class="ds-pane-right" id="paneRight">
+            <div class="ds-pane-header">
+                <h3><i data-lucide="pen-line" class="mi"></i> การทำงาน</h3>
+            </div>
+            <div class="ds-pane-scroll" style="padding:0 16px 90px">
+                <div class="sip-field">
+                    <label class="sip-label">บันทึกข้อความ</label>
+                    <textarea class="sip-textarea" id="noteInput" rows="5" placeholder="พิมพ์บันทึก..."></textarea>
+                </div>
+                <div class="sip-banner sip-banner-info">
+                    <i data-lucide="info" class="icon-sm"></i> บันทึกจะแนบกับรายการที่เลือกอยู่
+                </div>
+            </div>
+            <div class="ds-actions">
+                <button class="btn btn-outline" onclick="Workspace.clearNote()">ล้าง</button>
+                <button class="btn btn-save" onclick="Workspace.saveNote()">บันทึก</button>
+                <button class="btn btn-save-send" onclick="Workspace.saveAndSend()">บันทึกและส่ง</button>
+            </div>
+        </aside>
+
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="../js/ds-icons.js"></script>
+    <script src="../js/ds-navbar.js"></script>
+    <script src="../js/ds-drawer.js"></script>
+    <script src="../js/ds-toast.js"></script>
+
+    <script>
+    const Workspace = {
+        state: { items: [], selected: null, filter: 'all', keyword: '' },
+
+        async load() {
+            // TODO: เรียก API จริง
+            this.state.items = [
+                { id: 'A-001', name: 'รายการตัวอย่าง หนึ่ง', owner: 'สมชาย', flag: 'open',   updated: 'วันนี้ 09:12', alert: '' },
+                { id: 'A-002', name: 'รายการตัวอย่าง สอง',  owner: 'มาลี',   flag: 'urgent', updated: 'วันนี้ 08:40', alert: 'ต้องตรวจสอบก่อนดำเนินการ' },
+                { id: 'A-003', name: 'รายการตัวอย่าง สาม',  owner: 'ปรีชา',  flag: 'open',   updated: 'เมื่อวาน',     alert: '' },
+            ];
+            this.renderList();
+        },
+
+        visible() {
+            const kw = this.state.keyword.toLowerCase();
+            return this.state.items.filter(it => {
+                if (this.state.filter !== 'all' && it.flag !== this.state.filter) return false;
+                if (kw && !(it.name + it.id).toLowerCase().includes(kw)) return false;
+                return true;
+            });
+        },
+
+        renderList() {
+            const rows = this.visible();
+            document.getElementById('listContainer').innerHTML = rows.length
+                ? rows.map(it => `
+                    <div class="ds-list-card ${this.state.selected === it.id ? 'active' : ''}"
+                         onclick="Workspace.select('${it.id}')">
+                        <div class="ds-list-card-top">
+                            <span class="ds-list-card-name">${esc(it.name)}</span>
+                            ${it.flag === 'urgent' ? '<span class="kbadge kbadge-off">ด่วน</span>' : ''}
+                        </div>
+                        <div class="ds-list-card-detail">${esc(it.id)} · ${esc(it.owner)}</div>
+                    </div>`).join('')
+                : '<div class="ds-empty">ไม่พบรายการ</div>';
+
+            document.getElementById('listCount').textContent = rows.length + ' รายการ';
+            document.getElementById('cntAll').textContent    = this.state.items.length;
+            document.getElementById('cntOpen').textContent   = this.state.items.filter(i => i.flag === 'open').length;
+            document.getElementById('cntUrgent').textContent = this.state.items.filter(i => i.flag === 'urgent').length;
+            refreshIcons();
+        },
+
+        select(id) {
+            this.state.selected = id;
+            const it = this.state.items.find(x => x.id === id);
+            if (!it) return;
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('detailWrap').style.display = '';
+
+            document.getElementById('ctxAvatar').textContent = it.name.charAt(0);
+            document.getElementById('ctxName').textContent   = it.name;
+            document.getElementById('ctxId').textContent     = 'รหัส: ' + it.id;
+            document.getElementById('ctxOwner').textContent  = 'ผู้รับผิดชอบ: ' + it.owner;
+            document.getElementById('ctxDate').textContent   = 'อัปเดต: ' + it.updated;
+
+            const alertBox = document.getElementById('ctxAlert');
+            if (it.alert) {
+                alertBox.style.display = '';
+                document.getElementById('ctxAlertText').textContent = it.alert;
+            } else {
+                alertBox.style.display = 'none';
+            }
+
+            document.getElementById('ovSummary').textContent = it.name;
+            document.getElementById('ovDetail').textContent  = 'สถานะ: ' + it.flag;
+
+            document.getElementById('historyList').innerHTML = `
+                <div class="ds-timeline-item success">สร้างรายการ <span class="ds-timeline-time">3 วันก่อน</span></div>
+                <div class="ds-timeline-item info">มอบหมายให้ ${esc(it.owner)} <span class="ds-timeline-time">2 วันก่อน</span></div>
+                <div class="ds-timeline-item">อัปเดตล่าสุด <span class="ds-timeline-time">${esc(it.updated)}</span></div>`;
+
+            this.renderList();
+        },
+
+        setFilter(f, btn) {
+            this.state.filter = f;
+            document.querySelectorAll('.ds-pilltab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this.renderList();
+        },
+
+        onSearch() {
+            this.state.keyword = document.getElementById('listSearch').value.trim();
+            this.renderList();
+        },
+
+        onGroupChange() { this.renderList(); },
+
+        switchTab(name, btn) {
+            document.querySelectorAll('.ds-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.ds-tab-content').forEach(c => c.classList.remove('active'));
+            const map = { overview: 'tabOverview', history: 'tabHistory', files: 'tabFiles' };
+            document.getElementById(map[name]).classList.add('active');
+            refreshIcons();
+        },
+
+        toggleLeft() { document.getElementById('shell').classList.toggle('left-collapsed'); },
+
+        showAlert() {
+            const it = this.state.items.find(x => x.id === this.state.selected);
+            Drawer.open({
+                title: 'ข้อควรระวัง',
+                contentHtml: `<div class="sip-banner sip-banner-danger">${esc(it ? it.alert : '')}</div>`,
+            });
+        },
+
+        clearNote() { document.getElementById('noteInput').value = ''; },
+
+        saveNote() {
+            const v = document.getElementById('noteInput').value.trim();
+            if (!v) { showToast('ยังไม่ได้พิมพ์บันทึก', 'warning'); return; }
+            if (!this.state.selected) { showToast('กรุณาเลือกรายการก่อน', 'warning'); return; }
+            showToast('บันทึกแล้ว');
+            this.clearNote();
+        },
+
+        saveAndSend() {
+            this.saveNote();
+        },
+    };
+
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    window.Workspace = Workspace;
+    document.addEventListener('DOMContentLoaded', () => Workspace.load());
+    </script>
+</body>
+</html>

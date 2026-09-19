@@ -1,0 +1,140 @@
+/* ============================================================
+   MediCore Design System — BASE
+   reset · body · scrollbar · keyframes · icon · utilities
+   โหลดต่อจาก ds-tokens.css
+   ============================================================ */
+
+/* ══════════════ RESET ══════════════ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* หน้าเลื่อนได้เป็นค่าเริ่มต้น
+   (ของเดิม doctor.css บังคับ body{overflow:hidden} ให้ทุกหน้า
+    ทำให้หน้าธรรมดาต้อง hack override — ที่นี่กลับด้าน:
+    เฉพาะ .ds-shell เท่านั้นที่ล็อกการเลื่อน ดู ds-layout.css) */
+body {
+  font-family: var(--font-main);
+  background: var(--brand-bg);
+  color: var(--brand-navy);
+  font-size: 14px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+a { color: var(--primary); text-decoration: none; cursor: pointer; }
+a:hover { color: var(--primary-dark); }
+
+button, input, select, textarea { font-family: inherit; }
+
+/* ══════════════ SCROLLBAR ══════════════ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--brand-border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-navy-300); }
+
+/* ══════════════ ICONS (Lucide) ══════════════
+   .mi  = ไอคอนใน text — ขนาดตามฟอนต์รอบข้าง (utility ที่มีประโยชน์ที่สุด)
+   .icon-* = ขนาดคงที่
+   ═════════════════════════════════════════════ */
+[data-lucide] { stroke-width: 2; flex-shrink: 0; }
+
+.mi {
+  width: 1.05em; height: 1.05em;
+  vertical-align: -0.15em;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.lucide { vertical-align: -0.125em; }
+
+.icon-xs  { width: 12px; height: 12px; }
+.icon-sm  { width: 14px; height: 14px; }
+.icon-md  { width: 16px; height: 16px; }
+.icon-lg  { width: 20px; height: 20px; }
+.icon-xl  { width: 28px; height: 28px; stroke-width: 1.5; }
+.icon-2xl { width: 48px; height: 48px; stroke-width: 1.5; }
+
+.icon-amber   { color: var(--brand-amber-600); }
+.icon-navy    { color: var(--brand-navy); }
+.icon-primary { color: var(--primary); }
+.icon-muted   { color: var(--brand-navy-500); }
+.icon-success { color: var(--status-success-strong); }
+.icon-warning { color: var(--status-warning-strong); }
+.icon-danger  { color: var(--status-danger); }
+
+/* ══════════════ TYPOGRAPHY HELPERS ══════════════
+   สเกล: body 14 / เนื้อหา 13 / meta 12 / chip 11 / จิ๋ว 10
+   ⚠️ ห้ามใช้ < 12px กับ "เนื้อหาที่ต้องอ่าน" — เก็บ 10–11px ไว้เฉพาะ chip/badge
+   ═════════════════════════════════════════════════ */
+.ds-title-page {
+  font-size: 22px; font-weight: 800; color: var(--brand-navy);
+  letter-spacing: -.3px;
+}
+.ds-title-section { font-size: 15px; font-weight: 700; color: var(--brand-navy); }
+
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted     { color: var(--text-muted); }
+.text-accent    { color: var(--primary); }
+.text-success   { color: var(--status-success-strong); }
+.text-warning   { color: var(--status-warning-strong); }
+.text-danger    { color: var(--status-danger); }
+
+.font-mono     { font-family: var(--font-mono); }
+.font-bold     { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.tabular       { font-variant-numeric: tabular-nums; }
+
+.uppercase { text-transform: uppercase; letter-spacing: .5px; }
+.truncate  { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ══════════════ LAYOUT UTILITIES ══════════════ */
+.flex         { display: flex; }
+.flex-col     { display: flex; flex-direction: column; }
+.flex-center  { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-wrap    { flex-wrap: wrap; }
+.gap-xs { gap: var(--space-xs); }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+.ds-spacer  { flex: 1; }
+.ds-divider { height: 1px; background: var(--brand-border); margin: 16px 0; }
+
+.hidden  { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+/* ══════════════ ANIMATIONS ══════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .5; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .5; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(.95); }
+  to   { opacity: 1; transform: scale(1); }
+}

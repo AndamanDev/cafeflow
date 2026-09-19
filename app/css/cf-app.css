@@ -1,0 +1,181 @@
+/* ============================================================
+   CafeFlow — APP-ONLY CSS
+   เฉพาะสิ่งที่ design system ไม่มี:
+     1. กระดาษม้วน 58/80 มม. บนจอ + ตัวช่วยจัดใบเสร็จ
+     2. การซ่อมการพิมพ์ (สูตร A ของ ds-print.css ซ่อนด้วย visibility
+        ซึ่งยังกิน layout box จึงได้หน้าว่างตามหลัง)
+     3. การ์ด KDS + ตัวจับเวลา
+     4. แถบ station load
+     5. เบ็ดเตล็ดของหน้า cashier / login
+
+   ต้องโหลดเป็นไฟล์สุดท้าย
+   ============================================================ */
+
+/* ══════════════════════════════════════════════════════════
+   1. กระดาษม้วนบนจอ — ประกาศครั้งเดียว ต่างกันที่ตัวแปร
+   ══════════════════════════════════════════════════════════ */
+.ds-paper.ds-paper-58,
+.ds-paper.ds-paper-80 {
+    width: var(--roll-w);
+    padding: var(--roll-pad);
+    font-size: var(--roll-fs);
+    min-height: 0;
+    font-family: var(--font-receipt);
+    line-height: 1.4;
+    color: #000;
+}
+.ds-paper.ds-paper-80 { --roll-w: 80mm; --roll-pad: 4mm 4mm 8mm; --roll-fs: 12px; }
+.ds-paper.ds-paper-58 { --roll-w: 58mm; --roll-pad: 3mm 3mm 6mm; --roll-fs: 10px; }
+
+.ds-paper-viewport.is-roll { background: #eceff1; padding: 20px 0; }
+
+/* ── ตัวช่วยจัดใบเสร็จ ────────────────────────────────────── */
+.cf-rc-center { text-align: center; }
+.cf-rc-hr     { border-top: 1px dashed #000; margin: 5px 0; }
+.cf-rc-row    { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+/* ห้าม nowrap: บนจอ viewport เลื่อนแนวนอนได้ แต่ตอนพิมพ์ข้อความจะถูกตัดหายเงียบ ๆ */
+.cf-rc-row > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.cf-rc-row > span:last-child  { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.cf-rc-name   { overflow-wrap: anywhere; font-weight: 700; }
+.cf-rc-mod    { padding-left: 10px; font-size: .88em; overflow-wrap: anywhere; }
+.ds-paper-58 .cf-rc-mod { padding-left: 6px; }
+.cf-rc-lg     { font-size: 1.35em; font-weight: 800; }
+.cf-rc-xl     { font-size: 30px; font-weight: 800; letter-spacing: 1px; line-height: 1.1; }
+.ds-paper-58 .cf-rc-xl { font-size: 24px; }
+.cf-rc-sm     { font-size: .85em; }
+.cf-rc-box    { border: 1px solid #000; padding: 3px 5px; display: inline-block; font-weight: 800; }
+.cf-rc-sp     { margin-top: 5px; }
+
+/* ══════════════════════════════════════════════════════════
+   2. PRINT — ซ่อมสูตร A ของ ds-print.css
+   ══════════════════════════════════════════════════════════ */
+@media print {
+    /* สูตร A ซ่อนด้วย visibility ซึ่งยังกิน layout box
+       ทำให้ .page-container ที่สูง 2000px หรือ .ds-shell ที่ pin 100vh
+       ยังสร้างหน้ากระดาษว่างตามหลังใบเสร็จ */
+    body.ds-printing > *:not(#dsPrintStage) { display: none !important; }
+
+    body.ds-printing,
+    body.ds-printing.drawer-locked,
+    body.ds-printing.ds-shell-page {
+        overflow: visible !important;
+        height: auto !important;
+    }
+
+    body.ds-printing #dsPrintStage .ds-paper {
+        width: auto !important; min-height: 0 !important;
+        margin: 0 !important; padding: 0 !important; box-shadow: none !important;
+    }
+
+    /* print-roll ใส่คู่กับ print-58/print-80 เพื่อไม่ต้องเขียนกฎซ้ำสองชุด */
+    body.ds-printing.print-roll #dsPrintStage,
+    body.ds-printing.print-roll #dsPrintStage * {
+        font-family: var(--font-receipt);
+        color: #000 !important;
+    }
+    body.ds-printing.print-80 #dsPrintStage { font-size: 11pt; }
+    body.ds-printing.print-58 #dsPrintStage { font-size: 9pt; }   /* 48mm ใส่ 11pt ไม่พอ */
+
+    /* สูตร A pin .ds-print-footer ด้วย position:fixed;bottom:0
+       ถูกสำหรับ A4 แต่ผิดสำหรับม้วนกระดาษที่ต่อเนื่อง */
+    body.ds-printing.print-roll #dsPrintStage .ds-print-footer { position: static !important; }
+}
+
+/* ส่วนประกอบเอกสาร A4 */
+.ds-print-footer { font-size: 10px; color: #444; border-top: 1px solid #999; padding-top: 4px; }
+.ds-print-sign   { display: flex; gap: 40px; margin-top: 28px; }
+.cf-sign-box     { flex: 1; text-align: center; font-size: 12px; }
+.cf-sign-line    { border-bottom: 1px dotted #555; height: 40px; margin-bottom: 6px; }
+.cf-doc-head     { text-align: center; margin-bottom: 14px; }
+.cf-doc-head h2  { font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+.cf-doc-head p   { font-size: 12px; color: #555; }
+
+/* ══════════════════════════════════════════════════════════
+   3. KDS — บอร์ดการ์ดต่อสถานี
+   ══════════════════════════════════════════════════════════ */
+.cf-kds-board {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px; padding: 16px;
+}
+.cf-kds-card {
+    background: var(--white); border: 0.8px solid var(--brand-border);
+    border-top: 4px solid var(--status-success);
+    border-radius: var(--r-lg); padding: 14px;
+    box-shadow: none; display: flex; flex-direction: column; gap: 9px;
+}
+.cf-kds-card.warn   { border-top-color: var(--status-warning); }
+.cf-kds-card.danger { border-top-color: var(--status-danger); animation: pulse 1.6s infinite; }
+.cf-kds-top   { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cf-kds-no    { font-size: 30px; font-weight: 800; color: var(--brand-navy); line-height: 1; }
+.cf-kds-timer {
+    font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums;
+    color: var(--status-success-strong);
+}
+.cf-kds-card.warn   .cf-kds-timer { color: var(--status-warning-strong); }
+.cf-kds-card.danger .cf-kds-timer { color: var(--status-danger-strong); }
+.cf-kds-items { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.cf-kds-item  { font-size: 15px; font-weight: 700; color: var(--brand-navy); }
+.cf-kds-mods  { font-size: 13px; font-weight: 500; color: var(--text-secondary); padding-left: 10px; }
+.cf-kds-meta  { font-size: 11px; color: var(--text-muted); }
+.cf-station-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: var(--radius); cursor: pointer;
+    border: 2px solid transparent; margin-bottom: 4px; font-size: 13px; font-weight: 600;
+}
+.cf-station-item:hover  { background: var(--surface-1); }
+.cf-station-item.active { background: var(--primary-bg); border-color: var(--primary); }
+
+/* ══════════════════════════════════════════════════════════
+   4. STATION LOAD BAR (§25)
+   ══════════════════════════════════════════════════════════ */
+.cf-load-row  { display: grid; grid-template-columns: 90px 1fr 60px; gap: 10px; align-items: center; margin-bottom: 10px; }
+.cf-load-name { font-size: 12px; font-weight: 700; color: var(--brand-navy); }
+.cf-load-track{ height: 12px; border-radius: 999px; background: var(--brand-bg-strong); overflow: hidden; }
+.cf-load-fill { height: 100%; border-radius: 999px; background: var(--primary); transition: width .3s; }
+.cf-load-fill.warn   { background: var(--status-warning); }
+.cf-load-fill.danger { background: var(--status-danger); }
+.cf-load-val  { font-size: 12px; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ══════════════════════════════════════════════════════════
+   5. เบ็ดเตล็ด
+   ══════════════════════════════════════════════════════════ */
+.cf-order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.cf-amount-big {
+    font-size: 34px; font-weight: 800; color: var(--brand-navy);
+    font-variant-numeric: tabular-nums; line-height: 1;
+}
+.cf-money { font-variant-numeric: tabular-nums; }
+.cf-quick-cash { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
+/* แถวปุ่มบัญชีเดโมในหน้า login */
+.cf-demo-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.cf-demo-btn {
+    flex: 1 1 auto; padding: 7px 12px; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    background: #fff; color: var(--text-secondary);
+    border: 0.8px solid var(--brand-border); transition: .15s;
+}
+.cf-demo-btn:hover {
+    background: var(--primary-bg); color: var(--primary-dark); border-color: var(--primary-border);
+}
+
+/* แถบปุ่มแนวตั้งในแผงขวา — .ds-actions ของ DS เป็นแนวนอนอย่างเดียว */
+.ds-actions.cf-stack { flex-direction: column; border-top: none; padding: 0 16px 12px; background: transparent; }
+.ds-actions.cf-stack .btn { flex: none; width: 100%; }
+
+.cf-muted  { color: var(--text-muted); }
+.cf-right  { text-align: right; }
+.cf-nowrap { white-space: nowrap; }
+
+/* พรีวิวรูปสินค้าในหน้าจัดการเมนู — ใช้ tile ตัวเดียวกับคีออสก์ */
+.cf-art-preview {
+    width: 96px; height: 96px; flex-shrink: 0;
+    border-radius: 10px; overflow: hidden;
+    border: 0.8px solid var(--brand-border);
+}
+.cf-art-preview .cfk-media { width: 100%; height: 100%; display: grid; place-items: center;
+    position: relative; background: linear-gradient(155deg, var(--t1) 0%, var(--t2) 100%);
+    color: rgba(0,0,0,.40); overflow: hidden; }
+.cf-art-preview .cfk-art { width: 64%; height: 64%; }
+.cf-art-preview .cfk-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cf-art-preview .cfk-media.is-broken .cfk-img { display: none; }

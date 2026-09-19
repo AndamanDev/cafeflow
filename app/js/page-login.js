@@ -1,0 +1,61 @@
+/** CafeFlow — หน้าเข้าสู่ระบบ */
+const LoginPage = {
+
+    /** หน้าปลายทางหลังล็อกอิน: เคารพ ?next= ถ้าผู้ใช้ถูกเด้งมาจากหน้าอื่น */
+    landingFor(role) {
+        const next = new URLSearchParams(location.search).get('next');
+        if (next && /^[a-z-]+\.html$/.test(next)) return next;
+        if (role === 'KITCHEN') return 'kds.html';
+        if (role === 'CASHIER') return 'cashier.html';
+        return 'dashboard.html';
+    },
+
+    submit(ev) {
+        ev.preventDefault();
+        const err = document.getElementById('loginError');
+        const res = CFAuth.login(
+            document.getElementById('loginUser').value,
+            document.getElementById('loginPass').value
+        );
+
+        if (!res.ok) {
+            err.textContent = res.error;
+            err.style.display = 'block';
+            return;
+        }
+        err.style.display = 'none';
+        location.href = this.landingFor(res.user.role);
+    },
+
+    /** เติมฟอร์มแล้วส่งเลย — ปุ่มบัญชีตัวอย่าง */
+    use(username) {
+        document.getElementById('loginUser').value = username;
+        document.getElementById('loginPass').value = 'demo';
+        const res = CFAuth.login(username, 'demo');
+        if (res.ok) location.href = this.landingFor(res.user.role);
+    },
+
+    renderDemoRow() {
+        const row = document.getElementById('demoRow');
+        row.innerHTML = CFStore.all('users')
+            .filter((u) => u.active)
+            .map((u) => `<button type="button" class="cf-demo-btn"
+                            onclick="LoginPage.use('${u.username}')"
+                            title="${CF_ROLE_LABEL[u.role]} — ${u.name}">${u.username}</button>`)
+            .join('');
+    },
+
+    boot() {
+        this.renderDemoRow();
+        // ถูกเด้งมาเพราะสิทธิ์ไม่พอ ต้องบอกเหตุผล ไม่ใช่เงียบ ๆ
+        const denied = new URLSearchParams(location.search).get('denied');
+        if (denied) {
+            const err = document.getElementById('loginError');
+            err.textContent = 'บัญชีก่อนหน้าไม่มีสิทธิ์เข้าหน้านั้น กรุณาเข้าสู่ระบบด้วยบัญชีที่มีสิทธิ์';
+            err.style.display = 'block';
+        }
+    },
+};
+
+window.LoginPage = LoginPage;
+document.addEventListener('DOMContentLoaded', () => LoginPage.boot());

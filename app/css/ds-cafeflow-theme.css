@@ -1,0 +1,390 @@
+@import url('https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap');
+
+/* ============================================================
+   CafeFlow — THEME: AndamanTech ServiceFlow
+   ------------------------------------------------------------
+   ทับ MediCore design system ให้เป็นภาษาเดียวกับ ServiceFlow
+   (https://serviceflow-alpha.vercel.app) ซึ่งเป็นผลิตภัณฑ์พี่น้อง
+   ค่าทุกตัวดึงจาก computed style ของของจริง ไม่ได้กะเอา
+
+   สามอย่างที่ทำให้ "ใช่":
+     1. เขียว #06C755 (ไม่ใช่ #1E8F5A)
+     2. ไม่มีเงาเลยสักจุด — ความลึกมาจากเส้นขอบ 0.8px #DFDFDF
+     3. แถบหัวเว็บสีขาว ไม่ใช่ navy
+
+   ⚠️ ต้องโหลดหลัง ds-*.css ทุกไฟล์
+      :root ชนะได้ทุกตำแหน่ง แต่ส่วนซ่อมสี hard-code ชนะด้วย source order เท่านั้น
+   ไม่แตะไฟล์ใน design-system-2/ เลย — ถอดไฟล์นี้ออกแล้วกลับเป็น MediCore ทันที
+   ============================================================ */
+
+:root {
+  /* ── 1. BRAND ─────────────────────────────────────────────
+     --primary-dark คือสีของ "ตัวอักษรเขียวบนพื้นสว่าง"
+     ห้ามใช้ #06C755 เป็นสีตัวอักษร คอนทราสต์ไม่ผ่าน */
+  --primary:              #06C755;
+  --primary-dark:         #058739;
+  --primary-light:        #3FD97F;
+  --primary-bg:           #EFFBF4;
+  --primary-border:       #CDEBD9;
+
+  /* สีรองของ ServiceFlow — ไอคอนหมวด, focus ring, ครึ่งขวาของแถบไล่สี */
+  --blue:                 #3579EA;
+  --blue-bg:              #EEF4FE;
+
+  --accent:               #C2601A;
+  --accent-dark:          #A24E12;
+
+  /* ── 2. CTA — DS ใช้ --brand-amber เป็นสีปุ่มหลักโดยตั้งใจ (README §2)
+        จึงต้อง remap ชั้นนี้ด้วย ไม่ใช่แค่ --primary ── */
+  --brand-amber:          #06C755;
+  --brand-amber-500:      #058739;
+  --brand-amber-600:      #047A33;
+  --brand-amber-on:       #ffffff;
+  --sip-shadow-glow-amber: 0 0 0 3px rgba(53,121,234,.15);
+  /* --brand-amber-100/-50 ไม่แตะ — ยังเป็นพื้นของ warning (ดูส่วนซ่อมด้านล่าง) */
+
+  /* ── 3. SHELL / INK ──────────────────────────────────────── */
+  --brand-navy:           #111111;
+  --brand-navy-700:       #333333;
+  --brand-navy-600:       #444444;
+  --brand-navy-500:       #666666;
+  --brand-navy-300:       #888888;
+  --brand-navy-on:        #ffffff;
+
+  /* เดิมเป็นม่วง — ใช้กับ .ds-tab.active, avatar, .mc-dd-item:hover */
+  --purple:   #058739;
+  --purple2:  #047A33;
+  --purple-l: #3FD97F;
+  --green:    #06C755;
+  --teal:     #21B5CB;
+
+  /* ── 4. SURFACE ──────────────────────────────────────────── */
+  --brand-white:          #ffffff;
+  --white:                #ffffff;
+  --brand-bg:             #F5F5F5;
+  --brand-bg-strong:      #EFEFEF;
+  --bg:                   #F5F5F5;
+  --surface-1:            #FAFAFA;
+  --surface-2:            #F5F5F5;
+
+  --brand-border:         #DFDFDF;
+  --brand-border-strong:  #CFCFCF;
+  --border:               #DFDFDF;
+  --border-light:         #E8E8E8;
+
+  /* ── 5. TEXT ─────────────────────────────────────────────── */
+  --text:                 #111111;
+  --text-primary:         #111111;
+  --text-secondary:       #444444;
+  --text-muted:           #666666;
+  --text-light:           #888888;
+
+  /* ── 6. STATUS — ความหมายเชิงปฏิบัติการต้องคงไว้ ─────────── */
+  --success:      #06C755;   --success-bg: #EFFBF4;
+  --status-success:        #06C755;
+  --status-success-soft:   #EFFBF4;
+  --status-success-strong: #058739;
+  --info:         #3579EA;
+  --status-info:           #3579EA;
+  --status-info-soft:      #EEF4FE;
+  --status-info-strong:    #1E5BC6;
+
+  /* ── 7. TYPOGRAPHY ───────────────────────────────────────── */
+  --font-main:    'Anuphan', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-print:   'Anuphan', 'Sarabun', sans-serif;
+  --font-receipt: 'Anuphan', 'Courier New', monospace;
+
+  /* ServiceFlow ใช้ body 16px — ที่นี่ขยายแบบพอดี ไม่ให้หน้าปฏิบัติการหลวมจนใช้ยาก */
+  --font-size-xs:   11px;
+  --font-size-sm:   12px;
+  --font-size-base: 14px;
+  --font-size-md:   15px;
+  --font-size-lg:   17px;
+  --font-size-xl:   20px;
+  --font-size-2xl:  26px;
+  --font-size-3xl:  34px;
+
+  /* ── 8. ไม่มีเงา ─────────────────────────────────────────── */
+  --shadow-sm: none;  --shadow: none;  --shadow-md: none;  --shadow-lg: none;
+  --sip-shadow-1: none; --sip-shadow-2: none; --sip-shadow-3: none;
+  --shadow-hero: none;  --shadow-hero-lg: none;
+
+  /* ── 9. LAYOUT ───────────────────────────────────────────── */
+  --header-h: 60px;
+  --hairline: 0.8px;      /* ServiceFlow ใช้ 0.8px จริง ไม่ใช่ 1px */
+}
+
+/* ══════════════════════════════════════════════════════════
+   ซ่อม WARNING — ผลพวงจากการ remap --brand-amber เป็นเขียว
+   สามกฎนี้ใช้ --brand-amber-100/-50 เป็นพื้น (เหลือง = เตือน)
+   แต่ใช้ --brand-amber-500 เป็นขอบและ --brand-amber-on เป็นตัวอักษร
+   ซึ่งตอนนี้กลายเป็นเขียว/ขาว → ขาวบนเหลืองอ่อน อ่านไม่ออก
+   ══════════════════════════════════════════════════════════ */
+.sip-chip-amber   { color: #8A6400; background: var(--brand-amber-100); border-color: #F0C040; }
+.sip-banner-draft { color: #8A6400; background: var(--brand-amber-100); border-color: #F0C040; }
+.ds-warn          { color: #8A6400; background: var(--brand-amber-50);  border-color: #FDE68A; }
+
+/* ══════════════════════════════════════════════════════════
+   FLAT — กวาดเงาที่ hard-code ไว้ออกให้หมด
+   ══════════════════════════════════════════════════════════ */
+.card, .sip-card, .section-card, .clinical-card, .sip-kpi, .sip-table,
+.ds-context-bar, .ds-quick-link, .ds-alert-card, .ds-alert-card:hover,
+.sip-card-hover:hover, .sip-kpi:hover, .btn-save:hover, .btn-save-send:hover,
+.ds-pilltab.active, .ds-seg.active, .mc-navbar, .mc-dd-menu,
+.drawer-panel, .modal, .toast, .mc-confirm-box, .ds-toggle-track .ds-toggle-knob {
+    box-shadow: none !important;
+}
+/* hover ของ ServiceFlow เป็นการสลับสีล้วน ไม่มีการขยับ */
+.sip-card-hover:hover, .sip-kpi:hover, .btn-save:hover, .btn-save-send:hover,
+.ds-alert-card:hover, .ds-quick-link:hover {
+    transform: none !important;
+}
+
+/* เส้นขอบบางแบบ ServiceFlow */
+.card, .sip-card, .section-card, .clinical-card, .sip-kpi,
+.ds-list-card, .table-wrap, .ds-quick-link, .mc-dd-menu {
+    border-width: var(--hairline);
+}
+
+/* ══════════════════════════════════════════════════════════
+   NAVBAR — navy → ขาว
+   ds-navbar.css สมมติว่าพื้นเข้มตลอด ทุกคลาสที่กำหนดสีตัวอักษร
+   จึงต้องทับให้ครบ ไม่งั้นได้ขาวบนขาว
+   ══════════════════════════════════════════════════════════ */
+.mc-navbar {
+    background: #fff;
+    border-bottom: var(--hairline) solid var(--brand-border);
+    position: relative;
+}
+/* แถบไล่สี 4px — ลายเซ็นของ ServiceFlow
+   วางไว้ใน navbar (ไม่ใช่ body) เพื่อไม่ให้กระทบ layout แม้แต่พิกเซลเดียว */
+.mc-navbar::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, #06C755 0%, #06C755 55%, #3579EA 55%, #3579EA 100%);
+}
+
+.mc-logo-mark   { background: var(--primary); border-radius: 10px; box-shadow: none; }
+.mc-logo-text   { color: #111; }
+.mc-logo-sub    { color: var(--text-muted); }
+.mc-nav-sep     { background: var(--brand-border); }
+
+.mc-nav-dd-btn  { color: var(--text-muted); font-weight: 600; }
+.mc-nav-dd-btn:hover,
+.mc-nav-dropdown.open .mc-nav-dd-btn   { background: var(--brand-bg); color: #111; }
+.mc-nav-dropdown.active .mc-nav-dd-btn {
+    background: var(--primary-bg); color: var(--primary-dark);
+    border-bottom: 2px solid var(--primary);
+}
+.mc-caret { opacity: .5; }
+
+.mc-dd-menu        { border: var(--hairline) solid var(--brand-border); border-radius: 12px; }
+.mc-dd-item        { color: var(--text-secondary); }
+.mc-dd-item:hover  { background: var(--brand-bg); color: #111; }
+.mc-dd-item.active { background: var(--primary-bg); color: var(--primary-dark); }
+.mc-dd-section     { color: var(--text-light); }
+.mc-dd-sep         { background: var(--border-light); }
+.mc-dd-sep-strong  { background: var(--brand-border); }
+.mc-di-badge.live  { background: var(--primary-bg); color: var(--primary-dark); }
+
+.mc-nav-link {
+    color: var(--text-muted); background: #fff;
+    border: var(--hairline) solid var(--brand-border);
+}
+.mc-nav-link:hover  { background: var(--brand-bg); color: #111; }
+.mc-nav-link.active {
+    background: var(--primary-bg); border-color: var(--primary-border); color: var(--primary-dark);
+}
+
+.mc-nav-clock    { color: var(--text-muted); }
+.mc-nav-user-chip{ background: #fff; border: var(--hairline) solid var(--brand-border); }
+.mc-nav-avatar   { background: var(--primary); color: #fff; }
+.mc-nav-username { color: #111; }
+.mc-nav-userrole { color: var(--text-muted); }
+
+.mc-btn-logout {
+    background: #fff; border: var(--hairline) solid var(--brand-border);
+    color: var(--text-secondary);
+}
+.mc-btn-logout:hover {
+    background: var(--danger-bg); border-color: var(--danger); color: var(--danger);
+}
+
+/* ══════════════════════════════════════════════════════════
+   COMPONENTS
+   ══════════════════════════════════════════════════════════ */
+
+/* ปุ่ม — ใหญ่ขึ้น หนาขึ้น แบน */
+.btn {
+    padding: 11px 22px; font-size: 15px; font-weight: 700;
+    border-radius: 8px; border-width: var(--hairline);
+}
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+.btn-lg { padding: 14px 28px; font-size: 17px; }
+.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-primary:hover  { background: var(--primary-dark); border-color: var(--primary-dark); }
+.btn-primary:active { background: var(--primary-dark); }
+.btn-outline { background: #fff; color: #111; border-color: var(--brand-border); }
+.btn-outline:hover { background: var(--brand-bg); border-color: var(--brand-border-strong); }
+.btn-ghost:hover   { background: var(--brand-bg); color: #111; }
+.btn-navy    { background: #111; border-color: #111; }
+.btn-navy:hover { background: #333; }
+.btn-save    { background: var(--primary); border-color: var(--primary); }
+.btn-save:hover { background: var(--primary-dark); }
+
+/* ฟอร์ม — focus ring สีน้ำเงินแบบ ServiceFlow */
+.sip-input, .sip-select, .sip-textarea {
+    border-width: var(--hairline); border-radius: 8px;
+    padding: 10px 12px; font-size: 15px;
+}
+.sip-input:focus, .sip-select:focus, .sip-textarea:focus {
+    border-color: var(--blue); box-shadow: 0 0 0 3px rgba(53,121,234,.15);
+}
+.form-group input, .form-group select, .form-group textarea {
+    border-width: var(--hairline); border-radius: 8px;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    border-color: var(--blue); box-shadow: 0 0 0 3px rgba(53,121,234,.15);
+}
+.sip-label { font-size: 13px; color: var(--text-secondary); font-weight: 600; }
+.sip-checkbox, .sip-radio { accent-color: var(--primary); }
+.ds-pane-search:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(53,121,234,.15); }
+
+/* ชิป */
+.sip-chip { font-size: 12px; padding: 3px 10px; border-width: var(--hairline); }
+.sip-chip-success { color: var(--primary-dark); background: var(--primary-bg); border-color: var(--primary-border); }
+.sip-chip-progress{ color: #1E5BC6; background: var(--blue-bg); border-color: #C9DCFB; }
+.ds-chip-toggle {
+    padding: 6px 14px; font-size: 13px; border-radius: 999px;
+    border-width: var(--hairline); background: #fff;
+}
+.ds-chip-toggle:hover { border-color: var(--primary); color: var(--primary-dark); }
+.ds-chip-toggle.is-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ds-chip-suggest {
+    border-color: var(--primary-border); color: var(--primary-dark); background: var(--primary-bg);
+}
+.ds-chip-suggest:hover { background: #E2F6EB; }
+.status-badge { font-size: 12px; padding: 4px 12px; }
+.status-badge.active, .status-badge.completed, .status-badge.confirmed,
+.status-badge.in-progress { background: var(--primary-bg); color: var(--primary-dark); }
+.kbadge-progress { background: var(--blue-bg); color: #1E5BC6; border-color: #C9DCFB; }
+
+/* ตาราง — แถวสูงขึ้น หัวตารางเทาอ่อน */
+.data-table thead th {
+    background: var(--surface-1); color: var(--text-muted);
+    font-size: 12px; padding: 12px 16px; border-bottom-width: var(--hairline);
+}
+.data-table tbody td { font-size: 14px; padding: 13px 16px; }
+.data-table.compact td, .data-table.compact th { padding: 9px 12px; }
+.data-table tbody tr:hover { background: var(--surface-1); }
+.sip-table thead th { background: var(--surface-1); color: var(--text-muted); font-size: 12px; }
+.ds-table-grid th, .ds-table-grid td { font-size: 13px; padding: 8px 10px; }
+
+/* KPI */
+.sip-kpi { padding: 16px 18px; border-width: var(--hairline); }
+.sip-kpi .sip-kpi-value { font-size: 30px; font-weight: 800; }
+.sip-kpi .sip-kpi-label { font-size: 13px; color: var(--text-muted); }
+.sip-kpi .sip-kpi-icon {
+    color: var(--primary-dark); background: var(--primary-bg);
+    width: 38px; height: 38px; border-radius: 10px; padding: 8px;
+    box-sizing: border-box; margin-bottom: 8px;
+}
+.sip-kpi.critical .sip-kpi-icon { background: var(--status-danger-soft); color: var(--status-danger); }
+.sip-kpi:hover { border-color: var(--brand-border-strong); }
+
+/* แท็บ */
+.ds-tabs { border-bottom-width: var(--hairline); }
+.ds-tab { font-size: 15px; padding: 11px 16px; }
+.ds-tab.active { color: var(--primary-dark); border-bottom-color: var(--primary); }
+.ds-seg { font-size: 13px; padding: 6px 14px; }
+.ds-segbar { border-width: var(--hairline); }
+.ds-pilltab { font-size: 13px; padding: 8px 8px; }
+.ds-pilltab.active { background: var(--primary); }
+.ds-pilltab:hover:not(.active) { background: var(--primary-bg); color: var(--primary-dark); }
+
+/* หัวข้อ / การ์ด */
+.page-title    { font-size: 26px; font-weight: 700; }
+.page-subtitle { font-size: 14px; }
+.page-title i, .page-title svg { color: var(--primary); }
+.section-title { font-size: 17px; }
+.card-title    { font-size: 14px; letter-spacing: 0; text-transform: none; }
+.ds-pane-header h3 { font-size: 17px; }
+.ds-pane-count { background: var(--primary-bg); color: var(--primary-dark); }
+.ds-list-card.active { background: var(--primary-bg); border-color: var(--primary); }
+.ds-list-card:hover  { background: var(--surface-1); }
+.ds-list-card-name   { font-size: 14px; }
+.ds-list-card-detail { font-size: 13px; }
+.ds-context-bar { border-bottom-width: var(--hairline); }
+.ds-context-avatar { background: var(--primary-bg); color: var(--primary-dark); border-radius: 12px; }
+.ds-context-avatar.gradient { background: var(--primary); color: #fff; }
+.ds-empty-state-title { font-size: 19px; }
+.ds-empty-state-desc  { font-size: 15px; }
+.ds-section-label { font-size: 12px; color: var(--text-muted); }
+.ds-note, .ds-block, .ds-warn { font-size: 13px; }
+.sip-banner { font-size: 14px; border-width: var(--hairline); }
+.ds-step.completed { color: var(--primary-dark); }
+.ds-toggle.is-on { color: var(--primary-dark); }
+.ds-toggle.is-on .ds-toggle-track { background: var(--primary); }
+.ds-timeline-item.accent { border-left-color: var(--primary); }
+.ds-timeline-item.accent::before { background: var(--primary); }
+.ds-icon-btn.edit:hover {
+    color: var(--blue); border-color: #C9DCFB; background: var(--blue-bg);
+}
+
+/* Drawer / modal — ไม่มีเงาแล้วต้องพึ่งขอบ + ฉากหลังที่เข้มพอ */
+.drawer-panel { border-left: var(--hairline) solid var(--brand-border); }
+.drawer-root.open .drawer-overlay { background: rgba(17,17,17,.45); }
+.drawer-title { font-size: 17px; }
+.drawer-header, .drawer-footer { border-color: var(--brand-border); }
+.modal { border: var(--hairline) solid var(--brand-border); }
+.mc-confirm-box { border: var(--hairline) solid var(--brand-border); }
+.toast { background: #111; }
+
+/* ══════════════════════════════════════════════════════════
+   LOGIN — เลิกใช้ธีมมืด เปลี่ยนเป็นการ์ดสว่างแบบ ServiceFlow
+   ══════════════════════════════════════════════════════════ */
+.login-overlay {
+    background: #F7F7F7;
+    padding: 24px;
+}
+.login-overlay::before { content: none; }
+.login-card {
+    background: #fff;
+    border: var(--hairline) solid var(--brand-border);
+    border-radius: 12px;
+    box-shadow: none;
+    backdrop-filter: none;
+    max-width: 420px;
+    padding: 36px 36px 30px;
+    position: relative;
+    overflow: hidden;
+}
+/* แถบไล่สีบนขอบการ์ด — เหมือนหน้า login ของ ServiceFlow เป๊ะ */
+.login-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, #06C755 0%, #06C755 55%, #3579EA 55%, #3579EA 100%);
+}
+.login-logo-mark  { background: var(--primary); box-shadow: none; border-radius: 10px; }
+.login-logo-text h1 { color: #111; font-size: 22px; }
+.login-logo-text p  { color: var(--text-muted); }
+.login-divider    { background: var(--border-light); }
+.login-label      { color: #111; font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.login-input {
+    background: #fff; color: #111;
+    border: var(--hairline) solid var(--brand-border); border-radius: 8px;
+    font-size: 15px; padding: 11px 13px;
+}
+.login-input::placeholder { color: var(--text-light); }
+.login-input:focus {
+    border-color: var(--blue); background: #fff;
+    box-shadow: 0 0 0 3px rgba(53,121,234,.15);
+}
+.login-btn {
+    background: var(--primary); box-shadow: none;
+    border-radius: 8px; height: 48px; font-size: 17px; font-weight: 700;
+}
+.login-btn:hover  { background: var(--primary-dark); box-shadow: none; transform: none; }
+.login-error {
+    background: var(--danger-bg); border: var(--hairline) solid #FFC9CE; color: #C80000;
+    border-radius: 8px;
+}
+.login-footer { color: var(--text-light); }

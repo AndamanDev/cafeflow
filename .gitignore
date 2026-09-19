@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+*.log
+
+# ผลลัพธ์ที่ generate ได้ — dist/cafeflow-kiosk.html สร้างใหม่ด้วยสคริปต์ได้เสมอ
+.playwright-mcp/
+
+# ข้อมูลจริง ห้ามขึ้น repo เด็ดขาด
+/data/
+/backup/
+slips/
+*.dump
+*.sql.gz

@@ -1,0 +1,613 @@
+/* ============================================================
+   CafeFlow — KIOSK (§9, §35)
+   ------------------------------------------------------------
+   จอสัมผัสยืนกด 21–32 นิ้ว Full HD
+     ผืนผ้าใบ 1080×1920 (แนวตั้ง) / 1920×1080 (แนวนอน)
+     ขนาดกายภาพแปรผัน → จอ 21.5" คือกรณีคับที่สุด (~102 PPI)
+
+   กติกาของไฟล์นี้:
+     1. ห้ามมี @media (max-width:…) เลย — media query วัด "หน้าต่าง"
+        แต่เวทีแนวตั้งเป็นลูกที่ถูก letterbox ไว้ ค่าที่วัดได้จะโกหก
+        สลับด้วย body.cfk-portrait / .cfk-landscape เท่านั้น
+     2. ทุกขนาดเป็น calc(var(--u) * N) ห้ามใช้ px ดิบกับตัวอักษร ระยะ พื้นที่กด
+     3. ห้ามมี box-shadow — ความลึกมาจากเส้นขอบและค่าความสว่าง (ตามธีม ServiceFlow)
+     4. ปุ่มที่ต้องกดจริงอยู่ครึ่งล่างของจอเสมอ (โซนเอื้อมของคนตัวเล็ก/รถเข็น)
+
+   namespace .cfk-* ทั้งหมด ไม่พึ่งคอมโพเนนต์ของ design system
+   (ใช้แค่ชั้นโทเคนสีและฟอนต์ร่วมกัน)
+   ============================================================ */
+
+/* ══════════════════════════════════════════════════════════
+   เวที
+   ══════════════════════════════════════════════════════════ */
+html { height: 100%; }
+body.cf-kiosk {
+    margin: 0; height: 100dvh; overflow: hidden;
+    background: #14171A;
+    font-family: var(--font-main);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none; user-select: none;
+}
+#cfkFrame { height: 100dvh; display: grid; place-items: center; }
+
+#cfkStage {
+    position: relative; overflow: hidden;
+    background: var(--brand-bg);
+    container-type: size; container-name: stage;
+    display: grid;
+
+    --scale: 1;                       /* JS ตั้งจาก settings.kioskScale */
+    --u0: 10.8px;                     /* fallback — ต้องมาก่อน เผื่อไม่รองรับ cqi */
+    --u0: clamp(7px, 1cqi, 14px);     /* แนวตั้ง 1080 → 1cqi = 10.8px */
+    --u: calc(var(--u0) * var(--scale));
+
+    --gap: calc(var(--u) * 1.3);
+    --pad: calc(var(--u) * 2);
+    --r:   calc(var(--u) * 1.2);
+}
+#cfkStage *, #cfkStage *::before, #cfkStage *::after { box-sizing: border-box; }
+
+body.cfk-portrait  #cfkStage { width: min(100vw, calc(100dvh * 9 / 16)); height: 100dvh;
+                               grid-template-rows: auto 1fr; }
+body.cfk-landscape #cfkStage { width: 100vw; height: 100dvh;
+                               --u0: 10.6px; --u0: clamp(7px, .55cqi, 14px);
+                               grid-template-rows: auto 1fr; }
+
+/* กรอบจำลองเมื่อดูบนจอคอม — outline ไม่ใช่ box-shadow */
+body.cfk-frame.cfk-portrait #cfkStage {
+    border-radius: calc(var(--u) * 1.6);
+    outline: 8px solid #23282D;
+}
+
+/* ══════════════════════════════════════════════════════════
+   ชิ้นส่วนร่วม
+   ══════════════════════════════════════════════════════════ */
+.cfk-screen { display: grid; min-height: 0; overflow: hidden; }
+
+/* แถบหัว — ปุ่มย้อนกลับตำแหน่งตายตัวทุกหน้า */
+.cfk-top {
+    display: flex; align-items: center; gap: var(--gap);
+    padding: var(--pad); background: #fff;
+    border-bottom: 0.8px solid var(--brand-border);
+    min-height: calc(var(--u) * 7);
+}
+.cfk-top-title { flex: 1; min-width: 0; }
+.cfk-top-title b {
+    display: block; font-size: calc(var(--u) * 2.2); font-weight: 700; color: #111;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cfk-top-title span { font-size: calc(var(--u) * 1.5); color: var(--text-muted); }
+
+.cfk-back {
+    flex-shrink: 0; width: calc(var(--u) * 5.4); height: calc(var(--u) * 5.4);
+    display: grid; place-items: center; cursor: pointer;
+    background: #fff; border: 0.8px solid var(--brand-border);
+    border-radius: var(--r); color: #111;
+}
+.cfk-back:active { background: var(--brand-bg); }
+.cfk-back .cfk-ic { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
+
+/* ชิปโหมดรับของบนแถบหัว */
+.cfk-mode {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: calc(var(--u) * .6);
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.6);
+    min-height: calc(var(--u) * 5);            /* 54px = 13มม. ที่จอ 21.5" */
+    background: var(--primary-bg); color: var(--primary-dark);
+    border: 0.8px solid var(--primary-border); border-radius: 999px;
+    font-size: calc(var(--u) * 1.4); font-weight: 700; cursor: pointer;
+}
+.cfk-mode .cfk-ic { width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); }
+/* ร้านที่รับแบบเดียว — ป้ายบอกสถานะ ไม่ใช่ปุ่ม (ขนาดเท่าเดิม แถบหัวจะได้ไม่ขยับ) */
+.cfk-mode-static { cursor: default; }
+
+/* ปุ่ม */
+.cfk-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: calc(var(--u) * .8); cursor: pointer; font-family: inherit;
+    min-height: calc(var(--u) * 7);                 /* ปุ่มหลัก ≈76px = 19มม. ที่ 21.5" */
+    padding: 0 calc(var(--u) * 2.6);
+    border-radius: var(--r); border: 0.8px solid transparent;
+    font-size: calc(var(--u) * 2); font-weight: 700; white-space: nowrap;
+}
+.cfk-btn .cfk-ic { width: calc(var(--u) * 2.1); height: calc(var(--u) * 2.1); }
+.cfk-btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.cfk-btn-primary:active { background: var(--primary-dark); }
+.cfk-btn-ghost   { background: #fff; color: #111; border-color: var(--brand-border); }
+.cfk-btn-ghost:active { background: var(--brand-bg); }
+.cfk-btn:disabled { opacity: .4; pointer-events: none; }
+.cfk-btn-grow { flex: 1; }
+
+/* แถบปุ่มล่าง — อยู่ครึ่งล่างเสมอ */
+.cfk-actionbar {
+    display: flex; gap: var(--gap); padding: var(--pad);
+    background: #fff; border-top: 0.8px solid var(--brand-border);
+}
+
+.cfk-note {
+    display: flex; gap: calc(var(--u) * .8); align-items: flex-start;
+    padding: calc(var(--u) * 1.2) calc(var(--u) * 1.4);
+    background: var(--surface-1); border: 0.8px solid var(--brand-border);
+    border-radius: var(--r); color: var(--text-secondary);
+    font-size: calc(var(--u) * 1.45); line-height: 1.5;
+}
+.cfk-note .cfk-ic { width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); flex-shrink: 0; }
+.cfk-note-warn { background: var(--brand-amber-50); border-color: #FDE68A; color: #8A6400; }
+.cfk-note-ok   { background: var(--primary-bg); border-color: var(--primary-border); color: var(--primary-dark); }
+
+/* ══════════════════════════════════════════════════════════
+   รูปภาพสินค้า
+   ══════════════════════════════════════════════════════════ */
+.cfk-media {
+    position: relative; display: grid; place-items: center; overflow: hidden;
+    background: linear-gradient(155deg, var(--t1) 0%, var(--t2) 100%);
+    color: rgba(0, 0, 0, .40);                 /* คุม currentColor ของภาพวาด */
+}
+.cfk-art { width: 64%; height: 64%; }
+.cfk-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* ลิงก์รูปตาย → ซ่อน img แล้วเผยภาพวาดที่รออยู่ข้างใต้ */
+.cfk-media.is-broken .cfk-img { display: none; }
+body.cfk-noart .cfk-media { display: none; }
+
+/* ══════════════════════════════════════════════════════════
+   1. ATTRACT
+   ══════════════════════════════════════════════════════════ */
+.cfk-attract {
+    grid-row: 1 / -1; display: grid; cursor: pointer;
+    border: 0; padding: 0; font-family: inherit; text-align: center;
+    background: #fff; width: 100%; height: 100%;
+}
+body.cfk-portrait  .cfk-attract { grid-template-rows: 1fr auto; }
+body.cfk-landscape .cfk-attract { grid-template-columns: 1fr 1fr; align-items: center; }
+
+.cfk-attract-strip { height: 5px; background: linear-gradient(90deg,
+    var(--primary) 0%, var(--primary) 55%, var(--blue) 55%, var(--blue) 100%); }
+
+.cfk-attract-mid {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: calc(var(--u) * 1.6); padding: var(--pad);
+}
+.cfk-attract-mark {
+    width: calc(var(--u) * 11); height: calc(var(--u) * 11);
+    border-radius: calc(var(--u) * 2.4); background: var(--primary);
+    display: grid; place-items: center;
+}
+.cfk-attract-mark svg { width: 56%; height: 56%; }
+.cfk-attract-shop { font-size: calc(var(--u) * 4.4); font-weight: 700; color: #111; line-height: 1.15; }
+.cfk-attract-sub  { font-size: calc(var(--u) * 1.8); color: var(--text-muted); }
+.cfk-attract-cta {
+    margin-top: calc(var(--u) * 1.4);
+    padding: calc(var(--u) * 1.8) calc(var(--u) * 4);
+    background: var(--primary); color: #fff; border-radius: 999px;
+    font-size: calc(var(--u) * 2.4); font-weight: 700;
+    animation: cfk-breathe 2.4s ease-in-out infinite;
+}
+@keyframes cfk-breathe { 0%, 100% { opacity: 1 } 50% { opacity: .62 } }
+
+.cfk-attract-band { overflow: hidden; padding-bottom: calc(var(--u) * 2.4); }
+.cfk-attract-row { display: flex; gap: var(--gap); width: max-content;
+                   animation: cfk-marquee 32s linear infinite; }
+@keyframes cfk-marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.cfk-attract-tile {
+    width: calc(var(--u) * 15); aspect-ratio: 1; border-radius: var(--r);
+    overflow: hidden; flex-shrink: 0;
+}
+.cfk-attract-tile .cfk-media { width: 100%; height: 100%; }
+body.cfk-landscape .cfk-attract-band { padding: var(--pad); }
+body.cfk-landscape .cfk-attract-row { animation: none; flex-wrap: wrap; width: auto;
+                                      justify-content: center; }
+
+@media (prefers-reduced-motion: reduce) {
+    .cfk-attract-cta, .cfk-attract-row { animation: none; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   2. ตัวเลือกใหญ่ (กินที่ร้าน/กลับบ้าน · เงินสด/QR)
+   ══════════════════════════════════════════════════════════ */
+.cfk-choices {
+    display: grid; gap: var(--gap); padding: var(--pad);
+    align-content: center; justify-content: stretch; min-height: 0; overflow-y: auto;
+}
+body.cfk-portrait  .cfk-choices { grid-auto-rows: max-content; }
+body.cfk-landscape .cfk-choices { grid-template-columns: 1fr 1fr; align-items: center; }
+
+.cfk-bigchoice {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: calc(var(--u) * 1.2); cursor: pointer; font-family: inherit;
+    padding: calc(var(--u) * 3); min-height: calc(var(--u) * 22);
+    background: #fff; border: 0.8px solid var(--brand-border);
+    border-radius: calc(var(--u) * 1.8);
+}
+.cfk-bigchoice:active { border-color: var(--primary); background: var(--primary-bg); }
+.cfk-bigchoice .cfk-media {
+    width: calc(var(--u) * 16); height: calc(var(--u) * 16);
+    border-radius: calc(var(--u) * 2);
+}
+.cfk-bigchoice .cfk-ic { width: calc(var(--u) * 6.4); height: calc(var(--u) * 6.4); color: var(--primary-dark); }
+.cfk-bigchoice b     { font-size: calc(var(--u) * 2.6); font-weight: 700; color: #111; }
+.cfk-bigchoice small { font-size: calc(var(--u) * 1.5); color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════════
+   3. MENU
+   ══════════════════════════════════════════════════════════ */
+body.cfk-portrait  .cfk-menu { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+body.cfk-landscape .cfk-menu { display: grid;
+    grid-template-columns: calc(var(--u) * 21) 1fr calc(var(--u) * 33);
+    min-height: 0; }
+
+/* หมวด — แนวตั้ง: แถบเลื่อนแนวนอน */
+.cfk-catstrip {
+    position: relative; display: flex; gap: calc(var(--u) * .9);
+    padding: calc(var(--u) * 1.4) var(--pad);
+    background: #fff; border-bottom: 0.8px solid var(--brand-border);
+    overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity;
+}
+.cfk-catstrip::-webkit-scrollbar { display: none; }
+/* บอกว่ายังเลื่อนไปได้อีก — ไม่งั้นหมวดท้าย ๆ ไม่มีใครรู้ว่ามี */
+.cfk-catstrip::after {
+    content: ''; position: sticky; right: 0; flex: 0 0 calc(var(--u) * 3); margin-right: calc(var(--u) * -2);
+    align-self: stretch; pointer-events: none;
+    background: linear-gradient(90deg, rgba(255,255,255,0), #fff 75%);
+}
+.cfk-cat {
+    flex-shrink: 0; scroll-snap-align: center; cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+    padding: calc(var(--u) * 1.1) calc(var(--u) * 1.8);
+    min-height: calc(var(--u) * 5);
+    background: var(--surface-1); border: 0.8px solid var(--brand-border);
+    border-radius: 999px; text-align: left;
+}
+.cfk-cat b     { font-size: calc(var(--u) * 1.75); font-weight: 700; color: #111; white-space: nowrap; }
+.cfk-cat small { font-size: calc(var(--u) * 1.15); color: var(--text-light); white-space: nowrap; }
+.cfk-cat.active { background: var(--primary); border-color: var(--primary); }
+.cfk-cat.active b, .cfk-cat.active small { color: #fff; }
+
+/* หมวด — แนวนอน: รางซ้าย */
+.cfk-rail {
+    display: flex; flex-direction: column; gap: calc(var(--u) * .6);
+    padding: var(--pad) calc(var(--u) * 1.2);
+    background: #fff; border-right: 0.8px solid var(--brand-border);
+    overflow-y: auto; min-height: 0;
+}
+.cfk-rail .cfk-cat { width: 100%; border-radius: var(--r); scroll-snap-align: none; }
+
+/* กริดสินค้า */
+.cfk-gridwrap { overflow-y: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
+.cfk-groupbar {
+    position: sticky; top: 0; z-index: 2;
+    padding: calc(var(--u) * 1.6) var(--pad) calc(var(--u) * .9);
+    background: var(--brand-bg);
+    font-size: calc(var(--u) * 1.4); font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-muted);
+}
+.cfk-grid { display: grid; gap: var(--gap); padding: 0 var(--pad) var(--pad); }
+body.cfk-portrait  .cfk-grid { grid-template-columns: repeat(2, 1fr); }
+body.cfk-landscape .cfk-grid { grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 21), 1fr)); }
+
+.cfk-card {
+    position: relative; display: flex; flex-direction: column; cursor: pointer;
+    padding: 0; text-align: left; font-family: inherit; overflow: hidden;
+    background: #fff; border: 0.8px solid var(--brand-border);
+    border-radius: calc(var(--u) * 1.4);
+}
+.cfk-card:active:not(:disabled) { border-color: var(--primary); background: var(--primary-bg); }
+.cfk-card .cfk-media { width: 100%; }
+body.cfk-portrait  .cfk-card .cfk-media { aspect-ratio: 4 / 3; }
+body.cfk-landscape .cfk-card .cfk-media { aspect-ratio: 4 / 3; }
+
+.cfk-card-body {
+    flex: 1; display: flex; flex-direction: column; gap: calc(var(--u) * .3);
+    padding: calc(var(--u) * 1.3) calc(var(--u) * 1.4) calc(var(--u) * 1.4);
+    background: #fff; border-top: 0.8px solid rgba(0, 0, 0, .05);
+}
+body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); }
+.cfk-card-name {
+    font-size: calc(var(--u) * 2); font-weight: 700; color: #111; line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cfk-card-en { font-size: calc(var(--u) * 1.3); color: var(--text-light);
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfk-card-foot {
+    margin-top: auto; padding-top: calc(var(--u) * .9);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: calc(var(--u) * .6); flex-wrap: wrap;
+}
+.cfk-serves { display: flex; gap: calc(var(--u) * .4); flex-wrap: wrap; }
+.cfk-serve-pill {
+    padding: calc(var(--u) * .25) calc(var(--u) * .9);
+    background: var(--surface-1); border: 0.8px solid var(--brand-border);
+    border-radius: 999px; font-size: calc(var(--u) * 1.15);
+    font-weight: 700; color: var(--text-muted);
+}
+.cfk-price { font-size: calc(var(--u) * 2.2); font-weight: 800;
+             color: var(--primary-dark); white-space: nowrap; }
+.cfk-price small { font-size: calc(var(--u) * 1.3); font-weight: 700; color: var(--text-muted); }
+
+.cfk-card:disabled { cursor: not-allowed; }
+.cfk-card:disabled .cfk-media, .cfk-card:disabled .cfk-card-body { opacity: .4; }
+.cfk-badge {
+    position: absolute; top: calc(var(--u) * .9); left: calc(var(--u) * .9); z-index: 1;
+    padding: calc(var(--u) * .35) calc(var(--u) * 1); border-radius: 999px;
+    font-size: calc(var(--u) * 1.15); font-weight: 700;
+}
+.cfk-badge-reco { background: var(--blue); color: #fff; }
+.cfk-badge-out  { left: auto; right: calc(var(--u) * .9); background: var(--status-danger); color: #fff; }
+
+/* ══════════════════════════════════════════════════════════
+   4. ตะกร้า — อยู่ที่เดิมเสมอ ไม่เคยหาย
+   ══════════════════════════════════════════════════════════ */
+.cfk-cartbar {
+    display: flex; align-items: center; gap: var(--gap); padding: var(--pad);
+    background: #fff; border-top: 0.8px solid var(--brand-border);
+}
+.cfk-cartbar-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cfk-cartbar-info span   { font-size: calc(var(--u) * 1.4); color: var(--text-muted); }
+.cfk-cartbar-info strong { font-size: calc(var(--u) * 2.8); font-weight: 800; color: #111;
+                           font-variant-numeric: tabular-nums; }
+.cfk-cartbar.is-empty .cfk-cartbar-info strong { color: var(--text-light); }
+
+/* แผงตะกร้าขวา (แนวนอน) */
+.cfk-cartpanel {
+    display: grid; grid-template-rows: auto 1fr auto; min-height: 0;
+    background: #fff; border-left: 0.8px solid var(--brand-border);
+}
+.cfk-cartpanel-head {
+    padding: var(--pad); border-bottom: 0.8px solid var(--brand-border);
+    font-size: calc(var(--u) * 2); font-weight: 700; color: #111;
+}
+.cfk-cartpanel-list { overflow-y: auto; min-height: 0; padding: 0 var(--pad); }
+.cfk-cartpanel-foot { padding: var(--pad); border-top: 0.8px solid var(--brand-border);
+                      display: grid; gap: calc(var(--u) * 1); }
+
+.cfk-cartline {
+    display: flex; gap: calc(var(--u) * 1.2); align-items: flex-start;
+    padding: calc(var(--u) * 1.4) 0; border-bottom: 0.8px solid var(--border-light);
+}
+.cfk-cartline .cfk-media {
+    width: calc(var(--u) * 7); height: calc(var(--u) * 7);
+    border-radius: var(--r); flex-shrink: 0;
+}
+.cfk-cartline-mid { flex: 1; min-width: 0; }
+.cfk-cartline-name { font-size: calc(var(--u) * 1.75); font-weight: 700; color: #111; }
+.cfk-cartline-mods { font-size: calc(var(--u) * 1.35); color: var(--text-muted); line-height: 1.45; }
+.cfk-cartline-end  { text-align: right; flex-shrink: 0; }
+.cfk-cartline-amt  { font-size: calc(var(--u) * 1.8); font-weight: 700; color: #111;
+                     font-variant-numeric: tabular-nums; }
+.cfk-cartline-act  { display: flex; gap: calc(var(--u) * .6); margin-top: calc(var(--u) * .8); }
+
+.cfk-mini {
+    display: inline-flex; align-items: center; gap: calc(var(--u) * .4);
+    padding: calc(var(--u) * .7) calc(var(--u) * 1.2); cursor: pointer; font-family: inherit;
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r);
+    font-size: calc(var(--u) * 1.35); font-weight: 700; color: var(--text-secondary);
+    min-height: calc(var(--u) * 5); min-width: calc(var(--u) * 5);
+    justify-content: center;
+}
+.cfk-mini .cfk-ic { width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6); }
+.cfk-mini:active { background: var(--brand-bg); }
+
+.cfk-total {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: var(--pad); background: #fff;
+}
+.cfk-total span   { font-size: calc(var(--u) * 1.8); color: var(--text-muted); }
+.cfk-total strong { font-size: calc(var(--u) * 3.2); font-weight: 800; color: #111;
+                    font-variant-numeric: tabular-nums; }
+
+.cfk-empty {
+    display: grid; place-items: center; gap: calc(var(--u) * 1);
+    padding: calc(var(--u) * 5) var(--pad); text-align: center;
+    color: var(--text-light); font-size: calc(var(--u) * 1.7);
+}
+
+/* ══════════════════════════════════════════════════════════
+   5. รายละเอียดสินค้า
+   ══════════════════════════════════════════════════════════ */
+body.cfk-portrait  .cfk-item { display: grid; grid-template-rows: auto auto 1fr auto; min-height: 0; }
+body.cfk-landscape .cfk-item { display: grid; grid-template-rows: auto 1fr auto;
+                               grid-template-columns: 1fr 1.25fr; }
+body.cfk-landscape .cfk-item > .cfk-top      { grid-column: 1 / -1; }
+body.cfk-landscape .cfk-item > .cfk-actionbar { grid-column: 1 / -1; }
+
+.cfk-item-left { padding: var(--pad); overflow-y: auto; min-height: 0; }
+.cfk-item-scroll { overflow-y: auto; min-height: 0; padding: 0 var(--pad) var(--pad); }
+body.cfk-portrait .cfk-item-left { display: contents; }
+
+.cfk-hero { width: 100%; border-radius: calc(var(--u) * 1.6); overflow: hidden; }
+body.cfk-portrait  .cfk-hero { aspect-ratio: 16 / 10; margin: var(--pad) var(--pad) calc(var(--u) * .6);
+                               width: auto; }
+body.cfk-landscape .cfk-hero { aspect-ratio: 1 / 1; }
+.cfk-hero .cfk-media { width: 100%; height: 100%; }
+
+.cfk-item-name { font-size: calc(var(--u) * 2.8); font-weight: 700; color: #111; line-height: 1.25; }
+.cfk-item-en   { font-size: calc(var(--u) * 1.6); color: var(--text-light);
+                 margin-bottom: calc(var(--u) * 1.4); }
+.cfk-item-eyebrow { font-size: calc(var(--u) * 1.3); font-weight: 700; letter-spacing: .06em;
+                    text-transform: uppercase; color: var(--text-muted); }
+
+.cfk-optgroup { margin-top: calc(var(--u) * 2); }
+.cfk-optgroup-head {
+    display: flex; align-items: center; gap: calc(var(--u) * .8); flex-wrap: wrap;
+    margin-bottom: calc(var(--u) * .9);
+}
+.cfk-optgroup-head b { font-size: calc(var(--u) * 1.85); font-weight: 700; color: #111; }
+.cfk-tag {
+    padding: calc(var(--u) * .25) calc(var(--u) * .9); border-radius: 999px;
+    font-size: calc(var(--u) * 1.15); font-weight: 700;
+    background: var(--surface-1); color: var(--text-muted);
+    border: 0.8px solid var(--brand-border);
+}
+.cfk-tag-req { background: var(--brand-amber-50); color: #8A6400; border-color: #FDE68A; }
+
+.cfk-opts { display: grid; gap: calc(var(--u) * .9); }
+body.cfk-portrait  .cfk-opts { grid-template-columns: repeat(2, 1fr); }
+body.cfk-landscape .cfk-opts { grid-template-columns: repeat(3, 1fr); }
+.cfk-opt {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: calc(var(--u) * .6); cursor: pointer; font-family: inherit; text-align: left;
+    padding: calc(var(--u) * 1.3) calc(var(--u) * 1.4);
+    min-height: calc(var(--u) * 5.4);
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r);
+    font-size: calc(var(--u) * 1.6); font-weight: 600; color: #111; line-height: 1.3;
+}
+.cfk-opt b { flex-shrink: 0; font-size: calc(var(--u) * 1.4); color: var(--primary-dark); }
+.cfk-opt.active { background: var(--primary-bg); border-color: var(--primary);
+                  color: var(--primary-dark); font-weight: 700; }
+.cfk-optgroup.is-missing .cfk-optgroup-head b { color: var(--status-danger); }
+.cfk-optgroup.is-missing .cfk-opt { border-color: #FFC9CE; }
+
+/* ปุ่มแบบเสิร์ฟ — ราคาโชว์ใต้ชื่อ เห็นก่อนกด */
+.cfk-serves-pick { display: grid; gap: calc(var(--u) * .9);
+                   grid-template-columns: repeat(auto-fit, minmax(calc(var(--u) * 11), 1fr)); }
+.cfk-serve {
+    display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .2);
+    cursor: pointer; font-family: inherit; min-height: calc(var(--u) * 6.4);
+    padding: calc(var(--u) * 1.2);
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r);
+}
+.cfk-serve b     { font-size: calc(var(--u) * 1.9); font-weight: 700; color: #111; }
+.cfk-serve small { font-size: calc(var(--u) * 1.5); font-weight: 600; color: var(--text-muted); }
+.cfk-serve.active { background: var(--primary); border-color: var(--primary); }
+.cfk-serve.active b, .cfk-serve.active small { color: #fff; }
+
+.cfk-qty { display: flex; align-items: center; gap: calc(var(--u) * 1.6);
+           margin-top: calc(var(--u) * 1); }
+.cfk-qty button {
+    width: calc(var(--u) * 6); height: calc(var(--u) * 6); cursor: pointer;
+    display: grid; place-items: center; font-family: inherit;
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r); color: #111;
+}
+.cfk-qty button:disabled { opacity: .35; pointer-events: none; }
+.cfk-qty button .cfk-ic { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
+.cfk-qty output { font-size: calc(var(--u) * 2.6); font-weight: 800; color: #111;
+                  min-width: calc(var(--u) * 4); text-align: center;
+                  font-variant-numeric: tabular-nums; }
+
+/* ══════════════════════════════════════════════════════════
+   6. UPSELL — ครั้งเดียวต่อออเดอร์
+   ══════════════════════════════════════════════════════════ */
+.cfk-upsell { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
+.cfk-upsell-head { padding: var(--pad) var(--pad) 0; }
+.cfk-upsell-head b { display: block; font-size: calc(var(--u) * 2.6); font-weight: 700; color: #111; }
+.cfk-upsell-head span { font-size: calc(var(--u) * 1.6); color: var(--text-muted); }
+.cfk-upgrid { display: grid; gap: var(--gap); padding: var(--pad); overflow-y: auto; min-height: 0; }
+body.cfk-portrait  .cfk-upgrid { grid-template-columns: repeat(2, 1fr); align-content: start; }
+body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-content: center; }
+.cfk-upcard.is-added { border-color: var(--primary); background: var(--primary-bg); }
+.cfk-upcard.is-added .cfk-price { color: var(--primary-dark); }
+
+/* ══════════════════════════════════════════════════════════
+   7. ชำระเงิน / QR / เสร็จสิ้น
+   ══════════════════════════════════════════════════════════ */
+.cfk-paytotal {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: var(--pad); padding: calc(var(--u) * 2);
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: calc(var(--u) * 1.4);
+}
+.cfk-paytotal span   { font-size: calc(var(--u) * 1.7); color: var(--text-muted); }
+.cfk-paytotal strong { font-size: calc(var(--u) * 4); font-weight: 800; color: #111;
+                       font-variant-numeric: tabular-nums; }
+
+.cfk-center {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: calc(var(--u) * 1.4); padding: var(--pad); text-align: center;
+    overflow-y: auto; min-height: 0;
+}
+.cfk-qr {
+    width: calc(var(--u) * 26); aspect-ratio: 1; display: grid; place-items: center;
+    gap: calc(var(--u) * .8); border: 3px dashed var(--brand-border-strong);
+    border-radius: calc(var(--u) * 1.6); color: var(--text-light); background: #fff;
+}
+.cfk-qr .cfk-ic { width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
+.cfk-qr span { font-size: calc(var(--u) * 1.3); }
+
+.cfk-done-ico {
+    width: calc(var(--u) * 9); height: calc(var(--u) * 9); border-radius: 50%;
+    display: grid; place-items: center;
+}
+.cfk-done-ico .cfk-ic { width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); }
+.cfk-done-ico.ok   { background: var(--primary-bg); color: var(--primary-dark); }
+.cfk-done-ico.warn { background: var(--brand-amber-50); color: #8A6400; }
+.cfk-done-label { font-size: calc(var(--u) * 1.8); color: var(--text-muted); }
+.cfk-done-no {
+    font-size: calc(var(--u) * 16); font-weight: 800; color: #111;
+    line-height: 1.05; letter-spacing: .02em; font-variant-numeric: tabular-nums;
+}
+.cfk-done-timer { font-size: calc(var(--u) * 1.5); color: var(--text-light); }
+.cfk-countdown { font-size: calc(var(--u) * 2.2); font-weight: 800; color: var(--primary-dark);
+                 font-variant-numeric: tabular-nums; }
+
+/* ══════════════════════════════════════════════════════════
+   8. แผ่นยืนยัน + toast — อยู่ "ในเวที" ไม่ใช่ในหน้าต่าง
+      (drawer ของ DS เป็น position:fixed ผูกกับหน้าต่าง จะทะลุกรอบจำลอง)
+   ══════════════════════════════════════════════════════════ */
+.cfk-sheet {
+    position: absolute; inset: 0; z-index: 50;
+    display: grid; place-items: center; padding: var(--pad);
+    background: rgba(17, 17, 17, .5);
+}
+.cfk-sheet-box {
+    width: 100%; max-width: calc(var(--u) * 42);
+    background: #fff; border-radius: calc(var(--u) * 1.8);
+    border: 0.8px solid var(--brand-border); overflow: hidden;
+}
+.cfk-sheet-body { padding: calc(var(--u) * 2.4); text-align: center; }
+.cfk-sheet-body b { display: block; font-size: calc(var(--u) * 2.2); font-weight: 700;
+                    color: #111; margin-bottom: calc(var(--u) * .8); }
+.cfk-sheet-body p { margin: 0; font-size: calc(var(--u) * 1.6); color: var(--text-muted); }
+
+.cfk-toast {
+    position: absolute; left: 50%; bottom: calc(var(--u) * 12); z-index: 60;
+    transform: translate(-50%, calc(var(--u) * 1.4));
+    padding: calc(var(--u) * 1.2) calc(var(--u) * 2.4); border-radius: 999px;
+    background: #111; color: #fff; font-size: calc(var(--u) * 1.6); font-weight: 700;
+    opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s;
+    max-width: 86%; text-align: center;
+}
+.cfk-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ป้ายบอกว่านี่คือเดโม */
+.cfk-demoonly {
+    position: absolute; top: calc(var(--u) * 1); right: calc(var(--u) * 1); z-index: 40;
+    padding: calc(var(--u) * .4) calc(var(--u) * 1); border-radius: 999px;
+    background: rgba(17, 17, 17, .6); color: #fff;
+    font-size: calc(var(--u) * 1.1); font-weight: 700; pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════
+   9. หน้าเลือกเครื่อง — เฉพาะเว็บแอป ไม่มีในอาร์ติแฟกต์
+   ══════════════════════════════════════════════════════════ */
+.cf-kiosk-gate[hidden] { display: none !important; }
+.cf-kiosk-gate {
+    position: fixed; inset: 0; z-index: 2000; background: #F7F7F7;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    font-size: 15px;
+}
+.cf-kiosk-gate-card {
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: 12px;
+    padding: 32px; width: 100%; max-width: 460px; position: relative; overflow: hidden;
+}
+.cf-kiosk-gate-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, #06C755 0%, #06C755 55%, #3579EA 55%, #3579EA 100%);
+}
+.cf-kiosk-gate-card h2 { font-size: 22px; font-weight: 700; color: #111; margin: 0 0 4px; }
+.cf-kiosk-gate-card p  { font-size: 14px; color: var(--text-muted); margin: 0 0 18px; }
+.cf-kiosk-gate-btn {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+    padding: 14px 16px; margin-bottom: 8px; cursor: pointer; text-align: left; font-family: inherit;
+    background: #fff; border: 0.8px solid var(--brand-border); border-radius: 10px;
+}
+.cf-kiosk-gate-btn:hover  { border-color: var(--primary); background: var(--primary-bg); }
+.cf-kiosk-gate-btn strong { display: block; font-size: 15px; color: #111; }
+.cf-kiosk-gate-btn small  { font-size: 12px; color: var(--text-muted); }
+.cf-gate-chip {
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    background: var(--surface-1); color: var(--text-muted);
+    border: 0.8px solid var(--brand-border); white-space: nowrap;
+}
+.cf-gate-chip.ok { background: var(--primary-bg); color: var(--primary-dark); border-color: var(--primary-border); }
+.cf-kiosk-gate-link {
+    display: block; margin-top: 16px; text-align: center;
+    font-size: 13px; color: var(--text-muted); text-decoration: none;
+}
+.cf-kiosk-gate-link:hover { color: var(--primary-dark); }

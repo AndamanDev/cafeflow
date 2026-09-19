@@ -1,0 +1,538 @@
+/* ============================================================
+   MediCore Design System — COMPONENTS
+   ปุ่ม · การ์ด · ตาราง · ฟอร์ม · chip · KPI · tab · badge ·
+   stepper · timeline · empty/loading
+   ============================================================ */
+
+/* ══════════════════════════════════════════════════════════
+   1. BUTTONS
+   ── .btn-primary = amber (CTA)  ·  .btn-save = blue (action)
+      สองอันนี้ต่างสีโดยตั้งใจ ดู README หัวข้อ "บทบาทสี 3 ชั้น"
+   ══════════════════════════════════════════════════════════ */
+.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border-radius: var(--r-md);
+    font-size: 13px; font-weight: 600; font-family: inherit;
+    cursor: pointer; border: 1px solid transparent;
+    transition: all 150ms cubic-bezier(.4,0,.2,1);
+    white-space: nowrap;
+}
+.btn-sm { padding: 5px 10px; font-size: 12px; gap: 4px; }
+.btn-lg { padding: 10px 18px; font-size: 14px; }
+.btn-block { display: flex; justify-content: center; width: 100%; }
+
+.btn-primary {
+    background: var(--brand-amber); color: var(--brand-amber-on);
+    border-color: var(--brand-amber-600);
+}
+.btn-primary:hover  { background: var(--brand-amber-500); }
+.btn-primary:active { background: var(--brand-amber-600); }
+
+.btn-navy { background: var(--brand-navy); color: var(--brand-navy-on); border-color: var(--brand-navy); }
+.btn-navy:hover { background: var(--brand-navy-700); }
+
+.btn-outline { background: var(--brand-white); color: var(--brand-navy); border-color: var(--brand-border-strong); }
+.btn-outline:hover { border-color: var(--brand-navy); }
+
+.btn-ghost { background: transparent; color: var(--brand-navy-500); border-color: transparent; }
+.btn-ghost:hover { background: var(--status-muted-soft); color: var(--brand-navy); }
+
+.btn-danger { background: var(--brand-white); color: var(--status-danger); border-color: var(--status-danger); }
+.btn-danger:hover { background: var(--status-danger-soft); }
+
+/* ปุ่ม action สีฟ้า/ส้ม (แถบปุ่มท้ายฟอร์ม) */
+.btn-save {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+    font-weight: 700;
+}
+.btn-save:hover {
+    background: var(--primary-dark);
+    box-shadow: 0 4px 12px rgba(0,104,255,.3); transform: translateY(-1px);
+}
+.btn-save-send {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+    font-weight: 700;
+}
+.btn-save-send:hover {
+    background: var(--accent-dark);
+    box-shadow: 0 4px 12px rgba(255,105,19,.35); transform: translateY(-1px);
+}
+
+.btn:disabled, .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* แถบปุ่มท้ายแผง */
+.ds-actions {
+    display: flex; gap: 12px; padding: 16px;
+    border-top: 1px solid var(--brand-border); background: var(--white);
+}
+.ds-actions .btn { flex: 1; justify-content: center; padding: 10px; font-size: 14px; }
+.ds-actions .btn-save-send { flex: 1.5; }
+
+/* ── ปุ่มเล็กในแถว/ตาราง ── */
+.btn-row {
+    padding: 5px 12px; border-radius: var(--r-sm);
+    font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    border: 1px solid var(--brand-border); background: var(--white);
+    color: var(--text); transition: all .15s;
+}
+.btn-row:hover          { background: var(--bg); }
+.btn-row.primary        { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-row.primary:hover  { background: var(--primary-dark); }
+.btn-row.success        { background: var(--success); color: #fff; border-color: var(--success); }
+.btn-row.danger         { background: var(--danger);  color: #fff; border-color: var(--danger); }
+.btn-row.accent         { background: var(--accent);  color: #fff; border-color: var(--accent); }
+.btn-row.accent:hover   { background: var(--accent-dark); }
+
+/* ── ปุ่มไอคอนล้วน ── */
+.ds-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 4px; background: none; border: 1px solid transparent; border-radius: 5px;
+    color: var(--text-muted); cursor: pointer; transition: .12s;
+}
+.ds-icon-btn:hover { color: var(--red); border-color: #fecaca; background: #fef2f2; }
+/* ปุ่มดินสอ = แก้ไข ไม่ใช่ลบ — hover ต้องไม่แดงเหมือนถังขยะข้างกัน */
+.ds-icon-btn.edit:hover { color: var(--blue); border-color: #bfdbfe; background: #eff6ff; }
+.ds-icon-btn.neutral:hover { color: var(--brand-navy); border-color: var(--brand-border); background: var(--brand-bg-strong); }
+
+/* ══════════════════════════════════════════════════════════
+   2. CARDS
+   ══════════════════════════════════════════════════════════ */
+/* การ์ดพื้นฐาน */
+.card, .sip-card {
+    background: var(--brand-white);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--r-lg);
+    padding: 16px;
+    box-shadow: var(--sip-shadow-1);
+}
+.sip-card-hover { transition: all 150ms; cursor: pointer; }
+.sip-card-hover:hover {
+    border-color: var(--brand-amber);
+    box-shadow: var(--sip-shadow-2);
+    transform: translateY(-1px);
+}
+.sip-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--brand-border);
+}
+
+/* การ์ดหุ้มตาราง (มีหัวเป็นแถบของตัวเอง) */
+.section-card {
+    background: var(--white); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); border: 1px solid var(--brand-border);
+    overflow: hidden; margin-bottom: 24px;
+}
+.section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 24px; border-bottom: 1px solid var(--brand-border); gap: 12px; flex-wrap: wrap;
+}
+.section-title {
+    font-size: 16px; font-weight: 700; color: var(--brand-navy);
+    display: flex; align-items: center; gap: 8px;
+}
+.section-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.section-card > .card-body { padding: 16px 24px; }
+
+/* การ์ดในพื้นที่ทำงาน */
+.clinical-card {
+    background: var(--white); border-radius: var(--radius-lg);
+    padding: 16px 20px; box-shadow: var(--shadow-sm);
+    border: 1px solid var(--brand-border); margin-bottom: 16px;
+}
+.cards-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.cards-row .clinical-card { margin-bottom: 0; }
+.card-title {
+    font-size: 13px; font-weight: 700; color: var(--brand-navy);
+    margin-bottom: 12px; text-transform: uppercase; letter-spacing: .03em;
+}
+.card-footer { font-size: 12px; color: var(--text-light); margin-top: 8px; }
+@media (max-width: 900px) { .cards-row { grid-template-columns: 1fr; } }
+
+/* ══════════════════════════════════════════════════════════
+   3. KPI TILE
+   ══════════════════════════════════════════════════════════ */
+.ds-kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 16px;
+}
+.sip-kpi {
+    background: var(--brand-white);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--r-lg);
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+    cursor: pointer; transition: all 150ms;
+}
+.sip-kpi:hover {
+    border-color: var(--brand-amber);
+    box-shadow: var(--sip-shadow-2);
+    transform: translateY(-2px);
+}
+.sip-kpi .sip-kpi-icon { color: var(--brand-amber-600); margin-bottom: 4px; }
+.sip-kpi .sip-kpi-value {
+    font-size: 28px; font-weight: 800; color: var(--brand-navy);
+    font-variant-numeric: tabular-nums; line-height: 1;
+}
+.sip-kpi .sip-kpi-label { font-size: 12px; color: var(--brand-navy-500); font-weight: 500; }
+.sip-kpi.critical {
+    border-color: var(--status-danger);
+    background: linear-gradient(180deg, var(--brand-white) 0%, var(--status-danger-soft) 200%);
+}
+.sip-kpi.critical .sip-kpi-value,
+.sip-kpi.critical .sip-kpi-icon { color: var(--status-danger); }
+
+/* ══════════════════════════════════════════════════════════
+   4. TABLES
+   ══════════════════════════════════════════════════════════ */
+.table-responsive { overflow-x: auto; }
+
+/* (ก) ตารางหลัก — เส้นใต้ ใช้ในการ์ด .section-card */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead th {
+    padding: 10px 16px; text-align: left; font-size: 12px;
+    font-weight: 700; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: .04em; background: var(--bg);
+    border-bottom: 1px solid var(--brand-border);
+    white-space: nowrap;
+}
+.data-table tbody td {
+    padding: 12px 16px; font-size: 13px;
+    border-bottom: 1px solid var(--border-light); vertical-align: middle;
+}
+.data-table tbody tr:hover { background: var(--primary-bg); }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table .td-name { font-weight: 600; }
+.data-table .td-sub  { color: var(--text-muted); font-size: 12px; }
+.data-table.compact td, .data-table.compact th { padding: 7px 10px; }
+.data-table.compact input, .data-table.compact select { padding: 5px 8px; font-size: 12px; }
+
+/* (ข) ตาราง design-system — หัวตารางพื้นเทา มุมมน */
+.sip-table {
+    width: 100%; border-collapse: collapse;
+    background: var(--brand-white);
+    border-radius: var(--r-lg); overflow: hidden;
+    font-size: 13px;
+}
+.sip-table thead th {
+    background: var(--brand-bg-strong); color: var(--brand-navy-500);
+    font-weight: 600; text-align: left; padding: 10px 12px;
+    border-bottom: 1px solid var(--brand-border);
+    text-transform: uppercase; font-size: 11px; letter-spacing: .3px;
+}
+.sip-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--brand-border); }
+.sip-table tbody tr:hover { background: var(--brand-bg); }
+.sip-table tbody tr:last-child td { border-bottom: none; }
+
+/* (ค) ตารางแบบฟอร์มกระดาษ — เส้นกรอบครบทุกด้าน สำหรับข้อมูลหนาแน่น/พิมพ์ */
+.ds-table-grid { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+.ds-table-grid th, .ds-table-grid td {
+    border: 1px solid var(--brand-border-strong); padding: 6px 8px; font-size: 12px;
+}
+.ds-table-grid th { background: var(--brand-bg-strong); font-weight: 700; text-align: center; }
+.ds-table-grid td.l { text-align: left; }
+.ds-table-grid td.c { text-align: center; }
+.ds-table-grid td.r { text-align: right; }
+
+/* ══════════════════════════════════════════════════════════
+   5. FORMS
+   ══════════════════════════════════════════════════════════ */
+/* (ก) ฟอร์มทั่วไป — โปร่ง เหมาะกับ modal/หน้าตั้งค่า */
+.form-group { margin-bottom: 16px; }
+.form-group label {
+    display: block; font-size: 13px; font-weight: 600;
+    margin-bottom: 6px; color: var(--text-muted);
+}
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--brand-border); border-radius: var(--radius);
+    font-size: 14px; font-family: inherit;
+    background: var(--white); color: var(--text);
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0,104,255,.12);
+}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
+
+/* (ข) ฟอร์มแน่น — ใช้ใน drawer / ตาราง / แผงข้าง */
+.sip-input, .sip-select, .sip-textarea {
+    width: 100%; padding: 8px 12px;
+    border: 1px solid var(--brand-border); border-radius: var(--r-md);
+    background: var(--brand-white); color: var(--brand-navy);
+    font-size: 13px; font-family: inherit; transition: all 150ms;
+}
+.sip-input:focus, .sip-select:focus, .sip-textarea:focus {
+    outline: none; border-color: var(--brand-amber);
+    box-shadow: var(--sip-shadow-glow-amber);
+}
+.sip-textarea { resize: vertical; min-height: 60px; }
+.sip-label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--brand-navy-500); margin-bottom: 4px;
+}
+.sip-checkbox, .sip-radio { accent-color: var(--brand-amber); }
+.sip-field { margin-bottom: 10px; }
+.sip-field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+
+/* label หมวดในฟอร์มแน่น */
+.ds-section-label {
+    display: flex; align-items: center; gap: 5px; min-height: 24px;
+    margin: 8px 0 3px; font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+    color: var(--text-secondary); text-transform: uppercase;
+}
+.ds-section-label:first-child { margin-top: 0; }
+
+/* ── Toggle switch ── */
+.ds-toggle {
+    display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px;
+    background: none; border: none; font: inherit; font-size: 11px; font-weight: 700;
+    color: var(--text-muted); cursor: pointer;
+}
+.ds-toggle-track {
+    position: relative; width: 28px; height: 15px; border-radius: 999px;
+    background: var(--brand-border-strong); transition: background .15s; flex-shrink: 0;
+}
+.ds-toggle-knob {
+    position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+    border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s;
+}
+.ds-toggle.is-on { color: #1d4ed8; }
+.ds-toggle.is-on .ds-toggle-track { background: var(--blue); }
+.ds-toggle.is-on .ds-toggle-knob  { transform: translateX(13px); }
+
+/* ── ข้อความ validate / คำอธิบายใต้ field ── */
+.ds-block, .ds-warn, .ds-note {
+    display: flex; align-items: flex-start; gap: 6px;
+    margin: 6px 0; padding: 8px 10px; border-radius: 8px;
+    font-size: 12.5px; line-height: 1.5;
+}
+.ds-block { background: #fef2f2; color: var(--status-danger-strong); border: 1px solid #fecaca; font-weight: 600; }
+.ds-warn  { background: var(--brand-amber-50); color: var(--status-warning-strong); border: 1px solid #fde68a; }
+.ds-note  { background: var(--surface-1); color: var(--text-secondary); border: 1px solid var(--brand-border); }
+
+/* ══════════════════════════════════════════════════════════
+   6. BANNERS
+   ══════════════════════════════════════════════════════════ */
+.sip-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-radius: var(--r-md);
+    font-size: 13px; font-weight: 500; border: 1px solid transparent;
+}
+.sip-banner-info    { background: var(--status-info-soft);    color: var(--status-info-strong);    border-color: var(--status-info); }
+.sip-banner-warning { background: var(--status-warning-soft); color: var(--status-warning-strong); border-color: var(--status-warning); }
+.sip-banner-danger  { background: var(--status-danger-soft);  color: var(--status-danger-strong);  border-color: var(--status-danger); }
+.sip-banner-success { background: var(--status-success-soft); color: var(--status-success-strong); border-color: var(--status-success); }
+.sip-banner-draft   { background: var(--brand-amber-100);     color: var(--brand-amber-on);        border-color: var(--brand-amber-500); }
+
+/* ══════════════════════════════════════════════════════════
+   7. CHIPS / BADGES
+   ══════════════════════════════════════════════════════════ */
+.sip-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 600; border: 1px solid transparent;
+}
+.sip-chip-active   { color: var(--status-warning-strong); background: var(--status-warning-soft); border-color: var(--status-warning); }
+.sip-chip-progress { color: var(--status-info-strong);    background: var(--status-info-soft);    border-color: var(--status-info); }
+.sip-chip-success  { color: var(--status-success-strong); background: var(--status-success-soft); border-color: var(--status-success); }
+.sip-chip-danger   { color: var(--status-danger-strong);  background: var(--status-danger-soft);  border-color: var(--status-danger); }
+.sip-chip-muted    { color: var(--brand-navy-500);        background: var(--status-muted-soft);   border-color: var(--brand-border-strong); }
+.sip-chip-ack      { color: var(--status-acknowledged);   background: var(--status-acknowledged-soft); border-color: var(--status-acknowledged); }
+.sip-chip-amber    { color: var(--brand-amber-on);        background: var(--brand-amber-100);     border-color: var(--brand-amber-500); }
+
+/* chip กดเลือกได้ */
+.ds-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.ds-chip-toggle {
+    padding: 3px 9px; background: var(--surface-2);
+    border: 1px solid var(--brand-border); border-radius: 12px;
+    font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+    cursor: pointer; font-family: inherit; transition: .12s;
+}
+.ds-chip-toggle:hover { border-color: var(--blue); color: var(--blue); }
+.ds-chip-toggle.is-on { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* chip เส้นประ = ข้อเสนอแนะ/แม่แบบ */
+.ds-chip-suggest {
+    display: inline-block; cursor: pointer; font-size: 11.5px; font-weight: 600;
+    padding: 2px 9px; margin: 2px; border-radius: 999px;
+    border: 1px dashed var(--purple); color: var(--purple); background: #faf5ff;
+}
+.ds-chip-suggest:hover { background: #f3e8ff; }
+
+/* ── ป้ายสถานะในตาราง ── */
+.status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700;
+}
+.status-badge.scheduled   { background: var(--status-info-soft);    color: #1d4ed8; }
+.status-badge.confirmed   { background: var(--success-bg);          color: var(--success); }
+.status-badge.completed   { background: var(--success-bg);          color: var(--success); }
+.status-badge.pending     { background: var(--warning-bg);          color: #b45309; }
+.status-badge.waiting     { background: var(--warning-bg);          color: #b45309; }
+.status-badge.in-progress { background: var(--primary-bg);          color: var(--primary); }
+.status-badge.active      { background: #dcfce7;                    color: #166534; }
+.status-badge.danger      { background: var(--danger-bg);           color: var(--danger); }
+.status-badge.inactive    { background: var(--bg);                  color: var(--text-muted); }
+
+/* ── badge เล็ก (ใช้ในแถวคำสั่ง/รายการหนาแน่น) ── */
+.kbadge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 7px; font-size: 10px; font-weight: 700;
+    border-radius: 10px; border: 1px solid transparent; white-space: nowrap;
+}
+.kbadge-pending  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.kbadge-acked    { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.kbadge-progress { background: #ede9fe; color: #6d28d9; border-color: #ddd6fe; }
+.kbadge-active   { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.kbadge-done     { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.kbadge-off      { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.kbadge-draft    { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.kbadge-alert    { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+
+/* badge เต้น = เร่งด่วน */
+.ds-badge-urgent {
+    background: var(--status-danger); color: #fff;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 800; letter-spacing: 1px;
+    animation: pulse 1.5s infinite;
+}
+
+/* ══════════════════════════════════════════════════════════
+   8. TABS — 3 แบบ
+   ══════════════════════════════════════════════════════════ */
+/* (ก) underline — แบบที่ใช้มากที่สุด สำหรับแท็บเนื้อหาหลัก */
+.ds-tabs {
+    display: flex; gap: 0;
+    border-bottom: 2px solid var(--brand-border);
+    flex-wrap: wrap;
+}
+.ds-tab {
+    padding: 10px 14px; font-size: 12px; font-weight: 600;
+    color: var(--text-muted); cursor: pointer; border: none; background: none;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    transition: all .15s; white-space: nowrap; font-family: inherit;
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.ds-tab:hover  { color: var(--text); }
+.ds-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+.ds-tab .tab-notif {
+    display: inline-block; min-width: 16px; height: 16px; line-height: 16px;
+    padding: 0 4px; border-radius: 8px; background: var(--danger);
+    color: #fff; font-size: 10px; font-weight: 700; text-align: center;
+}
+.ds-tab-content { display: none; padding-top: 16px; }
+.ds-tab-content.active { display: block; }
+
+/* (ข) segmented pill — แถบกรองแบบแคปซูล */
+.ds-segbar {
+    display: inline-flex; gap: 2px;
+    background: var(--brand-bg-strong);
+    border: 1px solid var(--brand-border);
+    border-radius: 999px; padding: 2px;
+}
+.ds-seg {
+    border: none; background: none; cursor: pointer; font-family: inherit;
+    font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+    padding: 4px 12px; border-radius: 999px; transition: all .12s; white-space: nowrap;
+}
+.ds-seg:hover  { color: var(--brand-navy); }
+.ds-seg.active { background: var(--white); color: var(--brand-navy); box-shadow: var(--shadow-sm); }
+
+/* (ค) filled pill + ตัวนับ — แท็บกรองในคอลัมน์ซ้าย */
+.ds-pilltabs { display: flex; gap: 4px; padding: 8px 16px; flex-wrap: wrap; }
+.ds-pilltab {
+    flex: 1 1 auto; min-width: 0;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    white-space: nowrap; padding: 7px 6px; border: none; border-radius: var(--radius);
+    font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+    background: var(--border-light); color: var(--text-muted); transition: all .15s;
+}
+.ds-pilltab:hover:not(.active) { background: var(--primary-bg); color: var(--primary); }
+.ds-pilltab.active {
+    background: var(--primary); color: #fff;
+    box-shadow: 0 2px 8px rgba(0,104,255,.3);
+}
+.ds-pilltab .tab-count {
+    background: rgba(0,0,0,.06); padding: 0 6px; border-radius: 8px;
+    font-size: 11px; margin-left: 2px;
+}
+.ds-pilltab.active .tab-count { background: rgba(255,255,255,.3); }
+
+/* ══════════════════════════════════════════════════════════
+   9. STEPPER / TIMELINE
+   ══════════════════════════════════════════════════════════ */
+.ds-stepper {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    font-size: 12px; color: var(--text-muted);
+}
+.ds-step { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; }
+.ds-step.completed { color: #22c55e; }
+.ds-step.active    { background: var(--status-info-soft); color: #1d4ed8; font-weight: 700; }
+.ds-step + .ds-step::before {
+    content: '→'; margin-right: 8px; color: var(--brand-border-strong); font-weight: 400;
+}
+
+.ds-timeline { position: relative; }
+.ds-timeline-item {
+    padding: 8px 12px; border-left: 3px solid var(--brand-border);
+    margin-bottom: 4px; font-size: 12px; position: relative;
+    border-radius: 0 4px 4px 0; transition: background .15s;
+}
+.ds-timeline-item:hover { background: var(--brand-bg-strong); }
+.ds-timeline-item::before {
+    content: ''; position: absolute; left: -7px; top: 12px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--primary); border: 2px solid var(--white);
+}
+.ds-timeline-item.info    { border-left-color: var(--status-info); }
+.ds-timeline-item.success { border-left-color: var(--status-success); }
+.ds-timeline-item.warning { border-left-color: var(--status-warning); }
+.ds-timeline-item.danger  { border-left-color: var(--status-danger); }
+.ds-timeline-item.accent  { border-left-color: var(--purple); }
+.ds-timeline-item.info::before    { background: var(--status-info); }
+.ds-timeline-item.success::before { background: var(--status-success); }
+.ds-timeline-item.warning::before { background: var(--status-warning); }
+.ds-timeline-item.danger::before  { background: var(--status-danger); }
+.ds-timeline-item.accent::before  { background: var(--purple); }
+.ds-timeline-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+/* ══════════════════════════════════════════════════════════
+   10. EMPTY / LOADING
+   ── แพทเทิร์นของระบบ: ใช้ element เดียวกันเป็นทั้ง loading
+      และ empty แล้วสลับข้อความด้วย JS
+   ══════════════════════════════════════════════════════════ */
+.ds-empty {
+    text-align: center; padding: 40px 16px;
+    color: var(--text-muted); font-size: 14px;
+}
+.ds-empty-sm { padding: 20px; font-size: 12px; font-style: italic; }
+
+.ds-empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: var(--space-2xl); color: var(--text-muted); text-align: center; height: 100%;
+}
+.ds-empty-state-icon { margin-bottom: var(--space-md); opacity: .35; }
+.ds-empty-state-icon svg { width: 56px; height: 56px; stroke-width: 1.5; }
+.ds-empty-state-title { font-size: 18px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+.ds-empty-state-desc  { font-size: 14px; }
+
+.ds-spinner {
+    width: 20px; height: 20px; display: inline-block;
+    border: 2px solid var(--brand-border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+.ds-spinner-lg { width: 36px; height: 36px; border-width: 3px; }
+
+/* ══════════════════════════════════════════════════════════
+   11. TOOLBAR
+   ══════════════════════════════════════════════════════════ */
+.ds-toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;
+}
+.ds-toolbar .ds-hint { font-size: 12px; color: var(--text-muted); }

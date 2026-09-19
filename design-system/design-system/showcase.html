@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediCore Design System — Showcase</title>
+
+    <link rel="stylesheet" href="css/ds-tokens.css">
+    <link rel="stylesheet" href="css/ds-base.css">
+    <link rel="stylesheet" href="css/ds-navbar.css">
+    <link rel="stylesheet" href="css/ds-layout.css">
+    <link rel="stylesheet" href="css/ds-components.css">
+    <link rel="stylesheet" href="css/ds-overlays.css">
+    <link rel="stylesheet" href="css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-landing.css">
+
+    <style>
+    /* สไตล์เฉพาะหน้า showcase — ไม่ใช่ส่วนหนึ่งของ design system */
+    .sc-wrap { max-width: 1180px; margin: 0 auto; padding: 24px 24px 80px; }
+    .sc-nav { position: sticky; top: var(--header-h); z-index: 40; background: var(--brand-bg);
+              padding: 12px 0; border-bottom: 1px solid var(--brand-border); margin-bottom: 24px; }
+    .sc-nav-inner { display: flex; gap: 6px; flex-wrap: wrap; }
+    .sc-nav a { font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+                background: var(--white); border: 1px solid var(--brand-border); color: var(--text-secondary); }
+    .sc-nav a:hover { border-color: var(--brand-navy); color: var(--brand-navy); }
+
+    .sc-sec { margin-bottom: 44px; scroll-margin-top: 120px; }
+    .sc-sec > h2 { font-size: 20px; font-weight: 800; color: var(--brand-navy);
+                   margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .sc-sec > p.sc-lead { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; }
+
+    .sc-block { background: var(--white); border: 1px solid var(--brand-border);
+                border-radius: var(--r-lg); padding: 20px; margin-bottom: 14px; }
+    .sc-block h3 { font-size: 13px; font-weight: 700; color: var(--brand-navy-500);
+                   text-transform: uppercase; letter-spacing: .04em; margin-bottom: 14px; }
+    .sc-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    .sc-code { display: block; margin-top: 12px; background: #0f172a; color: #cbd5e1;
+               padding: 10px 14px; border-radius: 8px; font-family: var(--font-mono);
+               font-size: 11.5px; line-height: 1.7; overflow-x: auto; white-space: pre; }
+
+    /* swatch */
+    .sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .sw { border: 1px solid var(--brand-border); border-radius: 10px; overflow: hidden; }
+    .sw-chip { height: 54px; }
+    .sw-meta { padding: 7px 9px; font-size: 11px; line-height: 1.5; }
+    .sw-name { font-weight: 700; color: var(--brand-navy); }
+    .sw-val  { color: var(--text-muted); font-family: var(--font-mono); font-size: 10.5px; }
+
+    .type-row { display: flex; align-items: baseline; gap: 14px; padding: 7px 0;
+                border-bottom: 1px dashed var(--brand-border); }
+    .type-row:last-child { border-bottom: none; }
+    .type-tag { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);
+                min-width: 130px; flex-shrink: 0; }
+    </style>
+</head>
+<body data-page="showcase">
+
+<nav id="appNavbar"></nav>
+
+<div class="sc-wrap">
+
+    <div class="page-header" style="margin-bottom:6px">
+        <div>
+            <div class="page-title"><i data-lucide="palette" class="mi"></i> MediCore Design System</div>
+            <div class="page-subtitle">คู่มือมีชีวิต — ทุกอย่างในหน้านี้คือของจริงที่กดใช้ได้ เปิดด้วย file:// ได้เลย</div>
+        </div>
+        <div class="section-actions">
+            <a class="btn btn-outline" href="templates/page-basic.html"><i data-lucide="file" class="icon-sm"></i> หน้าเลื่อน</a>
+            <a class="btn btn-outline" href="templates/page-3pane.html"><i data-lucide="columns-3" class="icon-sm"></i> 3 คอลัมน์</a>
+            <a class="btn btn-primary" href="templates/page-landing.html"><i data-lucide="home" class="icon-sm"></i> หน้าแรก</a>
+        </div>
+    </div>
+
+    <div class="sc-nav">
+        <div class="sc-nav-inner">
+            <a href="#colors">สี</a>
+            <a href="#type">ตัวอักษร</a>
+            <a href="#icons">ไอคอน</a>
+            <a href="#buttons">ปุ่ม</a>
+            <a href="#cards">การ์ด / KPI</a>
+            <a href="#chips">chip / badge</a>
+            <a href="#tables">ตาราง</a>
+            <a href="#forms">ฟอร์ม</a>
+            <a href="#tabs">แท็บ</a>
+            <a href="#feedback">แจ้งเตือน</a>
+            <a href="#overlays">drawer / modal</a>
+            <a href="#states">สถานะว่าง</a>
+            <a href="#landing">หน้าแรก</a>
+        </div>
+    </div>
+
+    <!-- ══════════════════ สี ══════════════════ -->
+    <section class="sc-sec" id="colors">
+        <h2><i data-lucide="droplets" class="mi"></i> สี</h2>
+        <p class="sc-lead">
+            ระบบนี้ใช้ <strong>สี 3 บทบาท</strong> ร่วมกันโดยตั้งใจ —
+            navy = โครง · ฟ้า = ลิงก์/ปุ่มบันทึก · เหลืองอำพัน = ปุ่มหลัก/ไฮไลต์
+            (จึงเป็นเหตุผลที่ <code>.btn-primary</code> เหลือง แต่ <code>--primary</code> ฟ้า)
+        </p>
+
+        <div class="sc-block">
+            <h3>1 · Shell — โครง</h3>
+            <div class="sw-grid">
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-navy)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-navy</div><div class="sw-val">#0f172a</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-navy-700)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-navy-700</div><div class="sw-val">#1e293b</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-navy-500)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-navy-500</div><div class="sw-val">#475569</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-navy-300)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-navy-300</div><div class="sw-val">#94a3b8</div></div></div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>2 · Action — ลิงก์ / ปุ่มบันทึก</h3>
+            <div class="sw-grid">
+                <div class="sw"><div class="sw-chip" style="background:var(--primary)"></div>
+                    <div class="sw-meta"><div class="sw-name">primary</div><div class="sw-val">#0068FF</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--primary-dark)"></div>
+                    <div class="sw-meta"><div class="sw-name">primary-dark</div><div class="sw-val">#0050CC</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--primary-bg)"></div>
+                    <div class="sw-meta"><div class="sw-name">primary-bg</div><div class="sw-val">#e8f1ff</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--accent)"></div>
+                    <div class="sw-meta"><div class="sw-name">accent</div><div class="sw-val">#FF6913</div></div></div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>3 · CTA / Highlight</h3>
+            <div class="sw-grid">
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-amber)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-amber</div><div class="sw-val">#fbbf24</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-amber-500)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-amber-500</div><div class="sw-val">#f59e0b</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-amber-600)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-amber-600</div><div class="sw-val">#d97706</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--brand-amber-100)"></div>
+                    <div class="sw-meta"><div class="sw-name">brand-amber-100</div><div class="sw-val">#fef3c7</div></div></div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>4 · Accent หน้าแรก</h3>
+            <div class="sw-grid">
+                <div class="sw"><div class="sw-chip" style="background:var(--purple)"></div>
+                    <div class="sw-meta"><div class="sw-name">purple</div><div class="sw-val">#7c3aed</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--blue)"></div>
+                    <div class="sw-meta"><div class="sw-name">blue</div><div class="sw-val">#2563eb</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--teal)"></div>
+                    <div class="sw-meta"><div class="sw-name">teal</div><div class="sw-val">#0891b2</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--green)"></div>
+                    <div class="sw-meta"><div class="sw-name">green</div><div class="sw-val">#059669</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--red)"></div>
+                    <div class="sw-meta"><div class="sw-name">red</div><div class="sw-val">#dc2626</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--orange)"></div>
+                    <div class="sw-meta"><div class="sw-name">orange</div><div class="sw-val">#d97706</div></div></div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>5 · Status — ใช้กับ chip / banner / badge</h3>
+            <div class="sw-grid">
+                <div class="sw"><div class="sw-chip" style="background:var(--status-success)"></div>
+                    <div class="sw-meta"><div class="sw-name">status-success</div><div class="sw-val">#10b981</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--status-warning)"></div>
+                    <div class="sw-meta"><div class="sw-name">status-warning</div><div class="sw-val">#f59e0b</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--status-danger)"></div>
+                    <div class="sw-meta"><div class="sw-name">status-danger</div><div class="sw-val">#ef4444</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--status-info)"></div>
+                    <div class="sw-meta"><div class="sw-name">status-info</div><div class="sw-val">#3b82f6</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--status-muted)"></div>
+                    <div class="sw-meta"><div class="sw-name">status-muted</div><div class="sw-val">#94a3b8</div></div></div>
+                <div class="sw"><div class="sw-chip" style="background:var(--status-acknowledged)"></div>
+                    <div class="sw-meta"><div class="sw-name">status-acknowledged</div><div class="sw-val">#6366f1</div></div></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ ตัวอักษร ══════════════════ -->
+    <section class="sc-sec" id="type">
+        <h2><i data-lucide="type" class="mi"></i> ตัวอักษร</h2>
+        <p class="sc-lead">
+            <code>Inter</code> + <code>Noto Sans Thai</code> — Inter ไม่มีสระไทย ตัวอักษรไทยจึงตกไปที่ Noto อัตโนมัติ<br>
+            <strong>กฎสำคัญ:</strong> ห้ามใช้ต่ำกว่า 12px กับเนื้อหาที่ต้องอ่าน — เก็บ 10–11px ไว้เฉพาะ chip/badge
+        </p>
+        <div class="sc-block">
+            <div class="type-row"><span class="type-tag">28px / 800</span><span style="font-size:28px;font-weight:800">ตัวเลข KPI · Hero</span></div>
+            <div class="type-row"><span class="type-tag">22px / 800</span><span class="ds-title-page">หัวข้อหน้า — Page title</span></div>
+            <div class="type-row"><span class="type-tag">18px / 800</span><span style="font-size:18px;font-weight:800">หัวข้อในหน้า</span></div>
+            <div class="type-row"><span class="type-tag">15px / 700</span><span class="ds-title-section">หัวข้อส่วน — Section</span></div>
+            <div class="type-row"><span class="type-tag">14px — base</span><span style="font-size:14px">ข้อความปกติของทั้งหน้า line-height 1.55</span></div>
+            <div class="type-row"><span class="type-tag">13px — เนื้อหา</span><span style="font-size:13px">เนื้อหาหลัก ค่าในฟอร์ม รายการ</span></div>
+            <div class="type-row"><span class="type-tag">12px — meta</span><span style="font-size:12px;color:var(--text-muted)">คำอธิบายย่อย label ฟอร์ม หัวตาราง</span></div>
+            <div class="type-row"><span class="type-tag">11px — chip</span><span style="font-size:11px;font-weight:600">ป้ายเล็ก chip badge</span></div>
+            <div class="type-row"><span class="type-tag">mono</span><span class="font-mono tabular">HN 0012345 · 08:30 · 12.5 mg</span></div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ ไอคอน ══════════════════ -->
+    <section class="sc-sec" id="icons">
+        <h2><i data-lucide="shapes" class="mi"></i> ไอคอน</h2>
+        <p class="sc-lead">Lucide เท่านั้น · <strong>ห้ามใช้ emoji ใน UI</strong> · หลัง render ด้วย innerHTML ต้องเรียก <code>refreshIcons()</code> ทุกครั้ง</p>
+        <div class="sc-block">
+            <h3>ขนาด</h3>
+            <div class="sc-row" style="gap:22px">
+                <span><i data-lucide="pill" class="icon-xs"></i> icon-xs 12</span>
+                <span><i data-lucide="pill" class="icon-sm"></i> icon-sm 14</span>
+                <span><i data-lucide="pill" class="icon-md"></i> icon-md 16</span>
+                <span><i data-lucide="pill" class="icon-lg"></i> icon-lg 20</span>
+                <span><i data-lucide="pill" class="icon-xl"></i> icon-xl 28</span>
+            </div>
+            <h3 style="margin-top:20px">.mi — ขนาดตามฟอนต์รอบข้าง</h3>
+            <div style="font-size:12px">12px <i data-lucide="check-circle-2" class="mi"></i> ตามฟอนต์</div>
+            <div style="font-size:18px">18px <i data-lucide="check-circle-2" class="mi"></i> ตามฟอนต์</div>
+            <div style="font-size:26px">26px <i data-lucide="check-circle-2" class="mi"></i> ตามฟอนต์</div>
+            <span class="sc-code">&lt;i data-lucide="pill" class="mi"&gt;&lt;/i&gt;        ← ตามฟอนต์
+&lt;i data-lucide="pill" class="icon-lg icon-amber"&gt;&lt;/i&gt;   ← คงที่ + สี</span>
+        </div>
+    </section>
+
+    <!-- ══════════════════ ปุ่ม ══════════════════ -->
+    <section class="sc-sec" id="buttons">
+        <h2><i data-lucide="mouse-pointer-click" class="mi"></i> ปุ่ม</h2>
+        <div class="sc-block">
+            <h3>ชนิด</h3>
+            <div class="sc-row">
+                <button class="btn btn-primary"><i data-lucide="plus" class="icon-sm"></i> btn-primary</button>
+                <button class="btn btn-navy">btn-navy</button>
+                <button class="btn btn-outline">btn-outline</button>
+                <button class="btn btn-ghost">btn-ghost</button>
+                <button class="btn btn-danger"><i data-lucide="trash-2" class="icon-sm"></i> btn-danger</button>
+                <button class="btn btn-primary" disabled>disabled</button>
+            </div>
+            <h3 style="margin-top:20px">ปุ่ม action (ฟ้า/ส้ม)</h3>
+            <div class="sc-row">
+                <button class="btn btn-save">btn-save</button>
+                <button class="btn btn-save-send">btn-save-send</button>
+            </div>
+            <h3 style="margin-top:20px">ขนาด</h3>
+            <div class="sc-row">
+                <button class="btn btn-primary btn-sm">btn-sm</button>
+                <button class="btn btn-primary">ปกติ</button>
+                <button class="btn btn-primary btn-lg">btn-lg</button>
+            </div>
+            <h3 style="margin-top:20px">ปุ่มในแถว/ตาราง และปุ่มไอคอน</h3>
+            <div class="sc-row">
+                <button class="btn-row">ปกติ</button>
+                <button class="btn-row primary">primary</button>
+                <button class="btn-row success">success</button>
+                <button class="btn-row danger">danger</button>
+                <button class="btn-row accent">accent</button>
+                <span style="width:14px"></span>
+                <button class="ds-icon-btn edit" title="แก้ไข"><i data-lucide="pencil" class="icon-sm"></i></button>
+                <button class="ds-icon-btn" title="ลบ"><i data-lucide="trash-2" class="icon-sm"></i></button>
+                <button class="ds-icon-btn neutral" title="เพิ่มเติม"><i data-lucide="more-horizontal" class="icon-sm"></i></button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ การ์ด / KPI ══════════════════ -->
+    <section class="sc-sec" id="cards">
+        <h2><i data-lucide="square-stack" class="mi"></i> การ์ด &amp; KPI</h2>
+        <div class="sc-block">
+            <h3>การ์ด</h3>
+            <div class="cards-row">
+                <div class="sip-card">
+                    <div class="sip-card-header">
+                        <strong>.sip-card</strong>
+                        <span class="sip-chip sip-chip-success">ปกติ</span>
+                    </div>
+                    การ์ดพื้นฐาน — ขอบ 1px มุมมน 12px เงาบาง
+                </div>
+                <div class="sip-card sip-card-hover">
+                    <div class="sip-card-header"><strong>.sip-card-hover</strong></div>
+                    เอาเมาส์ชี้ดู — ขอบเปลี่ยนเป็นเหลืองอำพัน + ยกขึ้น 1px
+                </div>
+            </div>
+            <span class="sc-code">&lt;div class="sip-card"&gt;
+  &lt;div class="sip-card-header"&gt;&lt;strong&gt;หัวข้อ&lt;/strong&gt;&lt;/div&gt;
+  เนื้อหา
+&lt;/div&gt;</span>
+        </div>
+
+        <div class="sc-block">
+            <h3>KPI tile</h3>
+            <div class="ds-kpi-grid">
+                <div class="sip-kpi">
+                    <i data-lucide="inbox" class="sip-kpi-icon icon-lg"></i>
+                    <div class="sip-kpi-value">128</div>
+                    <div class="sip-kpi-label">ทั้งหมด</div>
+                </div>
+                <div class="sip-kpi">
+                    <i data-lucide="clock" class="sip-kpi-icon icon-lg"></i>
+                    <div class="sip-kpi-value">12</div>
+                    <div class="sip-kpi-label">รอดำเนินการ</div>
+                </div>
+                <div class="sip-kpi critical">
+                    <i data-lucide="alert-triangle" class="sip-kpi-icon icon-lg"></i>
+                    <div class="sip-kpi-value">3</div>
+                    <div class="sip-kpi-label">เกินกำหนด</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>การ์ดหุ้มตาราง — .section-card</h3>
+            <div class="section-card" style="margin-bottom:0">
+                <div class="section-header">
+                    <div class="section-title"><i data-lucide="list" class="mi"></i> หัวข้อส่วน</div>
+                    <div class="section-actions">
+                        <button class="btn btn-outline btn-sm">ส่งออก</button>
+                        <button class="btn btn-primary btn-sm">เพิ่ม</button>
+                    </div>
+                </div>
+                <div class="card-body">เนื้อหาหรือตารางอยู่ตรงนี้</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ chip / badge ══════════════════ -->
+    <section class="sc-sec" id="chips">
+        <h2><i data-lucide="tags" class="mi"></i> chip &amp; badge</h2>
+        <div class="sc-block">
+            <h3>.sip-chip</h3>
+            <div class="sc-row">
+                <span class="sip-chip sip-chip-active">กำลังดำเนินการ</span>
+                <span class="sip-chip sip-chip-progress">ระหว่างทำ</span>
+                <span class="sip-chip sip-chip-success">เสร็จสิ้น</span>
+                <span class="sip-chip sip-chip-danger">ผิดปกติ</span>
+                <span class="sip-chip sip-chip-muted">ยกเลิก</span>
+                <span class="sip-chip sip-chip-ack">รับทราบแล้ว</span>
+                <span class="sip-chip sip-chip-amber">ร่าง</span>
+            </div>
+
+            <h3 style="margin-top:20px">.status-badge — ป้ายในตาราง</h3>
+            <div class="sc-row">
+                <span class="status-badge scheduled">นัดหมาย</span>
+                <span class="status-badge confirmed">ยืนยันแล้ว</span>
+                <span class="status-badge pending">รอคิว</span>
+                <span class="status-badge in-progress">กำลังทำ</span>
+                <span class="status-badge active">ใช้งาน</span>
+                <span class="status-badge completed">เสร็จสิ้น</span>
+                <span class="status-badge danger">ปัญหา</span>
+                <span class="status-badge inactive">ปิดใช้งาน</span>
+            </div>
+
+            <h3 style="margin-top:20px">.kbadge — ป้ายเล็กในรายการหนาแน่น</h3>
+            <div class="sc-row">
+                <span class="kbadge kbadge-draft">ร่าง</span>
+                <span class="kbadge kbadge-pending">รอรับ</span>
+                <span class="kbadge kbadge-acked">รับแล้ว</span>
+                <span class="kbadge kbadge-progress">กำลังทำ</span>
+                <span class="kbadge kbadge-active">Active</span>
+                <span class="kbadge kbadge-done">เสร็จ</span>
+                <span class="kbadge kbadge-off">ยกเลิก</span>
+                <span class="kbadge kbadge-alert">ต้องยืนยัน</span>
+                <span class="ds-badge-urgent">STAT</span>
+            </div>
+
+            <h3 style="margin-top:20px">chip กดเลือกได้</h3>
+            <div class="ds-chips">
+                <button class="ds-chip-toggle is-on" onclick="this.classList.toggle('is-on')">เช้า</button>
+                <button class="ds-chip-toggle" onclick="this.classList.toggle('is-on')">กลางวัน</button>
+                <button class="ds-chip-toggle" onclick="this.classList.toggle('is-on')">เย็น</button>
+                <span class="ds-chip-suggest" onclick="showToast('เลือกแม่แบบแล้ว','info')">แม่แบบ: ตรวจประจำวัน</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ ตาราง ══════════════════ -->
+    <section class="sc-sec" id="tables">
+        <h2><i data-lucide="table" class="mi"></i> ตาราง</h2>
+        <div class="sc-block">
+            <h3>(ก) .data-table — ตารางหลัก (เส้นใต้)</h3>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead><tr><th>ชื่อ</th><th>สถานะ</th><th>อัปเดต</th></tr></thead>
+                    <tbody>
+                        <tr><td class="td-name">รายการ A</td><td><span class="status-badge active">ใช้งาน</span></td><td class="td-sub">2 นาทีที่แล้ว</td></tr>
+                        <tr><td class="td-name">รายการ B</td><td><span class="status-badge pending">รอคิว</span></td><td class="td-sub">1 ชม.ที่แล้ว</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="sc-block">
+            <h3>(ข) .sip-table — หัวตารางพื้นเทา มุมมน</h3>
+            <table class="sip-table">
+                <thead><tr><th>รหัส</th><th>ชื่อ</th><th>จำนวน</th></tr></thead>
+                <tbody>
+                    <tr><td class="font-mono">A-001</td><td>รายการหนึ่ง</td><td class="tabular">12</td></tr>
+                    <tr><td class="font-mono">A-002</td><td>รายการสอง</td><td class="tabular">7</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="sc-block">
+            <h3>(ค) .ds-table-grid — แบบฟอร์มกระดาษ (เส้นครบทุกด้าน)</h3>
+            <table class="ds-table-grid">
+                <thead><tr><th>ลำดับ</th><th>รายการ</th><th>เช้า</th><th>กลางวัน</th><th>เย็น</th></tr></thead>
+                <tbody>
+                    <tr><td class="c">1</td><td class="l">รายการตัวอย่าง</td><td class="c">✓</td><td class="c">–</td><td class="c">✓</td></tr>
+                    <tr><td class="c">2</td><td class="l">รายการที่สอง</td><td class="c">–</td><td class="c">✓</td><td class="c">–</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ══════════════════ ฟอร์ม ══════════════════ -->
+    <section class="sc-sec" id="forms">
+        <h2><i data-lucide="edit-3" class="mi"></i> ฟอร์ม</h2>
+        <div class="sc-block">
+            <h3>(ก) .form-group — โปร่ง เหมาะกับ modal / หน้าตั้งค่า</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>ชื่อรายการ</label>
+                    <input placeholder="พิมพ์ชื่อ...">
+                </div>
+                <div class="form-group">
+                    <label>ประเภท</label>
+                    <select><option>ทั่วไป</option><option>เร่งด่วน</option></select>
+                </div>
+            </div>
+        </div>
+        <div class="sc-block">
+            <h3>(ข) .sip-input — แน่น เหมาะกับ drawer / แผงข้าง</h3>
+            <div class="sip-field-row">
+                <div class="sip-field">
+                    <label class="sip-label">ชื่อ</label>
+                    <input class="sip-input" placeholder="พิมพ์ชื่อ...">
+                </div>
+                <div class="sip-field">
+                    <label class="sip-label">หน่วย</label>
+                    <select class="sip-select"><option>ชิ้น</option><option>กล่อง</option></select>
+                </div>
+            </div>
+            <div class="sip-field">
+                <label class="sip-label">หมายเหตุ</label>
+                <textarea class="sip-textarea" rows="2" placeholder="พิมพ์หมายเหตุ..."></textarea>
+            </div>
+            <label style="font-size:12.5px"><input type="checkbox" class="sip-checkbox" checked> ยืนยันข้อมูลถูกต้อง</label>
+
+            <h3 style="margin-top:20px">toggle switch</h3>
+            <button class="ds-toggle is-on" onclick="this.classList.toggle('is-on')">
+                <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> เปิดใช้งาน
+            </button>
+
+            <h3 style="margin-top:20px">ข้อความ validate</h3>
+            <div class="ds-block"><i data-lucide="x-circle" class="icon-sm"></i> ห้ามบันทึก — ข้อมูลไม่ครบ</div>
+            <div class="ds-warn"><i data-lucide="alert-triangle" class="icon-sm"></i> คำเตือน — ตรวจสอบอีกครั้งก่อนยืนยัน</div>
+            <div class="ds-note"><i data-lucide="info" class="icon-sm"></i> หมายเหตุ — ข้อมูลนี้บันทึกอัตโนมัติ</div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ แท็บ ══════════════════ -->
+    <section class="sc-sec" id="tabs">
+        <h2><i data-lucide="layout-grid" class="mi"></i> แท็บ</h2>
+        <div class="sc-block">
+            <h3>(ก) underline — แท็บเนื้อหาหลัก</h3>
+            <div class="ds-tabs">
+                <button class="ds-tab active" onclick="scTab(this,'scA')"><i data-lucide="layout-grid" class="mi"></i> ภาพรวม</button>
+                <button class="ds-tab" onclick="scTab(this,'scB')"><i data-lucide="history" class="mi"></i> ประวัติ <span class="tab-notif">3</span></button>
+                <button class="ds-tab" onclick="scTab(this,'scC')"><i data-lucide="paperclip" class="mi"></i> เอกสาร</button>
+            </div>
+            <div class="ds-tab-content active" id="scA">เนื้อหาแท็บ ภาพรวม</div>
+            <div class="ds-tab-content" id="scB">เนื้อหาแท็บ ประวัติ</div>
+            <div class="ds-tab-content" id="scC">เนื้อหาแท็บ เอกสาร</div>
+        </div>
+        <div class="sc-block">
+            <h3>(ข) segmented pill — แถบกรอง</h3>
+            <div class="ds-segbar">
+                <button class="ds-seg active" onclick="scSeg(this)">ทั้งหมด</button>
+                <button class="ds-seg" onclick="scSeg(this)">ของฉัน</button>
+                <button class="ds-seg" onclick="scSeg(this)">ทีม</button>
+                <button class="ds-seg" onclick="scSeg(this)">เก็บถาวร</button>
+            </div>
+        </div>
+        <div class="sc-block">
+            <h3>(ค) filled pill + ตัวนับ — แท็บในคอลัมน์ซ้าย</h3>
+            <div class="ds-pilltabs" style="padding:0">
+                <button class="ds-pilltab active" onclick="scPill(this)">ทั้งหมด <span class="tab-count">28</span></button>
+                <button class="ds-pilltab" onclick="scPill(this)">ค้างอยู่ <span class="tab-count">12</span></button>
+                <button class="ds-pilltab" onclick="scPill(this)">ด่วน <span class="tab-count">3</span></button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ แจ้งเตือน ══════════════════ -->
+    <section class="sc-sec" id="feedback">
+        <h2><i data-lucide="megaphone" class="mi"></i> แจ้งเตือน</h2>
+        <div class="sc-block">
+            <h3>banner</h3>
+            <div class="sip-banner sip-banner-info" style="margin-bottom:8px"><i data-lucide="info" class="icon-sm"></i> ข้อมูลทั่วไป</div>
+            <div class="sip-banner sip-banner-success" style="margin-bottom:8px"><i data-lucide="check-circle-2" class="icon-sm"></i> ทำรายการสำเร็จ</div>
+            <div class="sip-banner sip-banner-warning" style="margin-bottom:8px"><i data-lucide="alert-triangle" class="icon-sm"></i> ควรตรวจสอบก่อนดำเนินการ</div>
+            <div class="sip-banner sip-banner-danger" style="margin-bottom:8px"><i data-lucide="x-circle" class="icon-sm"></i> เกิดข้อผิดพลาด</div>
+            <div class="sip-banner sip-banner-draft"><i data-lucide="file-edit" class="icon-sm"></i> ยังเป็นร่าง — ยังไม่ถูกบันทึก</div>
+        </div>
+        <div class="sc-block">
+            <h3>toast</h3>
+            <div class="sc-row">
+                <button class="btn btn-outline" onclick="showToast('บันทึกเรียบร้อย')">success</button>
+                <button class="btn btn-outline" onclick="showToast('บันทึกไม่สำเร็จ','error')">error</button>
+                <button class="btn btn-outline" onclick="showToast('ตรวจสอบข้อมูลอีกครั้ง','warning')">warning</button>
+                <button class="btn btn-outline" onclick="showToast('มีรายการใหม่เข้ามา','info')">info</button>
+            </div>
+            <span class="sc-code">showToast('บันทึกเรียบร้อย');
+showToast('บันทึกไม่สำเร็จ', 'error');</span>
+        </div>
+        <div class="sc-block">
+            <h3>การ์ดเตือนสำคัญ (คลิกได้) &amp; stepper &amp; timeline</h3>
+            <div class="ds-alert-card" style="max-width:340px" onclick="showToast('เปิดรายละเอียด','info')">
+                <i data-lucide="alert-triangle" class="ac-ico"></i>
+                <div class="ac-body">
+                    <span class="ac-label">ข้อควรระวัง</span>
+                    <strong>ต้องตรวจสอบก่อนดำเนินการ</strong>
+                </div>
+                <i data-lucide="eye" class="ac-view"></i>
+            </div>
+
+            <div class="ds-stepper" style="margin-top:18px">
+                <span class="ds-step completed"><i data-lucide="check" class="icon-sm"></i> รับเรื่อง</span>
+                <span class="ds-step completed"><i data-lucide="check" class="icon-sm"></i> ตรวจสอบ</span>
+                <span class="ds-step active">อนุมัติ</span>
+                <span class="ds-step">ดำเนินการ</span>
+                <span class="ds-step">ปิดงาน</span>
+            </div>
+
+            <div class="ds-timeline" style="margin-top:18px">
+                <div class="ds-timeline-item success">สร้างรายการ <span class="ds-timeline-time">3 วันก่อน</span></div>
+                <div class="ds-timeline-item info">มอบหมายผู้รับผิดชอบ <span class="ds-timeline-time">2 วันก่อน</span></div>
+                <div class="ds-timeline-item warning">ขอข้อมูลเพิ่มเติม <span class="ds-timeline-time">เมื่อวาน</span></div>
+                <div class="ds-timeline-item danger">เกินกำหนด <span class="ds-timeline-time">วันนี้</span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ drawer / modal ══════════════════ -->
+    <section class="sc-sec" id="overlays">
+        <h2><i data-lucide="panel-right" class="mi"></i> drawer &amp; modal</h2>
+        <p class="sc-lead">Drawer เลื่อนจากขวาคือ idiom หลัก — ใช้กับงานที่มีฟอร์ม · modal เก็บไว้ใช้กับข้อความสั้น</p>
+        <div class="sc-block">
+            <div class="sc-row">
+                <button class="btn btn-primary" onclick="scDrawer()">เปิด drawer</button>
+                <button class="btn btn-outline" onclick="scDrawerNested()">drawer ซ้อน drawer</button>
+                <button class="btn btn-outline" onclick="scConfirm()">กล่องยืนยัน (Promise)</button>
+                <button class="btn btn-outline" onclick="document.getElementById('scModal').classList.add('active')">เปิด modal</button>
+            </div>
+            <span class="sc-code">Drawer.open({ title:'หัวข้อ', contentHtml:'…', footerHtml:'…' });
+const ok = await Drawer.confirm({ title:'ลบ?', danger:true });</span>
+        </div>
+
+        <div class="modal-overlay" id="scModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>หัวข้อ modal</h3>
+                    <button class="modal-close" onclick="document.getElementById('scModal').classList.remove('active')">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>ข้อความ</label>
+                        <input placeholder="พิมพ์ข้อความ...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="document.getElementById('scModal').classList.remove('active')">ยกเลิก</button>
+                    <button class="btn btn-primary" onclick="document.getElementById('scModal').classList.remove('active');showToast('บันทึกแล้ว')">บันทึก</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ สถานะว่าง ══════════════════ -->
+    <section class="sc-sec" id="states">
+        <h2><i data-lucide="inbox" class="mi"></i> สถานะว่าง &amp; กำลังโหลด</h2>
+        <p class="sc-lead">แพทเทิร์นของระบบ: ใช้ element เดียวกันเป็นทั้ง loading และ empty แล้วสลับข้อความด้วย JS</p>
+        <div class="sc-block">
+            <div class="cards-row">
+                <div class="sip-card">
+                    <div class="ds-empty-state">
+                        <div class="ds-empty-state-icon"><i data-lucide="mouse-pointer-click"></i></div>
+                        <div class="ds-empty-state-title">เลือกรายการจากด้านซ้าย</div>
+                        <div class="ds-empty-state-desc">เพื่อดูรายละเอียดและเริ่มทำงาน</div>
+                    </div>
+                </div>
+                <div class="sip-card">
+                    <div class="ds-empty">— ยังไม่มีข้อมูล —</div>
+                    <div class="ds-empty ds-empty-sm">ยังไม่มีรายการในส่วนนี้</div>
+                    <div style="text-align:center;padding:16px">
+                        <span class="ds-spinner"></span>
+                        <span class="ds-spinner ds-spinner-lg" style="margin-left:14px"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════ หน้าแรก ══════════════════ -->
+    <section class="sc-sec" id="landing">
+        <h2><i data-lucide="home" class="mi"></i> ชิ้นส่วนหน้าแรก</h2>
+        <p class="sc-lead">โหลด <code>ds-landing.css</code> เพิ่มเฉพาะหน้าแรก · ดูของเต็มที่ <a href="templates/page-landing.html">page-landing.html</a></p>
+
+        <div class="sc-block" style="padding:0;overflow:hidden">
+            <div class="hero" style="padding:24px 24px 0">
+                <div class="hero-inner">
+                    <div class="hero-top">
+                        <div>
+                            <div class="hero-greeting">สวัสดี — ยินดีต้อนรับ</div>
+                            <h1 class="hero-title">MediCore · <span>Design System</span></h1>
+                            <p class="hero-subtitle">Hero + ตัวเลขสรุป</p>
+                        </div>
+                        <div class="hero-date-card">
+                            <div class="hero-clock" id="scClock">--:--</div>
+                            <div class="hero-date">วันนี้</div>
+                        </div>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="hstat"><div class="hstat-val">12</div><div class="hstat-label">งานวันนี้</div><div class="hstat-badge badge-blue">กำลังทำ</div></div>
+                        <div class="hstat"><div class="hstat-val">3</div><div class="hstat-label">ด่วน</div><div class="hstat-badge badge-red">ต้องรีบ</div></div>
+                        <div class="hstat"><div class="hstat-val">28</div><div class="hstat-label">ทั้งหมด</div><div class="hstat-badge badge-purple">ในระบบ</div></div>
+                        <div class="hstat"><div class="hstat-val">7</div><div class="hstat-label">รอตรวจ</div><div class="hstat-badge badge-orange">รอคิว</div></div>
+                        <div class="hstat"><div class="hstat-val">45</div><div class="hstat-label">เสร็จแล้ว</div><div class="hstat-badge badge-green">สำเร็จ</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>การ์ดโมดูล — .mod-c1 … .mod-c5</h3>
+            <div class="module-grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:0">
+                <div class="mod-card mod-c1"><div class="mod-color-bar"></div><div class="mod-top">
+                    <div class="mod-icon-wrap"><i data-lucide="folder-open"></i><div class="live-dot green"></div></div>
+                    <div class="mod-name">ข้อมูลหลัก</div><div class="mod-desc">คำอธิบายสั้น ๆ</div>
+                    <div class="mod-stat-row"><span class="mod-stat-num">128</span><span class="mod-stat-label">รายการ</span></div>
+                </div><div class="mod-sublinks"><a class="sub-link" href="#">ภาพรวม</a><a class="sub-link" href="#">ค้นหา</a></div></div>
+
+                <div class="mod-card mod-c2"><div class="mod-color-bar"></div><div class="mod-top">
+                    <div class="mod-icon-wrap"><i data-lucide="check-square"></i><div class="live-dot blue"></div></div>
+                    <div class="mod-name">งานประจำวัน</div><div class="mod-desc">คำอธิบายสั้น ๆ</div>
+                    <div class="mod-stat-row"><span class="mod-stat-num">12</span><span class="mod-stat-label">งาน</span></div>
+                </div><div class="mod-sublinks"><a class="sub-link" href="#">เปิด</a></div></div>
+
+                <div class="mod-card mod-c4"><div class="mod-color-bar"></div><div class="mod-top">
+                    <div class="mod-icon-wrap"><i data-lucide="alert-triangle"></i><div class="live-dot red"></div></div>
+                    <div class="mod-name">เรื่องด่วน</div><div class="mod-desc">คำอธิบายสั้น ๆ</div>
+                    <div class="mod-stat-row"><span class="mod-stat-num">3</span><span class="mod-stat-label">รายการ</span></div>
+                </div><div class="mod-sublinks"><a class="sub-link" href="#">ดู</a></div></div>
+            </div>
+        </div>
+
+        <div class="sc-block">
+            <h3>ทางลัด &amp; กิจกรรม</h3>
+            <div class="bottom-grid" style="margin-bottom:0">
+                <div class="panel">
+                    <div class="panel-title"><i data-lucide="zap" class="mi"></i> ทางลัด</div>
+                    <div class="quick-grid">
+                        <a class="quick-item" href="#"><span class="quick-item-icon"><i data-lucide="list"></i></span> รายการ</a>
+                        <a class="quick-item" href="#"><span class="quick-item-icon"><i data-lucide="search"></i></span> ค้นหา</a>
+                        <a class="quick-item" href="#"><span class="quick-item-icon"><i data-lucide="bar-chart-3"></i></span> รายงาน</a>
+                        <a class="quick-item" href="#"><span class="quick-item-icon"><i data-lucide="settings"></i></span> ตั้งค่า</a>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-title"><i data-lucide="activity" class="mi"></i> กิจกรรมล่าสุด</div>
+                    <div class="act-item"><div class="act-dot" style="background:var(--green)"></div><div class="act-text">อนุมัติรายการ A-002</div><div class="act-time">5 นาที</div></div>
+                    <div class="act-item"><div class="act-dot" style="background:var(--blue)"></div><div class="act-text">เพิ่มรายการใหม่ A-003</div><div class="act-time">22 นาที</div></div>
+                    <div class="act-item"><div class="act-dot" style="background:var(--red)"></div><div class="act-text">แจ้งเตือน: A-001 เกินกำหนด</div><div class="act-time">1 ชม.</div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="js/ds-icons.js"></script>
+<script src="js/ds-navbar.js"></script>
+<script src="js/ds-drawer.js"></script>
+<script src="js/ds-toast.js"></script>
+
+<script>
+/* ── navbar ของหน้านี้: เมนูสาธิต + ผู้ใช้ตัวอย่าง (ไม่ต้องมี backend) ── */
+DSNavbar.configure({
+    brand: 'MediCore',
+    brandSub: 'Design System',
+    homeHref: 'showcase.html',
+    getUser: () => ({ full_name: 'ผู้ใช้ตัวอย่าง', active_role: 'ADMIN' }),
+    getRole: () => 'ADMIN',
+    onLogout: () => showToast('ตัวอย่างเท่านั้น — ยังไม่ได้ผูกระบบล็อกอิน', 'info'),
+    menu: [
+        { link: 'showcase.html', label: 'Showcase', icon: 'home' },
+        { group: 'tpl', label: 'เทมเพลต', icon: 'clipboard', items: [
+            { section: 'หน้าตัวอย่าง' },
+            { href: 'templates/page-basic.html',   label: 'หน้าเลื่อนธรรมดา', icon: 'fileText' },
+            { href: 'templates/page-3pane.html',   label: 'workspace 3 คอลัมน์', icon: 'listChecks' },
+            { sep: true },
+            { href: 'templates/page-landing.html', label: 'หน้าแรก', icon: 'home', badge: { text: 'New', type: 'new' } },
+        ]},
+        { group: 'demo', label: 'ตัวอย่างสิทธิ์', icon: 'users', items: [
+            { href: '#', label: 'เห็นเฉพาะ ADMIN', icon: 'settings', roles: 'ADMIN' },
+            { href: '#', label: 'เห็นเฉพาะ DOCTOR', icon: 'stethoscope', roles: 'DOCTOR' },
+        ]},
+        { group: 'set', label: '', icon: 'settings', alignRight: true, title: 'ตั้งค่า', items: [
+            { section: 'ตั้งค่า' },
+            { href: '#', label: 'ค่าทั่วไป', icon: 'settings' },
+        ]},
+    ],
+});
+
+/* ── ตัวช่วยของหน้า showcase ── */
+function scTab(btn, id) {
+    btn.parentElement.querySelectorAll('.ds-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['scA','scB','scC'].forEach(x => document.getElementById(x).classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+function scSeg(btn)  { btn.parentElement.querySelectorAll('.ds-seg').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+function scPill(btn) { btn.parentElement.querySelectorAll('.ds-pilltab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+
+function scDrawer() {
+    Drawer.open({
+        title: 'ตัวอย่าง Drawer',
+        contentHtml: `
+            <div class="sip-banner sip-banner-info" style="margin-bottom:12px">
+                <i data-lucide="info" class="icon-sm"></i> กด Esc หรือคลิกพื้นหลังเพื่อปิด
+            </div>
+            <div class="sip-field">
+                <label class="sip-label">ชื่อรายการ</label>
+                <input class="sip-input" placeholder="พิมพ์ชื่อ...">
+            </div>
+            <div class="sip-field">
+                <label class="sip-label">หมายเหตุ</label>
+                <textarea class="sip-textarea" rows="3"></textarea>
+            </div>`,
+        footerHtml: `
+            <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+            <button class="btn btn-primary" onclick="Drawer.close();showToast('บันทึกแล้ว')">บันทึก</button>`,
+        onOpen: () => refreshIcons(),
+    });
+}
+
+function scDrawerNested() {
+    Drawer.open({
+        title: 'Drawer ชั้นที่ 1',
+        contentHtml: '<p>กดปุ่มด้านล่างเพื่อเปิดชั้นที่ 2 — ปิดชั้นที่ 2 แล้วจะกลับมาชั้นนี้</p>',
+        footerHtml: `<button class="btn btn-primary" onclick="Drawer.open({title:'Drawer ชั้นที่ 2',contentHtml:'<p>ปิดแล้วจะกลับไปชั้นที่ 1</p>',footerHtml:'<button class=\\'btn btn-outline\\' onclick=\\'Drawer.close()\\'>ย้อนกลับ</button>'})">เปิดชั้นที่ 2</button>`,
+    });
+}
+
+async function scConfirm() {
+    const ok = await Drawer.confirm({
+        title: 'ลบรายการนี้?',
+        message: 'ลบแล้วกู้คืนไม่ได้',
+        lines: ['รายการ A-001', 'รายการ A-002'],
+        confirmText: 'ลบทั้งหมด',
+        danger: true,
+    });
+    showToast(ok ? 'ลบแล้ว' : 'ยกเลิกการลบ', ok ? 'success' : 'info');
+}
+
+/* นาฬิกาใน hero ตัวอย่าง */
+(function () {
+    const tick = () => {
+        const el = document.getElementById('scClock');
+        if (el) el.textContent = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false });
+    };
+    tick(); setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

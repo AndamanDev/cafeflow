@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — ภาพรวมผู้จัดการ (§25, §26)
+  โครง: .page-container (หน้าเลื่อนปกติ — ห้ามใส่ ds-shell-page)
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — ภาพรวม</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init(); CFAuth.guard();</script>
+</head>
+<body data-page="dashboard">
+
+<nav id="appNavbar"></nav>
+
+<div class="page-container">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">
+                <i data-lucide="layout-dashboard" class="mi"></i>
+                <span>ภาพรวมการปฏิบัติงาน</span>
+            </div>
+            <div class="page-subtitle" id="shiftLine">—</div>
+        </div>
+        <div class="section-actions">
+            <button class="btn btn-outline" onclick="DashPage.openDevices()">
+                <i data-lucide="monitor" class="icon-sm"></i> อุปกรณ์
+            </button>
+            <button class="btn btn-outline" data-role-gate="ADMIN MANAGER"
+                    onclick="DashPage.openKioskSettings()">
+                <i data-lucide="tablet-smartphone" class="icon-sm"></i> ตั้งค่าคีออสก์
+            </button>
+            <button class="btn btn-outline" data-role-gate="ADMIN" onclick="DashPage.openUsers()">
+                <i data-lucide="users" class="icon-sm"></i> ผู้ใช้และสิทธิ์
+            </button>
+            <button class="btn btn-ghost" onclick="CFApp.confirmReset()">
+                <i data-lucide="rotate-ccw" class="icon-sm"></i> รีเซ็ตข้อมูลตัวอย่าง
+            </button>
+        </div>
+    </div>
+
+    <!-- ยอดขาย (§25) -->
+    <div class="ds-kpi-grid" id="kpiSales"></div>
+
+    <!-- สถานะการปฏิบัติงาน -->
+    <div class="ds-kpi-grid" id="kpiOps"></div>
+
+    <div class="cards-row">
+        <div class="clinical-card">
+            <div class="card-title">ภาระงานแต่ละสถานี</div>
+            <div id="stationLoad"></div>
+            <div class="card-footer">นับเฉพาะออเดอร์ที่ยังอยู่ในสายการผลิต</div>
+        </div>
+        <div class="clinical-card">
+            <div class="card-title">สินค้าหมดวันนี้</div>
+            <div id="soldOut"></div>
+        </div>
+    </div>
+
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <i data-lucide="activity" class="mi"></i> กิจกรรมล่าสุด
+            </div>
+            <div class="section-actions">
+                <a class="btn btn-outline btn-sm" href="orders.html">
+                    ดูออเดอร์ทั้งหมด <i data-lucide="arrow-right" class="icon-sm"></i>
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="ds-timeline" id="activity"></div>
+        </div>
+    </div>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="dsPrintStage"></div>
+
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-print.js"></script>
+<script src="js/cf-docs.js"></script>
+<script src="js/cf-export.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script src="js/page-dashboard.js"></script>
+</body>
+</html>

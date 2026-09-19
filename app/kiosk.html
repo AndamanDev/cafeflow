@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — Self-Order Kiosk (§9, §35)
+  หน้าลูกค้า: ไม่มี navbar พนักงาน ไม่ต้องล็อกอิน ไม่เรียก role gate
+
+  โหลดเฉพาะ "ชั้นโทเคน" ของ design system (สี ฟอนต์ ระยะ)
+  ไม่โหลด ds-layout / ds-components / ds-overlays เพราะ .ds-shell มี
+  breakpoint ของตัวเองที่วัดจากหน้าต่าง ซึ่งขัดกับเวทีแนวตั้งที่ถูก letterbox
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CafeFlow — สั่งด้วยตนเอง</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-kiosk.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init();</script>
+</head>
+<body data-page="kiosk" class="cf-kiosk">
+
+<div id="cfkFrame"><div id="cfkStage"></div></div>
+
+<!-- เลือกเครื่อง (ครั้งแรกเท่านั้น) — ไม่มีในเวอร์ชันอาร์ติแฟกต์ -->
+<div class="cf-kiosk-gate" id="deviceGate" hidden>
+    <div class="cf-kiosk-gate-card">
+        <h2>เลือกเครื่องคีออสก์</h2>
+        <p>ระบบจะจำไว้สำหรับเครื่องนี้ เพื่อให้ออเดอร์อ้างอิงจุดสั่งได้ถูกต้อง</p>
+        <div id="deviceList"></div>
+        <a class="cf-kiosk-gate-link" href="login.html">← เข้าสู่ระบบสำหรับพนักงาน</a>
+    </div>
+</div>
+
+<script src="js/cf-app.js"></script>
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kiosk-art.js"></script>
+<script src="js/cf-kiosk-core.js"></script>
+<script src="js/page-kiosk.js"></script>
+</body>
+</html>

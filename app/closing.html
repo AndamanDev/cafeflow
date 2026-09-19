@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — ปิดรอบ / ปิดวัน (§27, §28)
+  โครง: .page-container (หน้าเลื่อนปกติ — ห้ามใส่ ds-shell-page)
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — ปิดรอบ</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init(); CFAuth.guard('SHIFT_CLOSE');</script>
+</head>
+<body data-page="closing">
+
+<nav id="appNavbar"></nav>
+
+<div class="page-container narrow">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">
+                <i data-lucide="file-text" class="mi"></i>
+                <span>ปิดรอบ / ปิดวัน</span>
+            </div>
+            <div class="page-subtitle" id="shiftLine">—</div>
+        </div>
+        <div class="section-actions">
+            <button class="btn btn-outline" onclick="ClosingPage.preview()">
+                <i data-lucide="printer" class="icon-sm"></i> ดูตัวอย่างใบปิดรอบ
+            </button>
+            <button class="btn btn-outline" onclick="CFExport.all()">
+                <i data-lucide="download" class="icon-sm"></i> ส่งออก CSV
+            </button>
+            <button class="btn btn-primary" onclick="ClosingPage.closeShift()">
+                <i data-lucide="lock" class="icon-sm"></i> ปิดรอบ
+            </button>
+        </div>
+    </div>
+
+    <div class="ds-kpi-grid" id="kpiStrip"></div>
+
+    <div class="cards-row">
+        <div class="clinical-card">
+            <div class="card-title">สรุปยอดขาย (§27)</div>
+            <table class="ds-table-grid" id="salesTable"></table>
+        </div>
+
+        <div class="clinical-card">
+            <div class="card-title">การควบคุมเงินสด</div>
+            <table class="ds-table-grid" id="cashTable"></table>
+
+            <div class="sip-field" style="margin-top:6px">
+                <label class="sip-label">นับเงินสดจริงในลิ้นชัก</label>
+                <input class="sip-input" id="actualCash" type="number" min="0" step="1"
+                       placeholder="0.00" oninput="ClosingPage.onCash(this.value)">
+            </div>
+            <div id="diffBox"></div>
+        </div>
+    </div>
+
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title"><i data-lucide="trophy" class="mi"></i> สินค้าขายดีรอบนี้</div>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table compact">
+                <thead><tr><th>#</th><th>สินค้า</th><th class="cf-right">จำนวน</th><th class="cf-right">ยอดเงิน</th></tr></thead>
+                <tbody id="topRows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title"><i data-lucide="file-spreadsheet" class="mi"></i> ไฟล์ส่งออก (§28)</div>
+        </div>
+        <div class="card-body">
+            <div class="ds-quick-nav" id="csvLinks"></div>
+            <div class="ds-note">
+                ไฟล์ทั้งหมดเป็น UTF-8 พร้อม BOM เปิดใน Excel ภาษาไทยได้โดยตัวอักษรไม่เพี้ยน
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="dsPrintStage"></div>
+
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-print.js"></script>
+<script src="js/cf-docs.js"></script>
+<script src="js/cf-export.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script>window.CF_DEVICE_ID = 'CASHIER-01';</script>
+<script src="js/page-closing.js"></script>
+</body>
+</html>

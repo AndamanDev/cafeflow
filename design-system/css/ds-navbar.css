@@ -1,0 +1,174 @@
+/* ============================================================
+   MediCore Design System — NAVBAR
+   ใช้คู่กับ js/ds-navbar.js  ·  หน้าต้องมี <nav id="appNavbar"></nav>
+
+   คลาสยังใช้ prefix .mc-* เหมือนเดิม เพื่อให้ก๊อป markup จาก
+   โปรเจคเดิมมาวางได้ทันทีโดยไม่ต้องแก้ชื่อคลาส
+   ============================================================ */
+
+.mc-navbar {
+    background: var(--brand-navy);
+    padding: 0 28px;
+    height: var(--header-h);
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0;
+    z-index: var(--z-navbar);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+/* ── ซ้าย: โลโก้ + เมนู ── */
+.mc-nav-left { display: flex; align-items: center; gap: 2px; }
+.mc-nav-logo {
+    display: flex; align-items: center; gap: 10px; margin-right: 8px;
+    text-decoration: none; color: inherit;
+}
+.mc-logo-mark {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--purple), var(--purple-l));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; line-height: 1; flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(124,58,237,.35);
+}
+.mc-logo-text { font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -.3px; }
+.mc-logo-sub  { font-size: 9px; color: rgba(255,255,255,.35); display: block; letter-spacing: .5px; }
+.mc-nav-sep   { width: 1px; height: 24px; background: rgba(255,255,255,.1); margin: 0 8px; }
+
+/* ── Dropdown ── */
+.mc-nav-dropdown { position: relative; }
+.mc-nav-dd-btn {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 11px; border-radius: 8px;
+    font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,.65);
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    transition: .15s; white-space: nowrap;
+}
+.mc-nav-dd-btn:hover,
+.mc-nav-dropdown.open .mc-nav-dd-btn { background: rgba(255,255,255,.08); color: #fff; }
+.mc-nav-dropdown.active .mc-nav-dd-btn {
+    background: rgba(255,255,255,.12); color: #fff;
+    border-bottom: 2px solid #a78bfa;
+}
+.mc-caret { font-size: 9px; opacity: .6; transition: .2s; }
+.mc-nav-dropdown.open .mc-caret { transform: rotate(180deg); }
+
+.mc-dd-menu {
+    position: absolute; top: 100%; left: 0;
+    background: #fff; border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.18);
+    min-width: 240px; padding: 8px;
+    border: 1px solid rgba(0,0,0,.06);
+    z-index: 600;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity .15s ease, visibility .15s ease, transform .15s ease;
+}
+/* เมนูชิดขวา (เช่นกลุ่ม "ตั้งค่า" ที่อยู่ท้ายแถบ) */
+.mc-dd-menu-right { left: auto !important; right: 0; }
+
+/* bridge zone — ปิดช่องว่างระหว่างปุ่มกับเมนู ให้เมาส์เลื่อนลงมาได้ไม่หลุด */
+.mc-dd-menu::before {
+    content: ''; position: absolute; top: -12px; left: 0;
+    width: 100%; height: 12px;
+}
+/* เปิด/ปิดคุมด้วย JS (คลาส .open) — hover เปิด + หน่วงปิด 400ms + คลิกปักหมุด */
+.mc-nav-dropdown.open .mc-dd-menu {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transform: translateY(0);
+}
+
+.mc-dd-section {
+    padding: 6px 12px 4px; font-size: 10px; font-weight: 700;
+    color: var(--slate); letter-spacing: .5px; text-transform: uppercase;
+}
+.mc-dd-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px; text-decoration: none;
+    color: var(--text-primary); font-size: 13px; font-weight: 500; transition: .12s;
+}
+.mc-dd-item:hover  { background: var(--brand-bg-strong); color: var(--purple); }
+.mc-dd-item.active { background: #ede9fe; color: var(--purple); font-weight: 600; }
+
+.mc-nav-ic { display: inline-flex; align-items: center; }
+.mc-nav-ic svg { width: 15px; height: 15px; }
+.mc-di-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; }
+.mc-di-icon svg { width: 16px; height: 16px; }
+
+.mc-di-badge {
+    margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    font-weight: 700;
+}
+.mc-di-badge.new  { background: var(--status-warning-soft); color: var(--status-warning-strong); }
+.mc-di-badge.live { background: #dcfce7; color: #166534; }
+
+.mc-dd-sep        { height: 1px; background: var(--brand-bg-strong); margin: 4px 0; }
+.mc-dd-sep-strong { height: 2px; background: var(--brand-border-strong); margin: 6px 0; }
+
+/* ── ลิงก์เดี่ยวแบบ pill (ไม่มี dropdown) ── */
+.mc-nav-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 8px;
+    color: rgba(255,255,255,.75); text-decoration: none;
+    font-weight: 600; font-size: 12.5px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    margin-left: 8px; white-space: nowrap; transition: .15s;
+}
+.mc-nav-link:hover  { background: rgba(255,255,255,.14); color: #fff; }
+.mc-nav-link.active { background: rgba(167,139,250,.2); border-color: rgba(167,139,250,.45); color: #fff; }
+.mc-nav-link svg { width: 15px; height: 15px; }
+
+/* ── ขวา: นาฬิกา + ผู้ใช้ + ออกจากระบบ ── */
+.mc-nav-right { display: flex; align-items: center; gap: 8px; }
+.mc-nav-clock {
+    font-family: var(--font-mono);
+    font-size: 15px; font-weight: 600; color: rgba(255,255,255,.7);
+    font-variant-numeric: tabular-nums; letter-spacing: .5px;
+}
+.mc-nav-user-chip {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 20px; padding: 4px 12px 4px 4px;
+}
+.mc-nav-avatar {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple), var(--purple-l));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.mc-nav-user-meta { display: flex; flex-direction: column; line-height: 1.25; }
+.mc-nav-username  { font-size: 12.5px; color: rgba(255,255,255,.9); font-weight: 600; }
+.mc-nav-userrole  { font-size: 10px; color: rgba(255,255,255,.5); font-weight: 500; }
+
+.mc-btn-logout {
+    padding: 6px 14px; background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+    color: rgba(255,255,255,.6); font-size: 12px; font-family: inherit;
+    cursor: pointer; transition: .15s;
+}
+.mc-btn-logout:hover {
+    background: rgba(220,38,38,.2); border-color: rgba(220,38,38,.3); color: #fca5a5;
+}
+
+/* ══════════════ RESPONSIVE ══════════════
+   ของเดิมไม่มี responsive เลย — เมนูหลายกลุ่มจะล้นจอต่ำกว่า ~1200px
+   ที่นี่ให้แถบเมนูเลื่อนแนวนอนแทน (กระทบหน้าตาเดิมน้อยที่สุด)
+   ═══════════════════════════════════════ */
+@media (max-width: 1180px) {
+    .mc-navbar { padding: 0 14px; gap: 10px; }
+    .mc-nav-left {
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        flex: 1 1 auto; min-width: 0;
+    }
+    .mc-nav-left::-webkit-scrollbar { display: none; }
+    .mc-nav-right { flex-shrink: 0; }
+    .mc-nav-clock { display: none; }
+}
+
+@media (max-width: 720px) {
+    .mc-logo-text, .mc-logo-sub { display: none; }
+    .mc-nav-user-meta { display: none; }
+    .mc-btn-logout { padding: 6px 10px; }
+    .mc-dd-menu { min-width: 200px; }
+}

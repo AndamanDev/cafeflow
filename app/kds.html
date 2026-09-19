@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — จอครัว KDS (§20, §21)
+  โครง: .ds-shell.cols-2 → ต้องมี class="ds-shell-page" ที่ <body>
+        (fallback ของ :has() ที่ล็อกการเลื่อนทั้งหน้า)
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — จอครัว</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init(); CFAuth.guard('KITCHEN');</script>
+</head>
+<body data-page="kds" class="ds-shell-page">
+
+<nav id="appNavbar"></nav>
+
+<div class="ds-shell cols-2" id="shell">
+
+    <aside class="ds-pane-left" id="paneLeft">
+        <div class="ds-pane-header">
+            <h3><i data-lucide="chef-hat" class="mi"></i> สถานีครัว</h3>
+            <span class="ds-pane-count" id="totalCount">0</span>
+        </div>
+        <div class="ds-pane-scroll" id="stationList"></div>
+        <div class="ds-actions cf-stack">
+            <div class="ds-note" style="margin:0">
+                ตั๋วจะขึ้นเองเมื่อแคชเชียร์รับชำระเงิน — ไม่ต้องรีเฟรชหน้า
+            </div>
+        </div>
+    </aside>
+
+    <main class="ds-pane-main" id="paneMain">
+        <div class="ds-context-bar">
+            <button class="ds-pane-toggle" onclick="KdsPage.toggleLeft()" title="ซ่อน/แสดงรายการสถานี">
+                <i data-lucide="panel-left" class="icon-sm"></i>
+            </button>
+            <div class="ds-context-avatar" id="stIcon">B</div>
+            <div class="ds-context-info">
+                <div class="ds-context-name">
+                    <span id="stName">—</span>
+                    <span class="sip-chip sip-chip-progress" id="stChip">0 ใบ</span>
+                </div>
+                <div class="ds-context-meta">
+                    <span id="stWarn">เตือนที่ — นาที</span>
+                    <span id="stClock">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="cf-kds-board" id="board"></div>
+    </main>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="dsPrintStage"></div>
+
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-print.js"></script>
+<script src="js/cf-docs.js"></script>
+<script src="js/cf-export.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script>window.CF_DEVICE_ID = 'BAR-KDS';</script>
+<script src="js/page-kds.js"></script>
+</body>
+</html>

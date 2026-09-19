@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  TEMPLATE: หน้าแรก (hero + การ์ดโมดูล + ผังลำดับงาน + แผงท้ายหน้า)
+  โหลด ds-landing.css เพิ่มจากชุดมาตรฐาน
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediCore — หน้าแรก</title>
+
+    <link rel="stylesheet" href="../css/ds-tokens.css">
+    <link rel="stylesheet" href="../css/ds-base.css">
+    <link rel="stylesheet" href="../css/ds-navbar.css">
+    <link rel="stylesheet" href="../css/ds-layout.css">
+    <link rel="stylesheet" href="../css/ds-components.css">
+    <link rel="stylesheet" href="../css/ds-overlays.css">
+    <link rel="stylesheet" href="../css/ds-landing.css">
+</head>
+<body data-page="index">
+
+    <!-- ══════════ หน้าล็อกอิน (ลบทั้งบล็อกได้ถ้าไม่ต้องการ) ══════════ -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-card">
+            <div class="login-logo-wrap">
+                <div class="login-logo-mark">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+                        <rect x="8" y="2" width="8" height="4" rx="1"/>
+                        <path d="M12 11v4"/><path d="M10 13h4"/>
+                    </svg>
+                </div>
+                <div class="login-logo-text">
+                    <h1>MediCore</h1>
+                    <p>Design System</p>
+                </div>
+            </div>
+            <div class="login-divider"></div>
+            <div class="login-error" id="loginError">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+            <form onsubmit="Landing.login(event)">
+                <label class="login-label">ชื่อผู้ใช้</label>
+                <input class="login-input" id="loginUser" value="admin" autocomplete="username">
+                <label class="login-label">รหัสผ่าน</label>
+                <input class="login-input" id="loginPass" type="password" value="demo" autocomplete="current-password">
+                <button class="login-btn" type="submit">เข้าสู่ระบบ</button>
+            </form>
+            <div class="login-footer">v1.0 · Design System Starter</div>
+        </div>
+    </div>
+
+    <!-- ══════════ เนื้อหาหลัก ══════════ -->
+    <div id="mainApp" style="display:none">
+
+        <nav id="appNavbar"></nav>
+
+        <!-- HERO -->
+        <div class="hero">
+            <div class="hero-inner">
+                <div class="hero-top">
+                    <div>
+                        <div class="hero-greeting" id="heroGreeting">สวัสดี — ยินดีต้อนรับ</div>
+                        <h1 class="hero-title">MediCore · <span>Design System</span></h1>
+                        <p class="hero-subtitle">ชุดหน้าตามาตรฐาน สำหรับสร้างหน้าใหม่ให้เหมือนกันทั้งระบบ</p>
+                    </div>
+                    <div class="hero-date-card">
+                        <div class="hero-clock" id="heroClock">--:--</div>
+                        <div class="hero-date" id="heroDate">วันนี้</div>
+                    </div>
+                </div>
+
+                <div class="hero-stats">
+                    <div class="hstat">
+                        <div class="hstat-val">12</div>
+                        <div class="hstat-label">งานวันนี้</div>
+                        <div class="hstat-badge badge-blue">กำลังทำ</div>
+                    </div>
+                    <div class="hstat">
+                        <div class="hstat-val">3</div>
+                        <div class="hstat-label">ด่วน</div>
+                        <div class="hstat-badge badge-red">ต้องรีบ</div>
+                    </div>
+                    <div class="hstat">
+                        <div class="hstat-val">28</div>
+                        <div class="hstat-label">รายการทั้งหมด</div>
+                        <div class="hstat-badge badge-purple">ในระบบ</div>
+                    </div>
+                    <div class="hstat">
+                        <div class="hstat-val">7</div>
+                        <div class="hstat-label">รอตรวจสอบ</div>
+                        <div class="hstat-badge badge-orange">รอคิว</div>
+                    </div>
+                    <div class="hstat">
+                        <div class="hstat-val">45</div>
+                        <div class="hstat-label">เสร็จสิ้นเดือนนี้</div>
+                        <div class="hstat-badge badge-green">สำเร็จ</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main">
+
+            <!-- ══════ การ์ดโมดูล ══════ -->
+            <div class="sec-hd">
+                <div class="sec-title">โมดูลหลัก</div>
+                <div class="sec-sub">เลือกหมวดงานที่ต้องการ</div>
+            </div>
+
+            <div class="module-grid">
+                <div class="mod-card mod-c1">
+                    <div class="mod-color-bar"></div>
+                    <div class="mod-top">
+                        <div class="mod-icon-wrap">
+                            <i data-lucide="folder-open"></i>
+                            <div class="live-dot green"></div>
+                        </div>
+                        <div class="mod-name">ข้อมูลหลัก</div>
+                        <div class="mod-desc">จัดการข้อมูลพื้นฐานของระบบ</div>
+                        <div class="mod-stat-row">
+                            <span class="mod-stat-num">128</span>
+                            <span class="mod-stat-label">รายการ</span>
+                        </div>
+                    </div>
+                    <div class="mod-sublinks">
+                        <a class="sub-link" href="page-basic.html">ภาพรวม</a>
+                        <a class="sub-link" href="page-basic.html">ค้นหา</a>
+                    </div>
+                </div>
+
+                <div class="mod-card mod-c2">
+                    <div class="mod-color-bar"></div>
+                    <div class="mod-top">
+                        <div class="mod-icon-wrap">
+                            <i data-lucide="check-square"></i>
+                            <div class="live-dot blue"></div>
+                        </div>
+                        <div class="mod-name">งานประจำวัน</div>
+                        <div class="mod-desc">ตารางงานและการติดตามความคืบหน้า</div>
+                        <div class="mod-stat-row">
+                            <span class="mod-stat-num">12</span>
+                            <span class="mod-stat-label">งานวันนี้</span>
+                        </div>
+                    </div>
+                    <div class="mod-sublinks">
+                        <a class="sub-link" href="page-3pane.html">พื้นที่ทำงาน</a>
+                    </div>
+                </div>
+
+                <div class="mod-card mod-c3">
+                    <div class="mod-color-bar"></div>
+                    <div class="mod-top">
+                        <div class="mod-icon-wrap"><i data-lucide="bar-chart-3"></i></div>
+                        <div class="mod-name">รายงาน</div>
+                        <div class="mod-desc">สรุปผลและส่งออกข้อมูล</div>
+                        <div class="mod-stat-row">
+                            <span class="mod-stat-num">9</span>
+                            <span class="mod-stat-label">รายงาน</span>
+                        </div>
+                    </div>
+                    <div class="mod-sublinks"><a class="sub-link" href="#">ดูทั้งหมด</a></div>
+                </div>
+
+                <div class="mod-card mod-c4">
+                    <div class="mod-color-bar"></div>
+                    <div class="mod-top">
+                        <div class="mod-icon-wrap">
+                            <i data-lucide="alert-triangle"></i>
+                            <div class="live-dot red"></div>
+                        </div>
+                        <div class="mod-name">เรื่องด่วน</div>
+                        <div class="mod-desc">รายการที่ต้องจัดการทันที</div>
+                        <div class="mod-stat-row">
+                            <span class="mod-stat-num">3</span>
+                            <span class="mod-stat-label">รอดำเนินการ</span>
+                        </div>
+                    </div>
+                    <div class="mod-sublinks"><a class="sub-link" href="#">ดูรายการ</a></div>
+                </div>
+
+                <div class="mod-card mod-c5">
+                    <div class="mod-color-bar"></div>
+                    <div class="mod-top">
+                        <div class="mod-icon-wrap"><i data-lucide="settings"></i></div>
+                        <div class="mod-name">ตั้งค่า</div>
+                        <div class="mod-desc">ผู้ใช้ สิทธิ์ และค่าระบบ</div>
+                        <div class="mod-stat-row">
+                            <span class="mod-stat-num">6</span>
+                            <span class="mod-stat-label">หมวด</span>
+                        </div>
+                    </div>
+                    <div class="mod-sublinks"><a class="sub-link" href="#">เปิดตั้งค่า</a></div>
+                </div>
+            </div>
+
+            <!-- ══════ ผังลำดับงาน ══════ -->
+            <div class="workflow-section">
+                <div class="wf-title-row">
+                    <div class="wf-title"><i data-lucide="git-branch" class="mi"></i> ลำดับงานหลัก</div>
+                    <span class="wf-badge">Workflow</span>
+                </div>
+
+                <div class="flow-track">
+                    <div class="fn-node">
+                        <a class="fn-box fn-c1" href="#">
+                            <div class="fn-icon"><i data-lucide="clipboard-list"></i></div>
+                            <div class="fn-name">รับเรื่อง</div>
+                            <div class="fn-sub">Intake</div>
+                        </a>
+                        <div class="flow-arrow-wrap">
+                            <div class="flow-arrow-line"></div>
+                            <div class="flow-arrow-lbl">ตรวจสอบ</div>
+                        </div>
+                    </div>
+                    <div class="fn-node">
+                        <a class="fn-box fn-c2" href="#">
+                            <div class="fn-icon"><i data-lucide="search-check"></i></div>
+                            <div class="fn-name">ตรวจสอบ</div>
+                            <div class="fn-sub">Verify</div>
+                        </a>
+                        <div class="flow-arrow-wrap">
+                            <div class="flow-arrow-line"></div>
+                            <div class="flow-arrow-lbl">อนุมัติ</div>
+                        </div>
+                    </div>
+                    <div class="fn-node">
+                        <a class="fn-box fn-c4" href="#">
+                            <div class="fn-icon"><i data-lucide="pen-line"></i></div>
+                            <div class="fn-name">อนุมัติ</div>
+                            <div class="fn-sub">Approve</div>
+                        </a>
+                        <div class="flow-arrow-wrap">
+                            <div class="flow-arrow-line"></div>
+                            <div class="flow-arrow-lbl">ดำเนินการ</div>
+                        </div>
+                    </div>
+                    <div class="fn-node">
+                        <a class="fn-box fn-c5" href="#">
+                            <div class="fn-icon"><i data-lucide="play"></i></div>
+                            <div class="fn-name">ดำเนินการ</div>
+                            <div class="fn-sub">Execute</div>
+                        </a>
+                        <div class="flow-arrow-wrap">
+                            <div class="flow-arrow-line"></div>
+                            <div class="flow-arrow-lbl">ปิดงาน</div>
+                        </div>
+                    </div>
+                    <div class="fn-node">
+                        <a class="fn-box fn-c8" href="#">
+                            <div class="fn-icon"><i data-lucide="check-circle-2"></i></div>
+                            <div class="fn-name">ปิดงาน</div>
+                            <div class="fn-sub">Close</div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="flow-steps">
+                    <div class="flow-step"><span class="flow-step-num">1</span> รับเรื่องเข้าระบบ</div>
+                    <div class="flow-step"><span class="flow-step-num">2</span> ตรวจสอบความครบถ้วน</div>
+                    <div class="flow-step"><span class="flow-step-num">3</span> ผู้มีอำนาจอนุมัติ</div>
+                    <div class="flow-step"><span class="flow-step-num">4</span> ดำเนินการและบันทึกผล</div>
+                    <div class="flow-step"><span class="flow-step-num">5</span> ปิดงานและเก็บเอกสาร</div>
+                </div>
+            </div>
+
+            <!-- ══════ แผงท้ายหน้า ══════ -->
+            <div class="bottom-grid">
+                <div class="panel">
+                    <div class="panel-title"><i data-lucide="zap" class="mi"></i> ทางลัด</div>
+                    <div class="quick-grid">
+                        <a class="quick-item" href="page-basic.html">
+                            <span class="quick-item-icon"><i data-lucide="list"></i></span> รายการ
+                        </a>
+                        <a class="quick-item" href="page-3pane.html">
+                            <span class="quick-item-icon"><i data-lucide="columns-3"></i></span> พื้นที่ทำงาน
+                        </a>
+                        <a class="quick-item" href="../showcase.html">
+                            <span class="quick-item-icon"><i data-lucide="palette"></i></span> Showcase
+                        </a>
+                        <a class="quick-item" href="#">
+                            <span class="quick-item-icon"><i data-lucide="settings"></i></span> ตั้งค่า
+                        </a>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title"><i data-lucide="activity" class="mi"></i> กิจกรรมล่าสุด</div>
+                    <div class="act-item">
+                        <div class="act-dot" style="background:var(--green)"></div>
+                        <div class="act-text">อนุมัติรายการ A-002 เรียบร้อย</div>
+                        <div class="act-time">5 นาที</div>
+                    </div>
+                    <div class="act-item">
+                        <div class="act-dot" style="background:var(--blue)"></div>
+                        <div class="act-text">เพิ่มรายการใหม่ A-003</div>
+                        <div class="act-time">22 นาที</div>
+                    </div>
+                    <div class="act-item">
+                        <div class="act-dot" style="background:var(--red)"></div>
+                        <div class="act-text">แจ้งเตือน: รายการ A-001 เกินกำหนด</div>
+                        <div class="act-time">1 ชม.</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="../js/ds-icons.js"></script>
+    <script src="../js/ds-navbar.js"></script>
+    <script src="../js/ds-drawer.js"></script>
+    <script src="../js/ds-toast.js"></script>
+
+    <script>
+    const Landing = {
+        login(ev) {
+            ev.preventDefault();
+            // TODO: เรียก API ล็อกอินจริง แล้วค่อย showApp()
+            this.showApp();
+        },
+        showApp() {
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('mainApp').style.display = '';
+            DSNavbar.init();          // navbar อยู่ใน #mainApp จึง init หลังเปิดหน้า
+            this.startClock();
+            refreshIcons();
+        },
+        startClock() {
+            const tick = () => {
+                const now = new Date();
+                document.getElementById('heroClock').textContent =
+                    now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false });
+                document.getElementById('heroDate').textContent =
+                    now.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            };
+            tick();
+            setInterval(tick, 1000);
+        },
+    };
+
+    window.Landing = Landing;
+    </script>
+</body>
+</html>

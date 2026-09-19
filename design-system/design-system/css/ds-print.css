@@ -1,0 +1,157 @@
+/* ============================================================
+   MediCore Design System — PRINT
+   สูตรพิมพ์ A4 2 แบบ + พรีวิวกระดาษบนจอ
+
+   ระบบเดิมมีสูตรพิมพ์กระจายอยู่ 6 ไฟล์ — ที่นี่รวมเหลือชุดเดียว
+   ============================================================ */
+
+/* ══════════════════════════════════════════════════════════
+   สลับการแสดงผล จอ ↔ กระดาษ
+   ══════════════════════════════════════════════════════════ */
+@media screen {
+    .print-only { display: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   พรีวิวกระดาษ A4 บนจอ (ก่อนสั่งพิมพ์)
+   ══════════════════════════════════════════════════════════ */
+.ds-paper-viewport {
+    max-height: 70vh; overflow: auto;
+    background: #e5e7eb; padding: 16px; border-radius: 8px;
+}
+.ds-paper {
+    width: 210mm; min-height: 297mm;
+    background: #fff; color: #000;
+    margin: 0 auto; padding: 12mm;
+    box-shadow: 0 2px 12px rgba(0,0,0,.18);
+    transform-origin: top center;
+    font-family: var(--font-print);
+    font-size: 13px; line-height: 1.5;
+}
+.ds-paper h1, .ds-paper h2, .ds-paper h3 { font-family: var(--font-print); }
+
+/* ══════════════════════════════════════════════════════════
+   สูตร A — PRINT STAGE: พิมพ์เฉพาะบางส่วนของหน้า
+   ------------------------------------------------------------
+   วิธีใช้:
+     1. สร้าง  <div id="dsPrintStage"> ... เนื้อหาที่จะพิมพ์ ... </div>
+     2. ก่อนสั่งพิมพ์:  document.body.classList.add('ds-printing')
+     3. window.print()  แล้วเอาคลาสออกใน onafterprint
+
+   รองรับ: หัวตารางซ้ำทุกหน้า · footer ตรึงล่าง · เลขหน้าอัตโนมัติ
+   ══════════════════════════════════════════════════════════ */
+#dsPrintStage { display: none; }
+
+@media print {
+    body.ds-printing * { visibility: hidden !important; }
+    body.ds-printing #dsPrintStage,
+    body.ds-printing #dsPrintStage * { visibility: visible !important; }
+
+    body.ds-printing #dsPrintStage {
+        display: block !important;
+        position: absolute; left: 0; top: 0; width: 100%;
+        color: #000; font-family: var(--font-print);
+    }
+    body.ds-printing #dsPrintStage,
+    body.ds-printing #dsPrintStage * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* หัวตารางซ้ำทุกหน้า — ไม่งั้นหน้า 2+ อ่านไม่ออกว่าคอลัมน์ไหนคืออะไร */
+    #dsPrintStage thead { display: table-header-group; }
+    #dsPrintStage tr    { page-break-inside: avoid; }
+
+    /* footer ตรึงท้ายทุกหน้า + เลขหน้าจริง */
+    #dsPrintStage .ds-print-footer {
+        position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
+    }
+    #dsPrintStage .ds-print-sign { page-break-inside: avoid; }
+    body { counter-reset: ds-page; }
+    #dsPrintStage .ds-page-no::after {
+        counter-increment: ds-page; content: counter(ds-page);
+    }
+
+    @page { size: A4 portrait; margin: 12mm 12mm 22mm; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   สูตร B — พิมพ์ทั้งหน้า (ใช้เมื่อหน้าคือเอกสารอยู่แล้ว)
+   ══════════════════════════════════════════════════════════ */
+@media print {
+    .no-print    { display: none !important; }
+    .print-only  { display: block !important; }
+
+    /* ซ่อนโครงแอป */
+    nav#appNavbar, .mc-navbar,
+    .ds-pane-left, .ds-pane-right,
+    .drawer-root, .modal-overlay, .toast-container,
+    .ds-toolbar, .ds-actions, .ds-quick-nav { display: none !important; }
+
+    html, body {
+        background: #fff !important; color: #000 !important;
+        margin: 0; padding: 0;
+        font-family: var(--font-print);
+        font-size: 11pt; line-height: 1.4;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+
+    /* คลายข้อจำกัดของโครงแอปให้ไหลเป็นเอกสาร */
+    .ds-shell, .ds-pane-main, .page-container {
+        display: block !important;
+        height: auto !important; width: 100% !important;
+        overflow: visible !important;
+        padding: 0 !important; margin: 0 !important;
+    }
+
+    /* การ์ดกลายเป็นเนื้อหาเปล่า */
+    .card, .sip-card, .section-card, .clinical-card {
+        border: none !important; box-shadow: none !important;
+        background: transparent !important;
+        padding: 0 !important; margin: 0 0 12px !important;
+        page-break-inside: avoid;
+    }
+
+    /* ตารางแบบฟอร์มกระดาษ — เส้นดำชัด */
+    .ds-table-grid { border: 1px solid #000; }
+    .ds-table-grid th, .ds-table-grid td {
+        border: 1px solid #000 !important; padding: 4px 6px;
+        font-size: 10pt; color: #000 !important;
+    }
+    table thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+
+    /* ช่องกรอกกลายเป็นเส้นบรรทัด */
+    input, textarea, select {
+        border: none !important; background: transparent !important;
+        color: #000 !important; border-radius: 0 !important;
+        border-bottom: 1px dotted #999 !important;
+    }
+
+    canvas { display: none !important; }
+
+    .ds-paper-viewport { max-height: none; overflow: visible; background: #fff; padding: 0; }
+    .ds-paper { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; }
+
+    @page { size: A4 portrait; margin: 14mm 12mm; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ช่องที่ยังไม่ได้กรอก — เตือนก่อนพิมพ์
+   ══════════════════════════════════════════════════════════ */
+.ds-miss {
+    outline: 2px solid var(--status-danger) !important;
+    background: rgba(239, 68, 68, .07) !important;
+    border-radius: 3px; min-height: 18px; min-width: 60px;
+    display: inline-block; position: relative;
+}
+td.ds-miss, th.ds-miss { display: table-cell; }
+.ds-miss::after {
+    content: "⚠ ยังไม่ได้กรอก";
+    color: var(--status-danger); font-size: 10px; font-weight: 700;
+    white-space: nowrap; margin-left: 4px; vertical-align: middle;
+}
+@media print {
+    .ds-miss { outline: none !important; background: transparent !important; }
+    .ds-miss::after { content: ""; }
+}

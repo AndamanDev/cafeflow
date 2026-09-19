@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  TEMPLATE: หน้าเลื่อนธรรมดา (หัวข้อ + การ์ด + ตาราง)
+  คัดลอกไฟล์นี้ไปเป็น <ชื่อหน้า>.html แล้วแก้จุด TODO
+
+  ⚠️ path ของ CSS/JS ในไฟล์นี้เป็น ../ เพราะอยู่ใน design-system/templates/
+     ถ้าย้ายหน้าไปไว้ที่ root ของโปรเจค ให้แก้เป็น design-system/css/... และ
+     design-system/js/...
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- TODO: เปลี่ยนชื่อหน้า -->
+    <title>MediCore — หน้าใหม่</title>
+
+    <!-- ลำดับ CSS มาตรฐาน (ds-tokens ต้องมาก่อนเสมอ) -->
+    <link rel="stylesheet" href="../css/ds-tokens.css">
+    <link rel="stylesheet" href="../css/ds-base.css">
+    <link rel="stylesheet" href="../css/ds-navbar.css">
+    <link rel="stylesheet" href="../css/ds-layout.css">
+    <link rel="stylesheet" href="../css/ds-components.css">
+    <link rel="stylesheet" href="../css/ds-overlays.css">
+    <link rel="stylesheet" href="../css/ds-print.css">
+</head>
+<!-- TODO: data-page ต้องตรงกับชื่อไฟล์ (ใช้ไฮไลต์เมนูใน navbar) -->
+<body data-page="page-basic">
+
+    <nav id="appNavbar"></nav>
+
+    <div class="page-container">
+
+        <div class="page-header">
+            <div>
+                <div class="page-title">
+                    <i data-lucide="file-text" class="mi"></i>
+                    <!-- TODO: ชื่อหัวข้อหน้า -->
+                    <span>หน้าใหม่</span>
+                </div>
+                <div class="page-subtitle">คำอธิบายสั้น ๆ ว่าหน้านี้ทำอะไร</div>
+            </div>
+            <div class="section-actions">
+                <button class="btn btn-outline" onclick="MyPage.openFilter()">
+                    <i data-lucide="filter" class="icon-sm"></i> ตัวกรอง
+                </button>
+                <button class="btn btn-primary" onclick="MyPage.openCreate()">
+                    <i data-lucide="plus" class="icon-sm"></i> เพิ่มรายการ
+                </button>
+            </div>
+        </div>
+
+        <!-- แถบตัวเลขสรุป (ลบทิ้งได้ถ้าไม่ต้องการ) -->
+        <div class="ds-kpi-grid">
+            <div class="sip-kpi">
+                <i data-lucide="inbox" class="sip-kpi-icon icon-lg"></i>
+                <div class="sip-kpi-value" id="kpiTotal">0</div>
+                <div class="sip-kpi-label">ทั้งหมด</div>
+            </div>
+            <div class="sip-kpi">
+                <i data-lucide="clock" class="sip-kpi-icon icon-lg"></i>
+                <div class="sip-kpi-value" id="kpiPending">0</div>
+                <div class="sip-kpi-label">รอดำเนินการ</div>
+            </div>
+            <div class="sip-kpi critical">
+                <i data-lucide="alert-triangle" class="sip-kpi-icon icon-lg"></i>
+                <div class="sip-kpi-value" id="kpiOverdue">0</div>
+                <div class="sip-kpi-label">เกินกำหนด</div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <i data-lucide="list" class="mi"></i> รายการทั้งหมด
+                </div>
+                <div class="section-actions">
+                    <input type="text" id="searchBox" class="sip-input" style="width:260px"
+                           placeholder="ค้นหา..." oninput="MyPage.onSearch()">
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ชื่อรายการ</th>
+                            <th>สถานะ</th>
+                            <th>อัปเดตล่าสุด</th>
+                            <th style="width:1%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="rows">
+                        <tr><td colspan="4" class="ds-empty">กำลังโหลด...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- shared ก่อน แล้วค่อย JS ของหน้า -->
+    <script src="../js/ds-icons.js"></script>
+    <script src="../js/ds-navbar.js"></script>
+    <script src="../js/ds-drawer.js"></script>
+    <script src="../js/ds-toast.js"></script>
+
+    <script>
+    /* ────────────────────────────────────────────────────────
+       แพทเทิร์น JS ของระบบ: global object ไม่ใช่ IIFE
+       เพราะ markup เรียก handler ตรง — onclick="MyPage.xxx()"
+       TODO: ย้ายไปไฟล์ js/<ชื่อหน้า>.js เมื่อโค้ดยาวขึ้น
+       ──────────────────────────────────────────────────────── */
+    const MyPage = {
+        state: { rows: [], keyword: '' },
+
+        async loadData() {
+            try {
+                // TODO: เรียก API จริง
+                // const res = await fetch('/api/items');
+                // this.state.rows = await res.json();
+                this.state.rows = [
+                    { id: 1, name: 'ตัวอย่างรายการ A', status: 'active',  updated: '2 นาทีที่แล้ว' },
+                    { id: 2, name: 'ตัวอย่างรายการ B', status: 'pending', updated: '1 ชั่วโมงที่แล้ว' },
+                ];
+                this.render();
+            } catch (err) {
+                console.error(err);
+                showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
+            }
+        },
+
+        render() {
+            const kw = this.state.keyword.toLowerCase();
+            const rows = this.state.rows.filter(r => !kw || r.name.toLowerCase().includes(kw));
+            const tbody = document.getElementById('rows');
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="ds-empty">ไม่พบรายการ</td></tr>';
+            } else {
+                tbody.innerHTML = rows.map(r => `
+                    <tr>
+                        <td class="td-name">${esc(r.name)}</td>
+                        <td><span class="status-badge ${r.status}">${esc(this.statusLabel(r.status))}</span></td>
+                        <td class="td-sub">${esc(r.updated)}</td>
+                        <td>
+                            <button class="ds-icon-btn edit" title="แก้ไข" onclick="MyPage.edit(${r.id})">
+                                <i data-lucide="pencil" class="icon-sm"></i>
+                            </button>
+                            <button class="ds-icon-btn" title="ลบ" onclick="MyPage.remove(${r.id})">
+                                <i data-lucide="trash-2" class="icon-sm"></i>
+                            </button>
+                        </td>
+                    </tr>`).join('');
+            }
+
+            document.getElementById('kpiTotal').textContent = this.state.rows.length;
+            refreshIcons();   // ⚠️ ต้องเรียกทุกครั้งหลัง render ไอคอนใหม่
+        },
+
+        statusLabel(s) {
+            return ({ active: 'ใช้งาน', pending: 'รอดำเนินการ', completed: 'เสร็จสิ้น' })[s] || s;
+        },
+
+        onSearch() {
+            this.state.keyword = document.getElementById('searchBox').value.trim();
+            this.render();
+        },
+
+        openFilter() {
+            Drawer.open({
+                title: 'ตัวกรอง',
+                contentHtml: `
+                    <div class="sip-field">
+                        <label class="sip-label">สถานะ</label>
+                        <select class="sip-select" id="fStatus">
+                            <option value="">ทั้งหมด</option>
+                            <option value="active">ใช้งาน</option>
+                            <option value="pending">รอดำเนินการ</option>
+                        </select>
+                    </div>`,
+                footerHtml: `
+                    <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+                    <button class="btn btn-primary" onclick="MyPage.applyFilter()">ใช้ตัวกรอง</button>`,
+            });
+        },
+
+        applyFilter() {
+            Drawer.close();
+            showToast('ใช้ตัวกรองแล้ว');
+        },
+
+        openCreate() {
+            Drawer.open({
+                title: 'เพิ่มรายการใหม่',
+                contentHtml: `
+                    <div class="sip-field">
+                        <label class="sip-label">ชื่อรายการ</label>
+                        <input class="sip-input" id="newName" placeholder="พิมพ์ชื่อ...">
+                    </div>
+                    <div class="ds-note"><i data-lucide="info" class="icon-sm"></i> ข้อมูลจะถูกบันทึกทันทีเมื่อกดยืนยัน</div>`,
+                footerHtml: `
+                    <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+                    <button class="btn btn-primary" onclick="MyPage.save()">บันทึก</button>`,
+                onOpen: () => refreshIcons(),
+            });
+        },
+
+        save() {
+            const name = (document.getElementById('newName').value || '').trim();
+            if (!name) { showToast('กรุณากรอกชื่อรายการ', 'warning'); return; }
+            this.state.rows.push({ id: Date.now(), name, status: 'pending', updated: 'เมื่อสักครู่' });
+            Drawer.close();
+            this.render();
+            showToast('บันทึกแล้ว');
+        },
+
+        edit(id) { showToast('แก้ไขรายการ #' + id, 'info'); },
+
+        async remove(id) {
+            const row = this.state.rows.find(r => r.id === id);
+            const ok = await Drawer.confirm({
+                title: 'ลบรายการนี้?',
+                message: 'ลบแล้วกู้คืนไม่ได้',
+                lines: row ? [row.name] : [],
+                confirmText: 'ลบรายการ',
+                danger: true,
+            });
+            if (!ok) return;
+            this.state.rows = this.state.rows.filter(r => r.id !== id);
+            this.render();
+            showToast('ลบแล้ว');
+        },
+    };
+
+    /* helper มาตรฐานของทุกหน้า — กัน XSS ตอน render ค่าลง innerHTML */
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    window.MyPage = MyPage;
+    document.addEventListener('DOMContentLoaded', () => MyPage.loadData());
+    </script>
+</body>
+</html>

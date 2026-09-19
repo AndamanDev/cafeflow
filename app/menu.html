@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — เมนูและสินค้า (§10, §11, §18)
+  ตัวอย่างหลักของ "เพิ่มรายการ = drawer" และ drawer ซ้อน drawer
+  โครง: .page-container (หน้าเลื่อนปกติ — ห้ามใส่ ds-shell-page)
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — เมนูและสินค้า</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="js/cf-data.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script>CFStore.init(); CFAuth.guard('MENU_EDIT');</script>
+</head>
+<body data-page="menu">
+
+<nav id="appNavbar"></nav>
+
+<div class="page-container">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">
+                <i data-lucide="coffee" class="mi"></i>
+                <span>เมนูและสินค้า</span>
+            </div>
+            <div class="page-subtitle">จัดการสินค้า ราคา ตัวเลือก และสถานีครัวที่รับผิดชอบ</div>
+        </div>
+        <div class="section-actions">
+            <button class="btn btn-outline" onclick="MenuPage.openGroups()">
+                <i data-lucide="list-checks" class="icon-sm"></i> กลุ่มตัวเลือก
+            </button>
+            <button class="btn btn-primary" onclick="MenuPage.openProduct()">
+                <i data-lucide="plus" class="icon-sm"></i> เพิ่มรายการสินค้า
+            </button>
+        </div>
+    </div>
+
+    <div class="ds-kpi-grid" id="kpiStrip"></div>
+
+    <div class="ds-toolbar">
+        <div class="ds-segbar" id="catBar"></div>
+    </div>
+
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">
+                <i data-lucide="list" class="mi"></i> รายการสินค้า
+                <span class="ds-pane-count" id="rowCount">0</span>
+            </div>
+            <div class="section-actions">
+                <input class="sip-input" id="searchBox" style="max-width:220px"
+                       placeholder="ค้นหาชื่อสินค้า" oninput="MenuPage.setQuery(this.value)">
+                <div class="ds-chips" style="margin:0">
+                    <button class="ds-chip-toggle" id="fOnSale" onclick="MenuPage.toggleFilter('onSale')">เฉพาะที่เปิดขาย</button>
+                    <button class="ds-chip-toggle" id="fSoldOut" onclick="MenuPage.toggleFilter('soldOut')">เฉพาะสินค้าหมด</button>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table compact">
+                <thead>
+                    <tr>
+                        <th>ชื่อสินค้า</th>
+                        <th>หมวด</th>
+                        <th>แบบเสิร์ฟ</th>
+                        <th>สถานี</th>
+                        <th class="cf-right cf-nowrap" data-role-gate="ADMIN MANAGER">ราคา ร้อน / เย็น / ปั่น</th>
+                        <th>สถานะ</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+<div id="dsPrintStage"></div>
+
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-print.js"></script>
+<script src="js/cf-docs.js"></script>
+<script src="js/cf-export.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script src="js/cf-kiosk-art.js"></script>
+<script src="js/page-menu.js"></script>
+</body>
+</html>

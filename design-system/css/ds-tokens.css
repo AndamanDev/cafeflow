@@ -1,0 +1,266 @@
+/* ============================================================
+   MediCore Design System — TOKENS
+   ------------------------------------------------------------
+   :root เดียวจบ (Light theme only)
+
+   ไฟล์นี้รวมโทเคนที่เดิมกระจายอยู่ 6 ไฟล์และทับกันเอง
+   (design-tokens.css / theme-bridge.css / smart-ipd-tokens.css /
+    doctor.css / hub.css / main.css) ซึ่งทำให้ค่าที่ได้จริง
+   ขึ้นกับลำดับ <link> ของแต่ละหน้า — ที่นี่ประกาศครั้งเดียว
+
+   ⚠️ ต้องโหลดเป็นไฟล์แรกเสมอ
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
+:root {
+
+  /* ══════════════════════════════════════════════════════════
+     1. SHELL — โครงหลัก (navbar / hero / sidebar / ตัวอักษร)
+     ══════════════════════════════════════════════════════════ */
+  --brand-navy:           #0f172a;   /* Slate-900 — navbar, hero, หัวข้อ */
+  --brand-navy-700:       #1e293b;   /* Slate-800 — hover / surface รอง */
+  --brand-navy-600:       #334155;   /* Slate-700 — เส้นขอบบนพื้น navy */
+  --brand-navy-500:       #475569;   /* Slate-600 — ตัวอักษรรองบนพื้นสว่าง */
+  --brand-navy-300:       #94a3b8;   /* Slate-400 — placeholder */
+  --brand-navy-on:        #ffffff;   /* ตัวอักษรบนพื้น navy */
+
+  /* ══════════════════════════════════════════════════════════
+     2. ACTION — ลิงก์ / ปุ่มบันทึก / focus ring
+     ══════════════════════════════════════════════════════════ */
+  --primary:              #0068FF;
+  --primary-dark:         #0050CC;
+  --primary-light:        #4d94ff;
+  --primary-bg:           #e8f1ff;
+  --primary-border:       #b3d4ff;
+
+  --accent:               #FF6913;   /* ส้ม — ปุ่ม "บันทึกและส่ง" */
+  --accent-dark:          #E55A0B;
+
+  /* ══════════════════════════════════════════════════════════
+     3. CTA / HIGHLIGHT — ปุ่มหลัก, active sidebar, hover การ์ด
+     ══════════════════════════════════════════════════════════ */
+  --brand-amber:          #fbbf24;   /* Amber-400 */
+  --brand-amber-500:      #f59e0b;   /* hover / pressed */
+  --brand-amber-600:      #d97706;   /* active / border */
+  --brand-amber-100:      #fef3c7;   /* พื้นอ่อน (chip, banner) */
+  --brand-amber-50:       #fffbeb;
+  --brand-amber-on:       #1e293b;   /* ตัวอักษรเข้มบนพื้น amber */
+
+  /* ══════════════════════════════════════════════════════════
+     4. ACCENT หน้าแรก — violet + สีประจำหมวด
+     ══════════════════════════════════════════════════════════ */
+  --purple:   #7c3aed;
+  --purple2:  #6d28d9;
+  --purple-l: #a855f7;
+  --blue:     #2563eb;
+  --teal:     #0891b2;
+  --green:    #059669;
+  --red:      #dc2626;
+  --orange:   #d97706;
+  --slate:    #64748b;
+
+  /* ══════════════════════════════════════════════════════════
+     5. SURFACE / พื้นผิว
+     ══════════════════════════════════════════════════════════ */
+  --brand-white:          #ffffff;
+  --white:                #ffffff;
+  --brand-bg:             #f8fafc;   /* พื้นหน้า — Slate-50 */
+  --brand-bg-strong:      #f1f5f9;   /* Slate-100 — แถวสลับ */
+  --bg:                   #f0f2f5;   /* พื้นหน้าแบบเทาเข้มขึ้น (แอป 3-pane) */
+  --surface-1:            #f8fafc;
+  --surface-2:            #f1f5f9;
+
+  --brand-border:         #e2e8f0;   /* Slate-200 */
+  --brand-border-strong:  #cbd5e1;   /* Slate-300 */
+  --border:               #e4e7ec;
+  --border-light:         #f0f2f5;
+
+  /* ══════════════════════════════════════════════════════════
+     6. TEXT
+     ══════════════════════════════════════════════════════════ */
+  --text:                 #1a2133;
+  --text-primary:         #1e293b;
+  --text-secondary:       #475569;
+  --text-muted:           #6b7485;
+  --text-light:           #9aa1ad;
+
+  /* ══════════════════════════════════════════════════════════
+     7. STATUS — ใช้กับ chip / banner / badge (แยกจาก brand)
+     ══════════════════════════════════════════════════════════ */
+  --status-success:        #10b981;
+  --status-success-soft:   #d1fae5;
+  --status-success-strong: #047857;
+
+  --status-warning:        #f59e0b;
+  --status-warning-soft:   #fef3c7;
+  --status-warning-strong: #92400e;
+
+  --status-danger:         #ef4444;
+  --status-danger-soft:    #fee2e2;
+  --status-danger-strong:  #991b1b;
+
+  --status-info:           #3b82f6;
+  --status-info-soft:      #dbeafe;
+  --status-info-strong:    #1e40af;
+
+  --status-muted:          #94a3b8;
+  --status-muted-soft:     #f1f5f9;
+
+  --status-acknowledged:      #6366f1;
+  --status-acknowledged-soft: #e0e7ff;
+
+  /* alias สั้น (ใช้กับปุ่ม/ป้ายเดิม) */
+  --success:      #00B37A;   --success-bg: #e6f9f2;
+  --warning:      #FF9F0A;   --warning-bg: #fff7e6;
+  --danger:       #FF3B30;   --danger-bg:  #fff0ef;
+  --info:         #0068FF;
+
+  /* ══════════════════════════════════════════════════════════
+     8. TYPOGRAPHY
+     ══════════════════════════════════════════════════════════ */
+  --font-main:  'Inter', 'Noto Sans Thai', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* mono: ไม่โหลด webfont — ใช้ของระบบ (ของเดิมอ้าง JetBrains Mono แต่ไม่เคยโหลดจริง) */
+  --font-mono:  ui-monospace, 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  /* ฟอนต์เอกสาร/ใบพิมพ์ราชการไทย */
+  --font-print: 'Sarabun', 'TH Sarabun PSK', 'Noto Sans Thai', serif;
+
+  --font-size-xs:   10px;   /* จิ๋ว — เท่าที่จำเป็น */
+  --font-size-sm:   11px;   /* chip / badge */
+  --font-size-base: 13px;   /* เนื้อหา / input */
+  --font-size-md:   14px;   /* base ของ body */
+  --font-size-lg:   16px;
+  --font-size-xl:   18px;
+  --font-size-2xl:  22px;
+  --font-size-3xl:  28px;
+
+  /* ══════════════════════════════════════════════════════════
+     9. SPACING
+     ══════════════════════════════════════════════════════════ */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+
+  /* ══════════════════════════════════════════════════════════
+     10. RADIUS
+     ══════════════════════════════════════════════════════════ */
+  --r-sm:   6px;
+  --r-md:   8px;
+  --r-lg:   12px;
+  --r-xl:   16px;
+  --r-pill: 999px;
+
+  /* alias ชุดเดิม */
+  --radius:      10px;
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-pill: 999px;
+  --radius-full: 50%;
+
+  /* ══════════════════════════════════════════════════════════
+     11. SHADOW
+     ══════════════════════════════════════════════════════════ */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  --shadow:    0 1px 4px rgba(0,0,0,.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.10);
+  --shadow-lg: 0 12px 28px rgba(0,0,0,.12);
+
+  --sip-shadow-1: 0 1px 3px rgba(15,23,42,.06);
+  --sip-shadow-2: 0 4px 12px rgba(15,23,42,.08);
+  --sip-shadow-3: 0 12px 28px rgba(15,23,42,.12);
+  --sip-shadow-glow-amber: 0 0 0 3px rgba(251,191,36,.25);
+
+  /* เงาเด่นของหน้าแรก */
+  --shadow-hero:    0 4px 24px rgba(0,0,0,.08);
+  --shadow-hero-lg: 0 12px 40px rgba(0,0,0,.15);
+
+  /* ══════════════════════════════════════════════════════════
+     12. TRANSITION
+     ══════════════════════════════════════════════════════════ */
+  --transition-fast: 150ms cubic-bezier(.4, 0, .2, 1);
+  --transition-base: 250ms cubic-bezier(.4, 0, .2, 1);
+  --transition-slow: 400ms cubic-bezier(.4, 0, .2, 1);
+
+  /* ══════════════════════════════════════════════════════════
+     13. LAYOUT
+     ══════════════════════════════════════════════════════════ */
+  --header-h:              56px;   /* ความสูง navbar — .ds-shell พึ่งค่านี้ */
+  --sidebar-w:             240px;
+  --sidebar-w-collapsed:   72px;
+  --pane-left-w:           280px;
+  --pane-right-w:          360px;
+  --content-max:           1280px;
+  --gutter:                24px;
+  --drawer-w:              480px;
+
+  /* ══════════════════════════════════════════════════════════
+     14. Z-INDEX — ค่าที่ "ใช้จริง" (ของเดิมประกาศ scale ไว้แต่ไม่มีใครใช้)
+     ══════════════════════════════════════════════════════════ */
+  --z-base:            1;
+  --z-dropdown:        100;
+  --z-sticky:          200;
+  --z-overlay-page:    950;    /* overlay เต็มจอใต้ navbar */
+  --z-navbar:          1100;
+  --z-drawer-overlay:  1290;
+  --z-drawer:          1300;   /* ⚠️ ต้องสูงกว่า navbar ไม่งั้น navbar บัง drawer */
+  --z-modal-overlay:   1390;
+  --z-modal:           1400;
+  --z-confirm:         1500;   /* confirm ต้องลอยเหนือ drawer/modal */
+  --z-toast:           11000;
+  --z-tooltip:         12000;
+}
+
+
+/* ============================================================
+   ภาคผนวก — โทเคนเฉพาะโดเมนคลินิก (CPOE / โรงพยาบาล)
+   ถ้าโปรเจคใหม่ไม่ใช่ระบบโรงพยาบาล ลบบล็อกนี้ทิ้งได้ทั้งก้อน
+   ============================================================ */
+:root {
+  /* หมวดคำสั่ง */
+  --cat-med:        #3b82f6;
+  --cat-lab:        #8b5cf6;
+  --cat-radiology:  #06b6d4;
+  --cat-procedure:  #f97316;
+  --cat-consult:    #6366f1;
+  --cat-nursing:    #10b981;
+  --cat-diet:       #f59e0b;
+  --cat-referral:   #ec4899;
+
+  /* สถานะคำสั่ง CPOE */
+  --cpoe-draft:     #94a3b8;
+  --cpoe-hold:      #f59e0b;
+  --cpoe-active:    #3b82f6;
+  --cpoe-completed: #10b981;
+  --cpoe-cancelled: #ef4444;
+  --cpoe-verified:  #8b5cf6;
+  --cpoe-dispensed: #06b6d4;
+
+  /* ความเร่งด่วน */
+  --priority-stat:      #ef4444;
+  --priority-urgent:    #f97316;
+  --priority-routine:   #3b82f6;
+  --priority-scheduled: #10b981;
+
+  /* Early Warning Score */
+  --ews-low:    #10b981;
+  --ews-medium: #f59e0b;
+  --ews-high:   #ef4444;
+
+  /* แถวคำสั่ง (order row) */
+  --order-active-bg:        var(--status-warning-soft);
+  --order-active-border:    var(--status-warning);
+  --order-progress-bg:      var(--status-info-soft);
+  --order-progress-border:  var(--status-info);
+  --order-completed-bg:     var(--status-success-soft);
+  --order-completed-border: var(--status-success);
+  --order-abnormal-bg:      var(--status-danger-soft);
+  --order-abnormal-border:  var(--status-danger);
+  --order-off-bg:           var(--status-muted-soft);
+  --order-off-border:       var(--status-muted);
+  --order-ack-bg:           var(--status-acknowledged-soft);
+  --order-ack-border:       var(--status-acknowledged);
+}
