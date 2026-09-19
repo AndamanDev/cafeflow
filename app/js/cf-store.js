@@ -299,6 +299,24 @@
             location.href = location.pathname;
         },
 
+        /**
+         * ใส่แถวที่ดึงมาเพิ่มเข้า cache (เช่นออเดอร์เก่าที่ค้นเจอแต่อยู่นอกหน้าต่าง 24 ชม.)
+         * แทนที่แถวที่ id ซ้ำ ไม่ใช่เพิ่มซ้อน — ไม่งั้นหน้าจอจะเห็นออเดอร์เดียวกันสองใบ
+         *
+         * ⚠️ แถวที่ใส่ด้วยวิธีนี้จะหายไปเมื่อ refresh snapshot รอบถัดไป ซึ่งถูกต้องแล้ว
+         *    เพราะมันอยู่นอกขอบเขตที่ snapshot รับผิดชอบ
+         */
+        hydrate(patch) {
+            if (!this.db || !patch) return;
+            for (const [entity, rows] of Object.entries(patch)) {
+                if (!Array.isArray(rows) || !Array.isArray(this.db[entity])) continue;
+                const byId = new Map(this.db[entity].map((r) => [r.id, r]));
+                rows.forEach((r) => byId.set(r.id, r));
+                this.db[entity] = [...byId.values()];
+            }
+            notify({ origin: 'hydrate' });
+        },
+
         refresh,
         isOnline()     { return MODE === 'api' ? _online : true; },
         isPersistent() { return MODE === 'api' ? true : _usable; },

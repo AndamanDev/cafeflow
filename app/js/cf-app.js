@@ -92,6 +92,23 @@ const CFApp = {
         return `<span class="sip-chip ${cls}">${this.stationLabel(st)}</span>`;
     },
 
+    /**
+     * ป้ายรูปแบบการรับสินค้า
+     * ครัวต้องเห็นตั้งแต่แรกว่าจะใส่แก้วหรือใส่ถุง — เห็นตอนทำเสร็จแล้วสายเกินไป
+     * ใช้สีเหลืองกับ "กลับบ้าน" เพราะเป็นกรณีที่ต้องทำอะไรเพิ่ม ส่วนกินที่ร้านเป็นค่าปกติ
+     */
+    diningChip(v) {
+        const d = (typeof CF_DINING !== 'undefined' && CF_DINING[v]) || null;
+        if (!d) return '';
+        const cls = v === 'TAKE_AWAY' ? 'sip-chip-amber' : 'sip-chip-muted';
+        return `<span class="sip-chip ${cls}">${d.label}</span>`;
+    },
+
+    diningLabel(v) {
+        const d = (typeof CF_DINING !== 'undefined' && CF_DINING[v]) || null;
+        return d ? d.label : '';
+    },
+
     /** ชื่อผู้ใช้จาก id (audit log เก็บเป็น id หรือคำว่า SYSTEM/KIOSK) */
     actorName(actor) {
         if (!actor) return '—';

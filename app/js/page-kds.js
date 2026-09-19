@@ -56,6 +56,8 @@ const KdsPage = {
                     <div class="cf-kds-no">${e(o.orderNo)}</div>
                     <div class="cf-kds-timer" data-since="${since}">--:--</div>
                 </div>
+                ${o.diningOption === 'TAKE_AWAY'
+                    ? `<div class="cf-kds-dining">${CFApp.diningLabel('TAKE_AWAY')}</div>` : ''}
 
                 <ul class="cf-kds-items">
                     ${items.map((i) => `<li>

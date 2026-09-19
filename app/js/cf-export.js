@@ -146,9 +146,28 @@ const CFExport = {
     },
 
     /** ส่งออกทั้งชุด 4 ไฟล์ */
-    all(shiftId) {
+    async all(shiftId) {
         const shift = shiftId ? CFStore.byId('shifts', shiftId) : CFStore.openShift();
         const tag = shift ? shift.id : new Date().toISOString().slice(0, 10);
+
+        /**
+         * ★ ดึงข้อมูลทั้งรอบมาก่อนทำไฟล์
+         * เบราว์เซอร์ cache ออเดอร์ไว้แค่ 24 ชั่วโมง ถ้าทำไฟล์จากของที่มีอยู่
+         * ไฟล์ที่ส่งให้บัญชีจะขาดข้อมูลไปแบบเงียบ ๆ — ผิดแบบที่ไม่มีใครจับได้
+         * จนกว่าจะไปกระทบงบ
+         */
+        if (CFStore.mode === 'api' && shift) {
+            try {
+                showToast('กำลังดึงข้อมูลทั้งรอบ…', 'info');
+                const patch = await CFApi.get(
+                    '/api/reports/shift/' + encodeURIComponent(shift.id) + '/data');
+                CFStore.hydrate(patch);
+            } catch (err) {
+                showToast('ดึงข้อมูลทั้งรอบไม่สำเร็จ — ยังไม่ส่งออกไฟล์', 'error', 5000);
+                return;   // ไฟล์ที่ไม่ครบแย่กว่าไม่มีไฟล์
+            }
+        }
+
         const files = [
             ['orders_' + tag + '.csv',       this.orders(shift && shift.id)],
             ['order_items_' + tag + '.csv',  this.orderItems(shift && shift.id)],

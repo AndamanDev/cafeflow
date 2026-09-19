@@ -185,3 +185,18 @@
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
 }
 .cf-upload-row .ds-note { margin: 0; flex: 1 1 180px; min-width: 0; }
+
+/* ป้าย "กลับบ้าน" บนตั๋วครัว — แสดงเฉพาะกรณีที่ต้องทำอะไรเพิ่ม (ใส่ถุง/ปิดฝา)
+   กินที่ร้านเป็นค่าปกติจึงไม่ต้องขึ้น ไม่งั้นทุกใบมีป้ายแล้วป้ายก็ไม่มีความหมาย
+   จอครัวดูจากระยะยืน ตัวอักษรจึงต้องใหญ่กว่าชิปปกติ */
+.cf-kds-dining {
+    align-self: flex-start;
+    margin: -4px 0 2px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--brand-amber-50);
+    border: 0.8px solid #FDE68A;
+    color: #8A6400;
+    font-size: 17px;
+    font-weight: 800;
+}

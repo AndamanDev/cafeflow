@@ -188,6 +188,99 @@ function registerReports(app, deps) {
     }));
 
     /**
+     * ข้อมูลทั้งรอบสำหรับทำ CSV (§28)
+     *
+     * ส่งเป็น "ข้อมูลดิบรูปทรงเดียวกับ snapshot" ไม่ใช่ไฟล์ CSV สำเร็จรูป
+     * โดยตั้งใจ — สัญญาเรื่องคอลัมน์ตาม §28 อยู่ใน cf-export.js อยู่แล้ว
+     * ถ้าสร้าง CSV ที่เซิร์ฟเวอร์อีกชุดจะมีนิยามคอลัมน์สองที่ที่ค่อย ๆ เพี้ยนจากกัน
+     */
+    app.get('/api/reports/shift/:id/data', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'REPORT');
+        const S = require('../serialize/snapshot');
+        const c = await pool.connect();
+        try {
+            const orders = (await c.query(
+                `SELECT o.*, COALESCE(ss.m, '{}'::jsonb) AS station_status
+                   FROM cf_order o
+                   LEFT JOIN LATERAL (
+                       SELECT jsonb_object_agg(station, status) AS m
+                         FROM order_station_status WHERE order_id = o.id
+                   ) ss ON true
+                  WHERE o.shift_id = $1 AND o.branch_id = $2
+                  ORDER BY o.created_at`, [req.params.id, branchId()])).rows;
+            const ids = orders.map((o) => o.id);
+
+            const items = ids.length ? (await c.query(
+                `SELECT i.*, COALESCE(m.mods, '[]'::jsonb) AS mods
+                   FROM order_item i
+                   LEFT JOIN LATERAL (
+                       SELECT jsonb_agg(jsonb_build_object(
+                                  'groupId', group_id, 'optionId', option_id, 'label', label,
+                                  'shortLabel', short_label, 'priceDelta', price_delta)
+                              ORDER BY sort) AS mods
+                         FROM order_item_modifier WHERE order_item_id = i.id
+                   ) m ON true
+                  WHERE i.order_id = ANY($1) ORDER BY i.order_id, i.line_no`, [ids])).rows : [];
+            const payments = ids.length ? (await c.query(
+                'SELECT * FROM payment WHERE order_id = ANY($1) ORDER BY created_at', [ids])).rows : [];
+
+            return {
+                shiftId: req.params.id,
+                orders: orders.map(S.toOrder),
+                orderItems: items.map(S.toOrderItem),
+                payments: payments.map(S.toPayment),
+            };
+        } finally { c.release(); }
+    }));
+
+    /**
+     * รายละเอียดออเดอร์ใบเดียว — ใช้ตอนเปิดผลค้นย้อนหลังที่ไม่ได้อยู่ใน cache
+     * รูปทรงตรงกับที่ snapshot ส่ง หน้าเว็บจึงเอาไปใส่ cache ต่อได้เลย
+     */
+    app.get('/api/orders/:id', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        const S = require('../serialize/snapshot');
+        const c = await pool.connect();
+        try {
+            const o = (await c.query(
+                `SELECT o.*, COALESCE(ss.m, '{}'::jsonb) AS station_status
+                   FROM cf_order o
+                   LEFT JOIN LATERAL (
+                       SELECT jsonb_object_agg(station, status) AS m
+                         FROM order_station_status WHERE order_id = o.id
+                   ) ss ON true
+                  WHERE o.id = $1 AND o.branch_id = $2`,
+                [req.params.id, branchId()])).rows[0];
+            if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
+
+            const items = (await c.query(
+                `SELECT i.*, COALESCE(m.mods, '[]'::jsonb) AS mods
+                   FROM order_item i
+                   LEFT JOIN LATERAL (
+                       SELECT jsonb_agg(jsonb_build_object(
+                                  'groupId', group_id, 'optionId', option_id, 'label', label,
+                                  'shortLabel', short_label, 'priceDelta', price_delta)
+                              ORDER BY sort) AS mods
+                         FROM order_item_modifier WHERE order_item_id = i.id
+                   ) m ON true
+                  WHERE i.order_id = $1 ORDER BY i.line_no`, [o.id])).rows;
+            const payments = (await c.query(
+                'SELECT * FROM payment WHERE order_id = $1 ORDER BY created_at', [o.id])).rows;
+            const audits = (await c.query(
+                'SELECT * FROM audit_log WHERE order_id = $1 ORDER BY id', [o.id])).rows;
+
+            return {
+                orders: [S.toOrder(o)],
+                orderItems: items.map(S.toOrderItem),
+                payments: payments.map(S.toPayment),
+                auditLogs: audits.map(S.toAudit),
+            };
+        } finally { c.release(); }
+    }));
+
+    /**
      * ค้นหาออเดอร์ย้อนหลัง — หน้าออเดอร์ใช้แทนการ scan cache
      * cache มีแค่ 24 ชั่วโมง ค้นของเมื่อวานจึงไม่เจอถ้าไม่ผ่านทางนี้
      */

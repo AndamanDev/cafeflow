@@ -82,7 +82,10 @@ const CashierPage = {
                         <div style="font-size:20px;font-weight:800">${e(o.orderNo)}</div>
                         <div class="td-sub">${e(o.kioskId)} · ${CFApp.time(o.createdAt)}</div>
                     </div>
-                    ${CFApp.statusChip(o.status)}
+                    <div class="flex gap-sm" style="align-items:center">
+                        ${CFApp.diningChip(o.diningOption)}
+                        ${CFApp.statusChip(o.status)}
+                    </div>
                 </div>
                 <div style="margin:10px 0">${lines}${more}</div>
                 <div class="flex flex-between" style="align-items:baseline">

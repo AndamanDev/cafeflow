@@ -59,7 +59,13 @@ async function audit(c, branchId, row) {
          row.payload ? JSON.stringify(row.payload) : null]);
 }
 
-/** บอกทุกจอว่ามีอะไรเปลี่ยน + จดลง outbox ให้ sync-worker ส่งขึ้นคลาวด์ทีหลัง */
+/**
+ * บอกทุกจอว่ามีอะไรเปลี่ยน — เขียน change_log ที่ /api/stream กับ /api/changes อ่าน
+ *
+ * ⚠️ ยังไม่ได้เขียนลง `outbox` (ตารางสร้างไว้แล้วแต่ยังไม่มีใครอ่าน)
+ *    จะต่อพร้อมกับ sync-worker ตอนทำส่วนซิงก์ขึ้นคลาวด์ — เขียนไว้ก่อนตอนนี้
+ *    จะได้แค่แถวที่กองสะสมโดยไม่มีใครมาเก็บ
+ */
 async function touch(c, branchId, entity, id, op) {
     const rev = Number((await c.query("SELECT nextval('global_rev') AS v")).rows[0].v);
     await c.query(

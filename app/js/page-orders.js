@@ -18,8 +18,13 @@ const OrdersPage = {
     filtered() {
         const f = this.FILTERS.find((x) => x.key === this.state.filter) || this.FILTERS[0];
         const q = this.state.q.trim().toLowerCase();
-        let list = CFStore.all('orders').filter((o) =>
-            f.test(o) && (!q || o.orderNo.toLowerCase().includes(q) || o.kioskId.toLowerCase().includes(q))
+
+        // ผลค้นจากเซิร์ฟเวอร์ (มีเฉพาะตอนพิมพ์คำค้น) ครอบคลุมย้อนหลังเกินหน้าต่าง cache
+        const base = this.state.found ? this.state.found : CFStore.all('orders');
+
+        let list = base.filter((o) =>
+            f.test(o) && (!q || this.state.found ||
+                o.orderNo.toLowerCase().includes(q) || (o.kioskId || '').toLowerCase().includes(q))
         );
         if (this.state.group === 'amount')      list.sort((a, b) => b.total - a.total);
         else if (this.state.group === 'oldest') list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -27,12 +32,42 @@ const OrdersPage = {
         return list;
     },
 
+    /**
+     * ค้นย้อนหลังที่เซิร์ฟเวอร์
+     * cache ในเบราว์เซอร์มีแค่ 24 ชั่วโมง + ใบที่ยังไม่จบ — ค้นของเมื่อวานจึงไม่เจอ
+     * ถ้าไม่ผ่านทางนี้ (โหมดเดโมไม่มีเซิร์ฟเวอร์ ก็ค้นในหน่วยความจำเหมือนเดิม)
+     */
+    async searchServer() {
+        const q = this.state.q.trim();
+        if (CFStore.mode !== 'api' || q.length < 2) {
+            this.state.found = null;
+            this.state.searchNote = '';
+            this.render();
+            return;
+        }
+        this.state.searchNote = 'กำลังค้น…';
+        this.render();
+        try {
+            const res = await CFApi.get('/api/orders/search?limit=100&q=' + encodeURIComponent(q));
+            this.state.found = res.orders;
+            this.state.searchNote = res.total > res.orders.length
+                ? `พบ ${res.total} รายการ · แสดง ${res.orders.length} รายการแรก`
+                : `พบ ${res.total} รายการ (ค้นย้อนหลังทั้งหมด)`;
+        } catch (err) {
+            // ค้นไม่ได้ต้องไม่ทำให้หน้าใช้ไม่ได้ — ถอยไปค้นในที่ที่มีอยู่
+            this.state.found = null;
+            this.state.searchNote = 'ค้นย้อนหลังไม่ได้ — แสดงเฉพาะที่โหลดไว้';
+        }
+        this.render();
+    },
+
     render() {
         const e = CFApp.esc;
         const all = CFStore.all('orders');
         const list = this.filtered();
 
-        document.getElementById('listCount').textContent = list.length + ' รายการ';
+        document.getElementById('listCount').textContent =
+            this.state.searchNote || (list.length + ' รายการ');
 
         document.getElementById('pillTabs').innerHTML = this.FILTERS.map((f) => `
             <button class="ds-pilltab ${f.key === this.state.filter ? 'active' : ''}"
@@ -45,10 +80,15 @@ const OrdersPage = {
                  onclick="OrdersPage.select('${o.id}')">
                 <div class="ds-list-card-top">
                     <span class="ds-list-card-name">${e(o.orderNo)}</span>
-                    ${CFApp.statusChip(o.status)}
+                    <span class="flex gap-sm" style="align-items:center">
+                        ${CFApp.diningChip(o.diningOption)}
+                        ${CFApp.statusChip(o.status)}
+                    </span>
                 </div>
                 <div class="ds-list-card-detail">
-                    ${e(o.kioskId)} · ${CFOrders.items(o.id).length} รายการ · ${CFApp.baht(o.total)} · ${CFApp.time(o.createdAt)}
+                    ${e(o.kioskId || '—')} ·
+                    ${o.itemCount != null ? o.itemCount : CFOrders.items(o.id).length} รายการ ·
+                    ${CFApp.baht(o.total)} · ${CFApp.time(o.createdAt)}
                 </div>
             </div>`).join('') : '<div class="ds-empty-sm">ไม่พบออเดอร์</div>';
 
@@ -58,7 +98,14 @@ const OrdersPage = {
     },
 
     setFilter(k) { this.state.filter = k; this.render(); },
-    setQuery(v)  { this.state.q = v; this.render(); },
+    setQuery(v) {
+        this.state.q = v;
+        this.state.found = null;          // ผลเก่าใช้ไม่ได้แล้ว ต้องไม่ค้างให้เห็น
+        this.render();                    // วาดทันทีจากที่มีอยู่ ไม่ให้ช่องค้นหาหน่วง
+        // หน่วงก่อนยิงเซิร์ฟเวอร์ ไม่งั้นพิมพ์ "อเมริกาโน" ยิงไป 9 ครั้ง
+        clearTimeout(this._qTimer);
+        this._qTimer = setTimeout(() => this.searchServer(), 350);
+    },
     setGroup(v)  { this.state.group = v; this.render(); },
     toggleLeft() { document.getElementById('shell').classList.toggle('left-collapsed'); },
 
@@ -66,6 +113,17 @@ const OrdersPage = {
         this.state.selectedId = id;
         this.state.slipStation = null;
         this.render();
+
+        // ออเดอร์ที่ค้นเจอจากเซิร์ฟเวอร์อาจอยู่นอกหน้าต่าง cache — ต้องดึงรายละเอียดมาก่อน
+        // ไม่งั้นกดแล้วแผงขวาว่างเปล่าโดยไม่บอกอะไร
+        if (CFStore.mode === 'api' && !CFStore.byId('orders', id)) {
+            CFApi.get('/api/orders/' + encodeURIComponent(id))
+                .then((patch) => {
+                    CFStore.hydrate(patch);
+                    if (this.state.selectedId === id) this.render();
+                })
+                .catch(() => showToast('โหลดรายละเอียดออเดอร์ไม่สำเร็จ', 'error'));
+        }
     },
 
     setTab(tab) {
