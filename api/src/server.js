@@ -20,6 +20,7 @@ const { registerAuth } = require('./routes/auth');
 const { registerOrders } = require('./routes/orders');
 const { registerAdmin } = require('./routes/admin');
 const { registerPayments } = require('./routes/payments');
+const { registerReports } = require('./routes/reports');
 const { startWorker } = require('./print/worker');
 
 loadEnv();
@@ -119,6 +120,7 @@ registerAuth(app, { query, branchId: () => BRANCH_ID });
 const helpers = registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
 registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
+registerReports(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

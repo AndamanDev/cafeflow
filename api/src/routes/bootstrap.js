@@ -11,6 +11,7 @@
  */
 'use strict';
 const S = require('../serialize/snapshot');
+const { snapshotReports } = require('./reports');
 
 /** อุปกรณ์ที่ไม่ส่งสัญญาณเกินเท่านี้ถือว่าออฟไลน์ (§30 บอกให้เต้นทุก 10–30 วิ) */
 const ONLINE_CUTOFF_MS = 90 * 1000;
@@ -105,10 +106,15 @@ async function buildSnapshot(c, branchId, opts) {
         settings[r.key] = r.value;
     }
 
+    // ตัวเลขรายงานคิดที่เซิร์ฟเวอร์แล้วแนบมาด้วย — หน้าเว็บจึงอ่านได้แบบ synchronous
+    // และไม่ต้องคำนวณเองจาก cache ที่มีแค่ 24 ชั่วโมง (ซึ่งจะผิดแบบเงียบ ๆ)
+    const reports = await snapshotReports(c, branchId);
+
     const rev = Number((await q("SELECT last_value FROM global_rev"))[0].last_value);
 
     return {
         meta: { rev, branchId, serverTime: new Date().toISOString(), window: { hours } },
+        reports,
         settings,
         users: users.map(S.toUser),
         devices: devices.map((d) => S.toDevice(d, ONLINE_CUTOFF_MS)),

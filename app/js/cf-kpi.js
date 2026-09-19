@@ -14,6 +14,20 @@ const CF_WAITING_PAY = ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'P
 
 const CFKpi = {
 
+    /**
+     * รายงานที่เซิร์ฟเวอร์คิดมาให้ (มากับ snapshot)
+     * คืน null เมื่อไม่มี หรือเมื่อถามถึงรอบอื่นที่ไม่ใช่รอบในรายงาน
+     *
+     * ★ ต้องใช้ตัวนี้ก่อนเสมอเมื่อมี เพราะเบราว์เซอร์ cache ออเดอร์ไว้แค่ 24 ชั่วโมง
+     *   การคำนวณเองจึงถูกเฉพาะ "หน้างานวันนี้" ส่วนรอบที่ยาวกว่านั้นจะขาดไปเงียบ ๆ
+     */
+    _report(shiftId) {
+        const r = CFStore.db && CFStore.db.reports;
+        if (!r) return null;
+        if (shiftId && r.shiftId !== shiftId) return null;
+        return r;
+    },
+
     /** ออเดอร์ในขอบเขตที่สนใจ — ค่าเริ่มต้นคือรอบที่เปิดอยู่ ถ้าไม่มีก็ทั้งวันนี้ */
     scope(shiftId) {
         const all = CFStore.all('orders');
@@ -27,6 +41,9 @@ const CFKpi = {
        §25 / §26 — ตัวเลขหลัก
        ══════════════════════════════════════════════════════ */
     summary(shiftId) {
+        const rep = this._report(shiftId);
+        if (rep && rep.summary) return rep.summary;
+
         const orders = this.scope(shiftId);
         const sold = orders.filter((o) => CF_SOLD.includes(o.status));
 
@@ -91,6 +108,9 @@ const CFKpi = {
        §25 — ภาระงานแต่ละสถานี
        ══════════════════════════════════════════════════════ */
     stationLoad() {
+        const rep = this._report();
+        if (rep && rep.stationLoad) return rep.stationLoad;
+
         const active = CFStore.all('orders').filter((o) => CF_IN_PROGRESS.includes(o.status));
         const load = {};
         Object.keys(CF_STATIONS).forEach((s) => { load[s] = 0; });
@@ -125,6 +145,9 @@ const CFKpi = {
 
     /** สินค้าขายดี — ใช้ในใบปิดรอบ */
     topProducts(shiftId, limit) {
+        const rep = this._report(shiftId);
+        if (rep && rep.topProducts) return rep.topProducts.slice(0, limit || 8);
+
         const ids = new Set(this.scope(shiftId).filter((o) => CF_SOLD.includes(o.status)).map((o) => o.id));
         const acc = {};
         CFStore.all('orderItems').filter((i) => ids.has(i.orderId)).forEach((i) => {
@@ -142,6 +165,10 @@ const CFKpi = {
     cashControl(shiftId) {
         const shift = shiftId ? CFStore.byId('shifts', shiftId) : CFStore.openShift();
         if (!shift) return null;
+
+        const rep = this._report(shift.id);
+        if (rep && rep.cashControl) return Object.assign({ shift }, rep.cashControl);
+
         const s = this.summary(shift.id);
         const opening  = shift.openingCash || 0;
         const expected = opening + s.cash;
