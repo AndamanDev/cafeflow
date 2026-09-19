@@ -32,7 +32,9 @@
     <script src="js/cf-api.js"></script>
     <script src="js/cf-boot.js"></script>
     <script>
-        CFStore.init();
+        // publicPage: หน้านี้เปิดได้ก่อนล็อกอิน จึงต้องไม่ดึง snapshot ในโหมด api
+        // (/api/bootstrap ต้องมีตัวตนก่อน — ถ้าดึงตรงนี้จะกลายเป็นไก่กับไข่)
+        CFBoot.gate(false, { publicPage: true });
         // ล็อกอินอยู่แล้ว → ข้ามไปหน้าหลักเลย
         if (CFAuth.isLoggedIn()) location.replace('dashboard.html');
     </script>

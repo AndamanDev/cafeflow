@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — จอแสดงคิวลูกค้า (§22, §36)
+  ทีวีแขวนผนัง อ่านจากระยะ 3–8 เมตร · ไม่มีคนกด ไม่มีเมนู ไม่มีการล็อกอิน
+  แบ่ง 60% สถานะคิว / 40% เมนูแนะนำ ตามสเปก §22
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — จอแสดงคิว</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-display.css">
+
+    <script src="js/cf-config.js"></script>
+    <script src="../shared/cf-consts.js"></script>
+    <script src="js/cf-api.js"></script>
+</head>
+<body data-page="display" class="cf-display">
+
+<div class="cfd-stage" id="cfdStage">
+    <div class="cfd-boot" id="cfdBoot">
+        <div class="cfd-boot-card">
+            <h2 id="cfdBootTitle">กำลังเชื่อมต่อ…</h2>
+            <p id="cfdBootMsg">กำลังติดต่อเซิร์ฟเวอร์ของร้าน</p>
+            <div id="cfdBootAction"></div>
+        </div>
+    </div>
+</div>
+
+<script src="js/page-display.js"></script>
+</body>
+</html>

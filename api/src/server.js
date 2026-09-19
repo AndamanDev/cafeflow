@@ -23,6 +23,7 @@ const { registerPayments } = require('./routes/payments');
 const { registerReports } = require('./routes/reports');
 const { registerMedia } = require('./routes/media');
 const { registerDevices } = require('./routes/devices');
+const { registerDisplay } = require('./routes/display');
 const { startWorker } = require('./print/worker');
 
 loadEnv();
@@ -98,7 +99,23 @@ app.get('/api/health', async () => {
     return { ok: true, db: Date.now() - t0, time: new Date().toISOString() };
 });
 
-app.get('/api/bootstrap', async (req) => {
+app.get('/api/bootstrap', async (req, reply) => {
+    // ★ ต้องเป็นพนักงานที่ล็อกอิน หรืออุปกรณ์ที่จับคู่แล้วเท่านั้น
+    //   ก้อนนี้มีทั้งยอดขาย รายชื่อพนักงาน และค่าตั้งของร้าน — ก่อนหน้านี้เปิดให้
+    //   ใครก็ได้ที่อยู่บน LAN อ่าน ซึ่งเป็นช่องเดียวกับที่ปิดไปแล้วฝั่งการเขียน
+    const { currentUser } = require('./routes/auth');
+    const { currentDevice } = require('./routes/devices');
+    const user = await currentUser(query, req);
+    const dev = user ? null : await currentDevice(query, req);
+
+    // จอแสดงคิวถูกกันออกโดยตั้งใจ — มันเป็นทีวีที่แขวนให้คนทั้งร้านเห็นและ
+    // เสียบทิ้งไว้โดยไม่มีใครดูแล ไม่ควรถือยอดขายกับรายชื่อพนักงานไว้ในเครื่อง
+    // จอใช้ /api/display ที่ส่งเฉพาะเลขคิวกับสถานะแทน
+    const NEEDS_SNAPSHOT = ['KIOSK', 'CASHIER', 'KDS'];
+    if (!user && !(dev && NEEDS_SNAPSHOT.includes(dev.kind))) {
+        return reply.code(401).send({ error: 'ต้องเข้าสู่ระบบ หรือจับคู่อุปกรณ์ก่อน' });
+    }
+
     const hours = Math.min(parseInt(req.query.hours || '24', 10) || 24, 168);
     const client = await pool.connect();
     try {
@@ -146,6 +163,7 @@ registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerReports(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerMedia(app, { query, branchId: () => BRANCH_ID, root: ROOT, helpers });
 registerDevices(app, { query, branchId: () => BRANCH_ID, helpers });
+registerDisplay(app, { query, branchId: () => BRANCH_ID, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

@@ -38,10 +38,16 @@
          * เรียกใน <head> — เริ่มโหลดข้อมูลทันทีโดยไม่รอ DOM
          * ถ้าไม่มี session ก็เด้งไปหน้าล็อกอินเลยโดยไม่ต้องรอเน็ต
          */
-        gate(permission) {
+        gate(permission, opts) {
             if (readyPromise) return readyPromise;
+            opts = opts || {};
 
             readyPromise = (async () => {
+                // หน้าที่เปิดได้ก่อนล็อกอิน (เช่นหน้าล็อกอินเอง) ต้องไม่ดึง snapshot
+                // เพราะ /api/bootstrap ต้องมีตัวตนก่อน — จะกลายเป็นไก่กับไข่
+                // โหมดเดโมยังต้องโหลด เพราะหน้าล็อกอินอ่านรายชื่อบัญชีตัวอย่างจากที่นั่น
+                if (opts.publicPage && window.CF_BACKEND === 'api') return;
+
                 const out = CFStore.init();
                 if (out && typeof out.then === 'function') await out;
 
