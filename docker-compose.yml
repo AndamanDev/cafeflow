@@ -1,0 +1,32 @@
+# CafeFlow — สภาพแวดล้อมสำหรับพัฒนา
+#
+# เครื่องจริงในร้าน (mini PC) ใช้ไฟล์นี้เป็นฐานได้เลย ต่างกันแค่ค่าใน .env
+# และการเปิด restart: always — ร้านต้องกลับมาเองเมื่อไฟดับแล้วมา
+#
+#   docker compose up -d db        เปิดเฉพาะฐานข้อมูล (ตอนพัฒนา API รันนอก container)
+#   docker compose up -d           เปิดทั้งหมด
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cafeflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-cafeflow}
+      POSTGRES_USER: ${PGUSER:-cafeflow}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-cafeflow_dev}
+      # ร้านอยู่ไทย รายงาน "ยอดวันนี้" ต้องตัดตามเวลาไทย ไม่ใช่ UTC
+      TZ: Asia/Bangkok
+      PGTZ: Asia/Bangkok
+    ports:
+      - '${PGPORT:-5433}:5432'      # 5433 กัน Postgres ตัวอื่นที่อาจมีในเครื่องอยู่แล้ว
+    volumes:
+      - cafeflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # API ต้องไม่สตาร์ทก่อน DB พร้อม ไม่งั้น migration ล้มตอน boot
+      test: ['CMD-SHELL', 'pg_isready -U ${PGUSER:-cafeflow} -d ${PGDATABASE:-cafeflow}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  cafeflow_pgdata:

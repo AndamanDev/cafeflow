@@ -12,3 +12,6 @@ node_modules/
 slips/
 *.dump
 *.sql.gz
+
+# ผลลัพธ์การติดตั้ง
+api/node_modules/
