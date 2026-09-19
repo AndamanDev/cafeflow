@@ -217,6 +217,18 @@ const DashPage = {
                  'แสดงครั้งเดียวต่อออเดอร์ ไม่เด้งทุกครั้งที่เพิ่มของ')}
             ${tg('kioskImages', 'แสดงรูปภาพสินค้า')}
 
+            <div class="ds-section-label">การชำระเงิน</div>
+            <div class="sip-field">
+                <label class="sip-label">พร้อมเพย์ของร้าน</label>
+                <input class="sip-input" id="kPromptpay" inputmode="numeric"
+                       placeholder="เบอร์โทร 10 หลัก หรือเลขประจำตัวผู้เสียภาษี 13 หลัก"
+                       value="${CFApp.esc(d.promptpayId || '')}">
+                <div class="ds-note" style="margin-top:6px">
+                    ใช้สร้าง QR ตามยอดที่ต้องชำระ — ลูกค้าสแกนแล้วแอปธนาคารขึ้นยอดให้เอง
+                    ไม่ต้องพิมพ์ยอด จึงไม่มีทางโอนผิดจำนวน · ยังไม่ตั้งค่าจะออก QR ไม่ได้
+                </div>
+            </div>
+
             <div class="ds-section-label">เวลา</div>
             ${num('kioskIdleSec', 'กลับหน้าแรกเมื่อไม่มีการใช้งาน (วินาที)')}
             ${num('kioskDoneSec', 'ปิดหน้าสรุปออเดอร์อัตโนมัติ (วินาที)')}
@@ -263,11 +275,22 @@ const DashPage = {
         d.kioskDiningMode = CF_DINING_MODE(d);
         delete d.kioskDiningStep;
 
+        const pp = document.getElementById('kPromptpay');
+        if (pp) {
+            const v = pp.value.replace(/[^0-9]/g, '');
+            if (v && v.length !== 10 && v.length !== 13) {
+                showToast('พร้อมเพย์ต้องเป็นเบอร์โทร 10 หลัก หรือเลขผู้เสียภาษี 13 หลัก', 'error', 4000);
+                pp.focus();
+                return;
+            }
+            d.promptpayId = v;
+        }
+
         if (CFStore.mode === 'api') {
             // ส่งเฉพาะคีย์ของคีออสก์ ไม่เหวี่ยง settings ทั้งก้อนกลับไป
             // ไม่งั้นค่าที่คนอื่นเพิ่งแก้จากอีกเครื่องจะถูกทับด้วยค่าเก่าที่เราโหลดมาตอนเปิด drawer
             const keys = Object.keys(CF_KIOSK_DEFAULTS)
-                .concat(['kioskDiningMode', 'qrTimeoutSec']);
+                .concat(['kioskDiningMode', 'qrTimeoutSec', 'promptpayId']);
             const patch = {};
             keys.forEach((k) => { if (d[k] !== undefined) patch[k] = d[k]; });
             CFStore.cmd('patch', '/api/settings', patch)

@@ -99,6 +99,7 @@ async function buildSnapshot(c, branchId, opts) {
         taxId: branch.tax_id,
         vatPercent: Number(branch.vat_percent),
         vatRegistered: branch.vat_registered,
+        promptpayId: branch.promptpay_id || '',
     };
     for (const r of await q('SELECT key, value FROM app_setting WHERE branch_id = $1', [branchId])) {
         settings[r.key] = r.value;

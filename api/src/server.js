@@ -19,6 +19,7 @@ const { registerStream, publish } = require('./routes/stream');
 const { registerAuth } = require('./routes/auth');
 const { registerOrders } = require('./routes/orders');
 const { registerAdmin } = require('./routes/admin');
+const { registerPayments } = require('./routes/payments');
 
 loadEnv();
 
@@ -116,6 +117,7 @@ registerStream(app, () => BRANCH_ID);
 registerAuth(app, { query, branchId: () => BRANCH_ID });
 const helpers = registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
 registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
+registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

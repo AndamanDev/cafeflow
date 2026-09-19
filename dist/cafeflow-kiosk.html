@@ -1335,6 +1335,13 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 .cfk-qr .cfk-ic { width: calc(var(--u) * 9); height: calc(var(--u) * 9); }
 .cfk-qr span { font-size: calc(var(--u) * 1.3); }
 
+/* พอมี QR จริงแล้ว กรอบเส้นประของ placeholder ไม่จำเป็นอีก และ aspect-ratio
+   ที่ล็อกเป็นสี่เหลี่ยมจัตุรัสจะบีบให้คำอธิบายทับตัวโค้ด */
+.cfk-qr.has-qr {
+    width: auto; aspect-ratio: auto; border: 0; background: transparent;
+    gap: calc(var(--u) * 1.2); color: var(--text-secondary);
+}
+
 .cfk-done-ico {
     width: calc(var(--u) * 9); height: calc(var(--u) * 9); border-radius: 50%;
     display: grid; place-items: center;
@@ -1435,6 +1442,16 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     background: rgba(255, 255, 255, .86);
     font-size: calc(var(--u) * 2); font-weight: 700; color: var(--primary-dark);
 }
+
+/* QR จริงจากเซิร์ฟเวอร์ — ต้องใหญ่พอให้กล้องมือถือจับได้จากระยะยืน
+   พื้นขาวรอบโค้ดเป็นส่วนหนึ่งของมาตรฐาน ห้ามตัดทิ้งเพื่อความสวย */
+.cfk-qr-img {
+    width: calc(var(--u) * 26); height: calc(var(--u) * 26);
+    background: #fff; padding: calc(var(--u) * 1.2);
+    border: 0.8px solid var(--brand-border); border-radius: var(--r);
+    display: grid; place-items: center;
+}
+.cfk-qr-img svg { width: 100%; height: 100%; display: block; }
 
 </style>
 
@@ -4029,12 +4046,16 @@ const CFKiosk = {
     screen_qr() {
         const o = CFStore.byId('orders', this.state.orderId);
         const sec = CFStore.settings().qrTimeoutSec || 60;
-        setTimeout(() => this.startQr(sec), 0);
+        // ต่อกับเซิร์ฟเวอร์จริง → ขอ QR ที่ผูกยอดไว้แล้ว · โหมดเดโม → กล่องจำลองเหมือนเดิม
+        setTimeout(() => (this.canQr() ? this.loadQr() : this.startQr(sec)), 0);
         return `
         ${this.topHtml({ title: 'สแกนเพื่อชำระเงิน', sub: 'ออเดอร์ ' + o.orderNo })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center">
-                <div class="cfk-qr">${CFKioskArt.icon('qr')}<span>QR จำลองสำหรับเดโม</span></div>
+                <div class="cfk-qr" id="cfkQrBox">
+                    ${CFKioskArt.icon('qr')}
+                    <span>${this.canQr() ? 'กำลังสร้าง QR…' : 'QR จำลองสำหรับเดโม'}</span>
+                </div>
                 <div class="cfk-done-no" style="font-size:calc(var(--u)*5)">฿${CFApp.money(o.total)}</div>
                 <div class="cfk-note cfk-note-ok">
                     ${CFKioskArt.icon('timer')}
@@ -4042,21 +4063,52 @@ const CFKiosk = {
                 </div>
             </div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.qrTimeout()">ปล่อยให้หมดเวลา</button>
+                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.qrTimeout()">แจ้งพนักงาน</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.qrPaid()">
-                    ${CFKioskArt.icon('check')} จำลองว่าชำระแล้ว
+                    ${CFKioskArt.icon('check')} ${this.canQr() ? 'โอนแล้ว' : 'จำลองว่าชำระแล้ว'}
                 </button>
             </div>
         </div>`;
     },
 
+    /** มีเซิร์ฟเวอร์จริงให้ออก QR ไหม — อาร์ติแฟกต์/เดโมไม่มี */
+    canQr() { return !!(window.CFStore && CFStore.mode === 'api'); },
+
+    /**
+     * ขอ QR ที่ผูกยอดจากเซิร์ฟเวอร์
+     * ยอดฝังอยู่ใน payload ลูกค้าจึงพิมพ์ยอดผิดไม่ได้ และเราตรวจซ้ำได้ตอนอ่านสลิป
+     */
+    async loadQr() {
+        const box = document.getElementById('cfkQrBox');
+        try {
+            const r = await CFApi.post('/api/orders/' +
+                encodeURIComponent(this.state.orderId) + '/qr', {});
+            if (!box) return;
+            box.classList.add('has-qr');
+            box.innerHTML = '<div class="cfk-qr-img">' + r.svg + '</div>' +
+                '<span>สแกนด้วยแอปธนาคาร · ยอดขึ้นให้อัตโนมัติ</span>';
+            // นับถอยหลังจากเวลาหมดอายุจริงของเซิร์ฟเวอร์ ไม่ใช่ค่าคงที่ฝั่งเบราว์เซอร์
+            this.startQr(Math.max(1, Math.round((new Date(r.expiresAt) - Date.now()) / 1000)));
+        } catch (err) {
+            if (box) {
+                box.innerHTML = CFKioskArt.icon('alert') +
+                    '<span>' + CFApp.esc(err.message || 'สร้าง QR ไม่สำเร็จ') +
+                    '<br>กรุณาชำระที่เคาน์เตอร์</span>';
+            }
+            // ออก QR ไม่ได้ก็ต้องขายต่อได้ — ส่งให้แคชเชียร์จัดการแทน ไม่ใช่ค้างคาหน้าจอ
+            clearInterval(this._qr);
+        }
+    },
+
     startQr(sec) {
         clearInterval(this._qr);
         let left = sec;
+        const el0 = document.getElementById('cfkLeft');
+        if (el0) el0.textContent = left;
         this._qr = setInterval(() => {
             left--;
             const el = document.getElementById('cfkLeft');
-            if (el) el.textContent = left;
+            if (el) el.textContent = Math.max(0, left);
             if (left <= 0) { clearInterval(this._qr); this.qrTimeout(); }
         }, 1000);
     },
