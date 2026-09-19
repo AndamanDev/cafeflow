@@ -9,6 +9,23 @@
    ย้ายไป shared/cf-flow.js แล้ว เพราะเซิร์ฟเวอร์ต้องตัดสินด้วยผังเดียวกับหน้าจอ
    ไฟล์นี้เหลือเฉพาะ "การกระทำ" ส่วน "กฎ" อยู่ที่ shared/ */
 
+/**
+ * หลังบ้าน api: ตรรกะทั้งหมดอยู่ที่เซิร์ฟเวอร์ ไฟล์นี้เหลือเป็นตัวเรียก
+ * หลังบ้าน local: ทำงานในหน่วยความจำเหมือนเดิม (เดโมและอาร์ติแฟกต์คีออสก์ใช้ทางนี้)
+ *
+ * ทั้งสองทางใช้ผังสถานะจาก shared/cf-flow.js ตัวเดียวกัน จึงไม่มีทางตัดสินต่างกัน
+ */
+const _api = () => window.CFStore && CFStore.mode === 'api';
+
+/** แสดง error ให้ผู้ใช้เห็นเป็นภาษาคน แล้วคืน false เพื่อให้ผู้เรียกเดินต่อได้ */
+function _fail(err) {
+    const msg = err && err.offline
+        ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้ — ยังไม่ได้บันทึก'
+        : (err && err.message) || 'ทำรายการไม่สำเร็จ';
+    if (window.showToast) showToast(msg, 'error', 4000);
+    return false;
+}
+
 const CFOrders = {
 
     /** สถานะถัดไปที่ถูกกฎ — ใช้ generate ปุ่ม จึงไม่มีปุ่มที่กดแล้วพัง */
@@ -22,6 +39,25 @@ const CFOrders = {
      */
     transition(orderId, newStatus, opts) {
         opts = opts || {};
+
+        if (_api()) {
+            // เซิร์ฟเวอร์ตรวจผัง เหตุผล และสิทธิ์ซ้ำอีกชั้นเสมอ — ที่ตรวจตรงนี้เพื่อ
+            // ไม่ให้ยิงไปทั้งที่รู้อยู่แล้วว่าไม่ผ่าน และให้ข้อความทันทีโดยไม่ต้องรอ network
+            const order = CFStore.byId('orders', orderId);
+            if (order && !CFFlow.canGo(order.status, newStatus)) {
+                showToast('เปลี่ยนสถานะจาก "' + CFApp.statusLabel(order.status) +
+                          '" ไปเป็น "' + CFApp.statusLabel(newStatus) + '" ไม่ได้', 'error', 4000);
+                return Promise.resolve(false);
+            }
+            if (CFFlow.needsReason(newStatus) && !String(opts.reason || '').trim()) {
+                showToast('ต้องระบุเหตุผลก่อนทำรายการนี้', 'error');
+                return Promise.resolve(false);
+            }
+            return CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/transition',
+                Object.assign({ status: newStatus }, opts))
+                .then(() => true).catch(_fail);
+        }
+
         const order = CFStore.byId('orders', orderId);
         if (!order) { showToast('ไม่พบออเดอร์', 'error'); return false; }
 
@@ -133,6 +169,13 @@ const CFOrders = {
      * ออเดอร์จะเป็น READY ก็ต่อเมื่อ "ทุกสถานี" พร้อม ไม่ใช่สถานีแรกที่กด
      */
     setStationReady(orderId, station, byId) {
+        if (_api()) {
+            return CFStore.cmd('post',
+                '/api/orders/' + encodeURIComponent(orderId) +
+                '/stations/' + encodeURIComponent(station) + '/ready', {})
+                .then(() => true).catch(_fail);
+        }
+
         const order = CFStore.byId('orders', orderId);
         if (!order) return false;
         if (!['SENT_TO_KITCHEN', 'PREPARING'].includes(order.status)) {
@@ -183,6 +226,24 @@ const CFOrders = {
     create(cart, opts) {
         opts = opts || {};
         if (!cart || !cart.length) return null;
+
+        if (_api()) {
+            // clientUuid ทำให้ retry ตอน Wi-Fi สะดุดไม่กลายเป็นสองออเดอร์
+            // สร้างครั้งเดียวต่อการกด "ชำระเงิน" ไม่ใช่ต่อการยิงแต่ละครั้ง
+            const clientUuid = opts.clientUuid ||
+                (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+            return CFStore.cmd('post', '/api/orders', {
+                clientUuid,
+                cart: cart.map((l) => ({
+                    productId: l.productId, serveType: l.serveType, qty: l.qty,
+                    mods: (l.mods || []).map((m) => ({ optionId: m.optionId })),
+                })),
+                diningOption: opts.diningOption || 'DINE_IN',
+                paymentMethod: opts.paymentMethod || 'CASH',
+                kioskId: opts.kioskId || null,
+                expectTotal: opts.expectTotal,      // ไม่ตรงกับที่เซิร์ฟเวอร์คิด = ปฏิเสธ
+            }).then((res) => res.orderId).catch((err) => { _fail(err); return null; });
+        }
 
         let orderId = null;
         CFStore.mutate((db) => {
@@ -247,6 +308,15 @@ const CFOrders = {
 
     /** บันทึกการพิมพ์ (§19 reprint) */
     logPrint(orderId, docType, width, station) {
+        if (_api()) {
+            // ยิงแล้วไม่ต้องรอ — กระดาษออกไปแล้ว การบันทึกช้าไปเสี้ยววินาทีไม่เป็นไร
+            // แต่ถ้าบันทึกไม่ได้ต้องรู้ ไม่ใช่เงียบ
+            if (!orderId) return;
+            CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/print',
+                { docType, width, station })
+                .catch((err) => console.warn('[CFOrders] บันทึกการพิมพ์ไม่สำเร็จ', err));
+            return;
+        }
         CFStore.mutate((db) => {
             const o = db.orders.find((x) => x.id === orderId);
             if (o && docType === 'receipt') o.reprintCount = (o.reprintCount || 0) + 1;

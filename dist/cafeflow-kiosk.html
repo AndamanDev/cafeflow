@@ -1427,6 +1427,15 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 }
 .cf-kiosk-gate-link:hover { color: var(--primary-dark); }
 
+/* ม่านระหว่างรอเซิร์ฟเวอร์ — ต้องกันการกดจริง ไม่ใช่แค่บอกว่ากำลังรอ
+   ไม่งั้นลูกค้ากดรัวแล้วได้หลายออเดอร์ */
+.cfk-busy {
+    position: absolute; inset: 0; z-index: 50;
+    display: grid; place-items: center;
+    background: rgba(255, 255, 255, .86);
+    font-size: calc(var(--u) * 2); font-weight: 700; color: var(--primary-dark);
+}
+
 </style>
 
 <div id="cfkFrame"><div id="cfkStage"></div></div>
@@ -2550,6 +2559,23 @@ window.CFApp = CFApp;
    ย้ายไป shared/cf-flow.js แล้ว เพราะเซิร์ฟเวอร์ต้องตัดสินด้วยผังเดียวกับหน้าจอ
    ไฟล์นี้เหลือเฉพาะ "การกระทำ" ส่วน "กฎ" อยู่ที่ shared/ */
 
+/**
+ * หลังบ้าน api: ตรรกะทั้งหมดอยู่ที่เซิร์ฟเวอร์ ไฟล์นี้เหลือเป็นตัวเรียก
+ * หลังบ้าน local: ทำงานในหน่วยความจำเหมือนเดิม (เดโมและอาร์ติแฟกต์คีออสก์ใช้ทางนี้)
+ *
+ * ทั้งสองทางใช้ผังสถานะจาก shared/cf-flow.js ตัวเดียวกัน จึงไม่มีทางตัดสินต่างกัน
+ */
+const _api = () => window.CFStore && CFStore.mode === 'api';
+
+/** แสดง error ให้ผู้ใช้เห็นเป็นภาษาคน แล้วคืน false เพื่อให้ผู้เรียกเดินต่อได้ */
+function _fail(err) {
+    const msg = err && err.offline
+        ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้ — ยังไม่ได้บันทึก'
+        : (err && err.message) || 'ทำรายการไม่สำเร็จ';
+    if (window.showToast) showToast(msg, 'error', 4000);
+    return false;
+}
+
 const CFOrders = {
 
     /** สถานะถัดไปที่ถูกกฎ — ใช้ generate ปุ่ม จึงไม่มีปุ่มที่กดแล้วพัง */
@@ -2563,6 +2589,25 @@ const CFOrders = {
      */
     transition(orderId, newStatus, opts) {
         opts = opts || {};
+
+        if (_api()) {
+            // เซิร์ฟเวอร์ตรวจผัง เหตุผล และสิทธิ์ซ้ำอีกชั้นเสมอ — ที่ตรวจตรงนี้เพื่อ
+            // ไม่ให้ยิงไปทั้งที่รู้อยู่แล้วว่าไม่ผ่าน และให้ข้อความทันทีโดยไม่ต้องรอ network
+            const order = CFStore.byId('orders', orderId);
+            if (order && !CFFlow.canGo(order.status, newStatus)) {
+                showToast('เปลี่ยนสถานะจาก "' + CFApp.statusLabel(order.status) +
+                          '" ไปเป็น "' + CFApp.statusLabel(newStatus) + '" ไม่ได้', 'error', 4000);
+                return Promise.resolve(false);
+            }
+            if (CFFlow.needsReason(newStatus) && !String(opts.reason || '').trim()) {
+                showToast('ต้องระบุเหตุผลก่อนทำรายการนี้', 'error');
+                return Promise.resolve(false);
+            }
+            return CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/transition',
+                Object.assign({ status: newStatus }, opts))
+                .then(() => true).catch(_fail);
+        }
+
         const order = CFStore.byId('orders', orderId);
         if (!order) { showToast('ไม่พบออเดอร์', 'error'); return false; }
 
@@ -2674,6 +2719,13 @@ const CFOrders = {
      * ออเดอร์จะเป็น READY ก็ต่อเมื่อ "ทุกสถานี" พร้อม ไม่ใช่สถานีแรกที่กด
      */
     setStationReady(orderId, station, byId) {
+        if (_api()) {
+            return CFStore.cmd('post',
+                '/api/orders/' + encodeURIComponent(orderId) +
+                '/stations/' + encodeURIComponent(station) + '/ready', {})
+                .then(() => true).catch(_fail);
+        }
+
         const order = CFStore.byId('orders', orderId);
         if (!order) return false;
         if (!['SENT_TO_KITCHEN', 'PREPARING'].includes(order.status)) {
@@ -2724,6 +2776,24 @@ const CFOrders = {
     create(cart, opts) {
         opts = opts || {};
         if (!cart || !cart.length) return null;
+
+        if (_api()) {
+            // clientUuid ทำให้ retry ตอน Wi-Fi สะดุดไม่กลายเป็นสองออเดอร์
+            // สร้างครั้งเดียวต่อการกด "ชำระเงิน" ไม่ใช่ต่อการยิงแต่ละครั้ง
+            const clientUuid = opts.clientUuid ||
+                (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+            return CFStore.cmd('post', '/api/orders', {
+                clientUuid,
+                cart: cart.map((l) => ({
+                    productId: l.productId, serveType: l.serveType, qty: l.qty,
+                    mods: (l.mods || []).map((m) => ({ optionId: m.optionId })),
+                })),
+                diningOption: opts.diningOption || 'DINE_IN',
+                paymentMethod: opts.paymentMethod || 'CASH',
+                kioskId: opts.kioskId || null,
+                expectTotal: opts.expectTotal,      // ไม่ตรงกับที่เซิร์ฟเวอร์คิด = ปฏิเสธ
+            }).then((res) => res.orderId).catch((err) => { _fail(err); return null; });
+        }
 
         let orderId = null;
         CFStore.mutate((db) => {
@@ -2788,6 +2858,15 @@ const CFOrders = {
 
     /** บันทึกการพิมพ์ (§19 reprint) */
     logPrint(orderId, docType, width, station) {
+        if (_api()) {
+            // ยิงแล้วไม่ต้องรอ — กระดาษออกไปแล้ว การบันทึกช้าไปเสี้ยววินาทีไม่เป็นไร
+            // แต่ถ้าบันทึกไม่ได้ต้องรู้ ไม่ใช่เงียบ
+            if (!orderId) return;
+            CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/print',
+                { docType, width, station })
+                .catch((err) => console.warn('[CFOrders] บันทึกการพิมพ์ไม่สำเร็จ', err));
+            return;
+        }
         CFStore.mutate((db) => {
             const o = db.orders.find((x) => x.id === orderId);
             if (o && docType === 'receipt') o.reprintCount = (o.reprintCount || 0) + 1;
@@ -3887,22 +3966,63 @@ const CFKiosk = {
         </div>`;
     },
 
-    /** สร้างออเดอร์จริงแล้วส่งเข้าคิวแคชเชียร์ */
-    submit(method) {
-        const orderId = CFOrders.create(this.state.cart, {
-            kioskId: this.state.deviceId,
-            paymentMethod: method,
-            diningOption: this.state.dining || 'DINE_IN',
-        });
-        if (!orderId) { this.toast('สร้างออเดอร์ไม่สำเร็จ'); return; }
+    /**
+     * สร้างออเดอร์จริงแล้วส่งเข้าคิวแคชเชียร์
+     *
+     * เป็น async เพราะเมื่อต่อกับเซิร์ฟเวอร์จริง CFOrders.create/transition คืน Promise
+     * (บนอาร์ติแฟกต์ที่ทำงานในหน่วยความจำ await กับค่าธรรมดาก็ไม่มีผลอะไร)
+     *
+     * ⚠️ ต้องกันการกดซ้ำ — ลูกค้ายืนหน้าจอแล้วปุ่มไม่ตอบทันทีจะกดรัว
+     *    ถ้าปล่อยไว้จะได้สามออเดอร์และเก็บเงินสามรอบ
+     */
+    async submit(method) {
+        if (this._submitting) return;
+        this._submitting = true;
+        this.setBusy(true, 'กำลังส่งออเดอร์…');
+        try {
+            // clientUuid ผูกกับ "การกดชำระครั้งนี้" — retry ตอนเน็ตสะดุดจึงได้ใบเดิม
+            this._clientUuid = this._clientUuid || (window.crypto && crypto.randomUUID
+                ? crypto.randomUUID() : 'cu-' + Date.now() + '-' + Math.random().toString(36).slice(2));
 
-        CFOrders.transition(orderId, method === 'CASH' ? 'WAITING_CASH' : 'WAITING_PAYMENT',
-            { byId: 'KIOSK', device: this.state.deviceId });
+            const orderId = await CFOrders.create(this.state.cart, {
+                kioskId: this.state.deviceId,
+                paymentMethod: method,
+                diningOption: this.state.dining || 'DINE_IN',
+                clientUuid: this._clientUuid,
+                expectTotal: this.cartTotal(),
+            });
+            if (!orderId) { this.toast('สร้างออเดอร์ไม่สำเร็จ'); return; }
 
-        this.state.cart = [];
-        this.state.orderId = orderId;
-        if (method === 'CASH') this.go('done', { kind: 'CASH' });
-        else this.go('qr');
+            const ok = await CFOrders.transition(orderId,
+                method === 'CASH' ? 'WAITING_CASH' : 'WAITING_PAYMENT',
+                { byId: 'KIOSK', device: this.state.deviceId });
+            if (ok === false) { this.toast('ส่งออเดอร์ไม่สำเร็จ'); return; }
+
+            this.state.cart = [];
+            this.state.orderId = orderId;
+            this._clientUuid = null;          // ออเดอร์ถัดไปต้องได้ uuid ใหม่
+            if (method === 'CASH') this.go('done', { kind: 'CASH' });
+            else this.go('qr');
+        } finally {
+            this._submitting = false;
+            this.setBusy(false);
+        }
+    },
+
+    /** ม่านบางกันการกดระหว่างรอเซิร์ฟเวอร์ — ลูกค้าต้องเห็นว่าเครื่องกำลังทำงาน */
+    setBusy(on, text) {
+        let el = document.getElementById('cfkBusy');
+        if (on) {
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'cfkBusy';
+                el.className = 'cfk-busy';
+                this.stage.appendChild(el);
+            }
+            el.textContent = text || 'กำลังทำงาน…';
+        } else if (el) {
+            el.remove();
+        }
     },
 
     /* ── QR + นับถอยหลัง (§14, §16) ── */
@@ -3941,20 +4061,40 @@ const CFKiosk = {
         }, 1000);
     },
 
-    qrPaid() {
+    async qrPaid() {
+        if (this._submitting) return;
+        this._submitting = true;
         clearInterval(this._qr);
-        CFOrders.transition(this.state.orderId, 'PAID',
-            { byId: 'SYSTEM', device: this.state.deviceId, ref: 'TX' + Date.now(), bank: 'KBANK' });
-        this.go('done', { kind: 'PAID' });
+        this.setBusy(true, 'กำลังยืนยันการชำระ…');
+        try {
+            const ok = await CFOrders.transition(this.state.orderId, 'PAID',
+                { byId: 'SYSTEM', device: this.state.deviceId, ref: 'TX' + Date.now(), bank: 'KBANK' });
+            if (ok === false) { this.toast('ยืนยันการชำระไม่สำเร็จ'); return; }
+            this.go('done', { kind: 'PAID' });
+        } finally {
+            this._submitting = false;
+            this.setBusy(false);
+        }
     },
 
-    qrTimeout() {
+    async qrTimeout() {
+        if (this._submitting) return;
+        this._submitting = true;
         clearInterval(this._qr);
-        const id = this.state.orderId;
-        CFOrders.transition(id, 'PAYMENT_TIMEOUT', { byId: 'SYSTEM', device: this.state.deviceId });
-        CFOrders.transition(id, 'PAYMENT_REVIEW', { byId: 'SYSTEM', device: this.state.deviceId,
-            reason: 'ลูกค้ากดแจ้งพนักงานจากคีออสก์' });
-        this.go('done', { kind: 'TIMEOUT' });
+        this.setBusy(true, 'กำลังแจ้งพนักงาน…');
+        try {
+            const id = this.state.orderId;
+            // ต้องรอตัวแรกให้เสร็จก่อน — สองคำสั่งนี้เป็นลำดับ ไม่ใช่ขนาน
+            await CFOrders.transition(id, 'PAYMENT_TIMEOUT',
+                { byId: 'SYSTEM', device: this.state.deviceId });
+            await CFOrders.transition(id, 'PAYMENT_REVIEW',
+                { byId: 'SYSTEM', device: this.state.deviceId,
+                  reason: 'ลูกค้ากดแจ้งพนักงานจากคีออสก์' });
+            this.go('done', { kind: 'TIMEOUT' });
+        } finally {
+            this._submitting = false;
+            this.setBusy(false);
+        }
     },
 
     /* ══════════════════════════════════════════════════════

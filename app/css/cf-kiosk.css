@@ -611,3 +611,12 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     font-size: 13px; color: var(--text-muted); text-decoration: none;
 }
 .cf-kiosk-gate-link:hover { color: var(--primary-dark); }
+
+/* ม่านระหว่างรอเซิร์ฟเวอร์ — ต้องกันการกดจริง ไม่ใช่แค่บอกว่ากำลังรอ
+   ไม่งั้นลูกค้ากดรัวแล้วได้หลายออเดอร์ */
+.cfk-busy {
+    position: absolute; inset: 0; z-index: 50;
+    display: grid; place-items: center;
+    background: rgba(255, 255, 255, .86);
+    font-size: calc(var(--u) * 2); font-weight: 700; color: var(--primary-dark);
+}

@@ -13,10 +13,11 @@
 const path = require('path');
 const fastify = require('fastify');
 const { loadEnv, ROOT } = require('./env');
-const { pool, query, waitReady } = require('./db/pool');
+const { pool, query, tx, waitReady } = require('./db/pool');
 const { buildSnapshot } = require('./routes/bootstrap');
 const { registerStream, publish } = require('./routes/stream');
 const { registerAuth } = require('./routes/auth');
+const { registerOrders } = require('./routes/orders');
 
 loadEnv();
 
@@ -112,6 +113,7 @@ app.post('/api/devices/:id/heartbeat', async (req, reply) => {
 
 registerStream(app, () => BRANCH_ID);
 registerAuth(app, { query, branchId: () => BRANCH_ID });
+registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

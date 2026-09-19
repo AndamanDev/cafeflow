@@ -11,35 +11,11 @@
 (function () {
     const K_SESSION = 'cafeflow.session.v1';
 
-    /* ── §29 Permission matrix ────────────────────────────────
-       true = ทำได้ · 'LIMITED' = ทำได้ในขอบเขต · false = ไม่ได้ */
-    const CF_PERMS = {
-        ADMIN: {
-            MENU_EDIT: true, PRICE_EDIT: true, PAY_RECEIVE: true, PAY_OVERRIDE: true,
-            KITCHEN: true, REPORT: true, SHIFT_CLOSE: true, USER_MANAGE: true,
-        },
-        MANAGER: {
-            MENU_EDIT: true, PRICE_EDIT: true, PAY_RECEIVE: true, PAY_OVERRIDE: true,
-            KITCHEN: true, REPORT: true, SHIFT_CLOSE: true, USER_MANAGE: false,
-        },
-        CASHIER: {
-            MENU_EDIT: false, PRICE_EDIT: false, PAY_RECEIVE: true, PAY_OVERRIDE: 'LIMITED',
-            KITCHEN: false, REPORT: 'LIMITED', SHIFT_CLOSE: true, USER_MANAGE: false,
-        },
-        KITCHEN: {
-            MENU_EDIT: false, PRICE_EDIT: false, PAY_RECEIVE: false, PAY_OVERRIDE: false,
-            KITCHEN: true, REPORT: false, SHIFT_CLOSE: false, USER_MANAGE: false,
-        },
-        VIEWER: {
-            MENU_EDIT: false, PRICE_EDIT: false, PAY_RECEIVE: false, PAY_OVERRIDE: false,
-            KITCHEN: false, REPORT: 'LIMITED', SHIFT_CLOSE: false, USER_MANAGE: false,
-        },
-    };
+    /* ── §29 Permission matrix + ป้ายบทบาท ──────────────────
+       ย้ายไป shared/cf-perms.js แล้ว เพราะเซิร์ฟเวอร์ต้องตรวจด้วยตารางเดียวกัน
+       ที่นี่ตรวจเพื่อซ่อนปุ่ม (UX) ส่วนที่นั่นตรวจเพื่อปฏิเสธจริง (ความปลอดภัย) */
+    const ROLE_LABEL = CF_ROLE_LABEL;
 
-    const ROLE_LABEL = {
-        ADMIN: 'ผู้ดูแลระบบ', MANAGER: 'ผู้จัดการร้าน',
-        CASHIER: 'แคชเชียร์', KITCHEN: 'ครัว', VIEWER: 'ผู้ชมข้อมูล',
-    };
 
     function read() {
         try {
