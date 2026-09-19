@@ -101,8 +101,11 @@ const DashPage = {
        ══════════════════════════════════════════════════════ */
     openDevices() {
         const e = CFApp.esc;
+        const api = CFStore.mode === 'api';
         const rows = CFStore.all('devices').map((d) => {
             const online = d.status === 'ONLINE';
+            // จับคู่ได้เฉพาะเครื่องที่รับออเดอร์/แสดงผล — เครื่องพิมพ์ไม่ได้เปิดเบราว์เซอร์
+            const pairable = api && ['KIOSK', 'KDS', 'DISPLAY'].includes(d.type);
             return `<tr>
                 <td>
                     <div class="td-name">${e(d.name)}</div>
@@ -111,6 +114,10 @@ const DashPage = {
                 <td>${d.assignedStation ? CFApp.stationChip(d.assignedStation) : '<span class="text-muted">—</span>'}</td>
                 <td class="cf-nowrap">${CFApp.time(d.lastSeen)}</td>
                 <td><span class="status-badge ${online ? 'active' : 'danger'}">${online ? 'ออนไลน์' : 'ออฟไลน์'}</span></td>
+                <td class="cf-nowrap">${pairable ? `
+                    <button class="btn btn-outline btn-sm" onclick="DashPage.pairDevice('${d.id}')">
+                        <i data-lucide="link" class="icon-sm"></i> จับคู่
+                    </button>` : '<span class="text-muted">—</span>'}</td>
             </tr>`;
         }).join('');
 
@@ -124,13 +131,35 @@ const DashPage = {
                 </div>
                 <div class="table-responsive">
                     <table class="data-table compact">
-                        <thead><tr><th>อุปกรณ์</th><th>สถานี</th><th>ล่าสุด</th><th>สถานะ</th></tr></thead>
+                        <thead><tr><th>อุปกรณ์</th><th>สถานี</th><th>ล่าสุด</th><th>สถานะ</th><th></th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                 </div>`,
             footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
             onOpen: () => refreshIcons(),
         });
+    },
+
+    /**
+     * ขอรหัสจับคู่ให้อุปกรณ์หนึ่งเครื่อง (§30)
+     * รหัสแสดงครั้งเดียว — ในฐานเก็บแต่ hash ย้อนดูไม่ได้ ถ้าปิดไปก่อนต้องขอใหม่
+     */
+    async pairDevice(id) {
+        try {
+            const r = await CFApi.post('/api/devices/' + encodeURIComponent(id) + '/pair-code', {});
+            await Drawer.confirm({
+                title: 'รหัสจับคู่ — ' + CFApp.esc(r.name),
+                message: r.code,
+                lines: [
+                    'ไปที่เครื่อง ' + r.deviceId + ' แล้วกรอกรหัสนี้',
+                    'รหัสใช้ได้ ' + r.expiresInMin + ' นาที และใช้ได้ครั้งเดียว',
+                ],
+                note: 'รหัสนี้แสดงครั้งเดียว — ปิดหน้าต่างนี้แล้วต้องขอใหม่',
+                confirmText: 'เรียบร้อย',
+            });
+        } catch (err) {
+            showToast(err.message || 'ขอรหัสจับคู่ไม่สำเร็จ', 'error', 4000);
+        }
     },
 
     /* ══════════════════════════════════════════════════════

@@ -22,6 +22,7 @@ const { registerAdmin } = require('./routes/admin');
 const { registerPayments } = require('./routes/payments');
 const { registerReports } = require('./routes/reports');
 const { registerMedia } = require('./routes/media');
+const { registerDevices } = require('./routes/devices');
 const { startWorker } = require('./print/worker');
 
 loadEnv();
@@ -117,6 +118,17 @@ app.get('/api/bootstrap', async (req) => {
 
 /** อุปกรณ์รายงานตัว — สถานะ ONLINE/OFFLINE บนหน้าภาพรวมมาจากตรงนี้เท่านั้น */
 app.post('/api/devices/:id/heartbeat', async (req, reply) => {
+    // เครื่องรายงานได้เฉพาะตัวเอง และต้องจับคู่แล้ว — ไม่งั้นใครก็ทำให้เครื่อง
+    // ที่ปิดอยู่ดูเหมือนออนไลน์ได้ ซึ่งทำให้หน้าภาพรวมโกหก
+    const { currentDevice } = require('./routes/devices');
+    const dev = await currentDevice(query, req);
+    const { currentUser } = require('./routes/auth');
+    const user = dev ? null : await currentUser(query, req);
+    if (!dev && !user) return reply.code(401).send({ error: 'อุปกรณ์นี้ยังไม่ได้จับคู่' });
+    if (dev && dev.id !== req.params.id) {
+        return reply.code(403).send({ error: 'รายงานสถานะแทนเครื่องอื่นไม่ได้' });
+    }
+
     const r = await query(
         `UPDATE device SET last_seen_at = now(), ip = COALESCE($2::inet, ip)
           WHERE id = $1 AND branch_id = $3 RETURNING id`,
@@ -133,6 +145,7 @@ registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerReports(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerMedia(app, { query, branchId: () => BRANCH_ID, root: ROOT, helpers });
+registerDevices(app, { query, branchId: () => BRANCH_ID, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

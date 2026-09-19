@@ -485,16 +485,29 @@ async function setStationReady(c, branchId, orderId, station, ctx) {
    ══════════════════════════════════════════════════════════════════ */
 function registerOrders(app, { pool, tx, query, branchId }) {
 
-    /** ผู้กระทำของ request นี้ — คน หรือ คีออสก์ */
+    /**
+     * ผู้กระทำของ request นี้ — คน หรือ อุปกรณ์ที่จับคู่ไว้
+     *
+     * ★ ตัวตนของอุปกรณ์มาจาก cookie ที่เซิร์ฟเวอร์ออกให้ตอนจับคู่เท่านั้น
+     *   header `X-CF-Device` เป็นสิ่งที่ client ประกาศเอง ใครก็ปลอมได้
+     *   จึงใช้ได้แค่เป็นข้อมูลประกอบใน audit ห้ามใช้ตัดสินสิทธิ์
+     */
     async function context(req) {
+        const { currentDevice } = require('./devices');
         const user = await currentUser(query, req);
-        const deviceId = req.headers['x-cf-device'] || null;
+        const device = user ? null : await currentDevice(query, req);
         const ip = req.ip ? req.ip.replace(/^::ffff:/, '') : null;
+
         return {
             user,
-            actorKind: user ? 'USER' : (deviceId && /^KIOSK/i.test(deviceId) ? 'KIOSK' : 'SYSTEM'),
+            device,
+            actorKind: user ? 'USER' : (device ? 'KIOSK' : 'SYSTEM'),
             actorUserId: user ? user.id : null,
-            deviceId, ip,
+            // ถ้าไม่มีตัวตนที่พิสูจน์ได้ ก็บันทึกสิ่งที่ client อ้างไว้ดูย้อนหลัง
+            // แต่จะไม่ถูกใช้ตัดสินว่าทำอะไรได้บ้าง
+            deviceId: device ? device.id : (req.headers['x-cf-device'] || null),
+            claimedDeviceId: device ? null : (req.headers['x-cf-device'] || null),
+            ip,
         };
     }
 
@@ -520,9 +533,22 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         }
     };
 
-    /* ── สร้างออเดอร์ — คีออสก์เรียก ไม่ต้องล็อกอิน ── */
+    /**
+     * อุปกรณ์ที่สร้างออเดอร์แทนลูกค้าได้ — ต้องเป็นคีออสก์ที่จับคู่แล้วเท่านั้น
+     * (พนักงานที่ล็อกอินก็สร้างได้ เช่นรับออเดอร์ที่เคาน์เตอร์แทนลูกค้า)
+     */
+    function requireKioskOrUser(ctx) {
+        if (ctx.user) return;
+        if (ctx.device && ctx.device.kind === 'KIOSK') return;
+        throw new ApiError(401, ctx.claimedDeviceId
+            ? 'เครื่องนี้ยังไม่ได้จับคู่กับร้าน — ขอรหัสจับคู่จากผู้จัดการ'
+            : 'ต้องเข้าสู่ระบบก่อน');
+    }
+
+    /* ── สร้างออเดอร์ — คีออสก์ที่จับคู่แล้วเรียกได้โดยไม่ต้องล็อกอิน ── */
     app.post('/api/orders', handle(async (req) => {
         const ctx = await context(req);
+        requireKioskOrUser(ctx);
         const out = await tx((c) => createOrder(c, branchId(), req.body || {}, ctx));
         publish(branchId(), { entity: 'orders', op: 'insert', id: out.orderId });
         return out;
@@ -536,8 +562,9 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         // คีออสก์เปลี่ยนได้เฉพาะช่วงที่ลูกค้ายังถือออเดอร์อยู่ ที่เหลือต้องเป็นพนักงาน
         const KIOSK_ALLOWED = ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'PAYMENT_REVIEW'];
         if (!ctx.user) {
-            if (ctx.actorKind !== 'KIOSK' || !KIOSK_ALLOWED.includes(to)) {
-                throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+            requireKioskOrUser(ctx);
+            if (!KIOSK_ALLOWED.includes(to)) {
+                throw new ApiError(403, 'คีออสก์เปลี่ยนสถานะนี้ไม่ได้ — ต้องให้พนักงานทำ');
             }
         } else if (to === 'PAID') {
             requirePerm(ctx, 'PAY_RECEIVE');
