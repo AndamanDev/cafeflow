@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
+    "@fastify/multipart": "^10.1.1",
     "@fastify/static": "^10.1.4",
     "@napi-rs/canvas": "^1.0.9",
     "argon2": "^0.44.0",

@@ -21,6 +21,7 @@ const { registerOrders } = require('./routes/orders');
 const { registerAdmin } = require('./routes/admin');
 const { registerPayments } = require('./routes/payments');
 const { registerReports } = require('./routes/reports');
+const { registerMedia } = require('./routes/media');
 const { startWorker } = require('./print/worker');
 
 loadEnv();
@@ -36,6 +37,8 @@ const app = fastify({
 });
 
 app.register(require('@fastify/cookie'));
+// รูปสินค้าอัปจากเครื่องได้ — ขนาดสูงสุดคุมไว้ที่ตัว route อีกชั้น
+app.register(require('@fastify/multipart'), { limits: { fileSize: 12 * 1024 * 1024, files: 1 } });
 
 /* ── หาสาขาปัจจุบัน — ร้านเดียวก่อน แต่ทุก query ผูก branch_id ไว้แล้ว ── */
 let BRANCH_ID = null;
@@ -71,6 +74,14 @@ async function registerStatic() {
     });
     await app.register(staticPlugin, {
         root: path.join(ROOT, 'design-system-2'), prefix: '/design-system-2/', decorateReply: false,
+    });
+    // รูปสินค้าที่อัปโหลดไว้ — ชื่อไฟล์เป็น sha256 ของเนื้อไฟล์
+    // เนื้อไม่มีวันเปลี่ยนภายใต้ชื่อเดิม จึงให้เบราว์เซอร์ cache ได้ยาว ๆ
+    const mediaRoot = path.join(ROOT, 'data', 'media');
+    require('fs').mkdirSync(mediaRoot, { recursive: true });
+    await app.register(staticPlugin, {
+        root: mediaRoot, prefix: '/media/', decorateReply: false,
+        maxAge: 31536000000, immutable: true,
     });
     return true;
 }
@@ -121,6 +132,7 @@ const helpers = registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID
 registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerReports(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
+registerMedia(app, { query, branchId: () => BRANCH_ID, root: ROOT, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
 

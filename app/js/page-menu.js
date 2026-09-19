@@ -197,7 +197,26 @@ const MenuPage = {
                 <div id="fArtPreview" class="cf-art-preview">${this.artPreviewHtml()}</div>
                 <div style="flex:1;min-width:0">
                     <div class="sip-field">
-                        <label class="sip-label">ลิงก์รูปภาพ (ไม่บังคับ)</label>
+                        <label class="sip-label">รูปสินค้า</label>
+                        <div class="cf-upload-row">
+                            <button type="button" class="btn btn-outline btn-sm"
+                                    id="fUploadBtn" onclick="MenuPage.pickImage()"
+                                    ${CFStore.mode === 'api' ? '' : 'disabled'}>
+                                <i data-lucide="upload" class="icon-sm"></i> อัปโหลดจากเครื่อง
+                            </button>
+                            ${d.imageUrl ? `<button type="button" class="btn btn-outline btn-sm"
+                                    onclick="MenuPage.clearImage()">
+                                <i data-lucide="x" class="icon-sm"></i> เอารูปออก
+                            </button>` : ''}
+                            <input type="file" id="fImageFile" accept="image/jpeg,image/png,image/webp"
+                                   hidden onchange="MenuPage.uploadImage(this)">
+                            <span class="ds-note" id="fUploadNote">${CFStore.mode === 'api'
+                                ? 'JPG · PNG · WebP — ระบบย่อให้เองอัตโนมัติ'
+                                : 'อัปโหลดได้เมื่อต่อกับเซิร์ฟเวอร์ของร้าน'}</span>
+                        </div>
+                    </div>
+                    <div class="sip-field">
+                        <label class="sip-label">หรือใส่ลิงก์รูปภาพ</label>
                         <input class="sip-input" id="fImageUrl" value="${e(d.imageUrl || '')}"
                                placeholder="https://…  เว้นว่างเพื่อใช้ภาพวาดประกอบ"
                                oninput="MenuPage.setImage(this.value)">
@@ -331,6 +350,63 @@ const MenuPage = {
     },
 
     setImage(v) { this.draft.imageUrl = v.trim(); this.repaintArt(); },
+
+    /* ══════════════════════════════════════════════════════
+       อัปโหลดรูปจากเครื่อง — ช่องทางที่สามต่อจากลิงก์และภาพวาด
+       ══════════════════════════════════════════════════════ */
+    pickImage() {
+        const el = document.getElementById('fImageFile');
+        if (el) { el.value = ''; el.click(); }   // ล้างค่าก่อน ไม่งั้นเลือกไฟล์เดิมซ้ำไม่ติด
+    },
+
+    async uploadImage(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+
+        const note = document.getElementById('fUploadNote');
+        const btn = document.getElementById('fUploadBtn');
+        const say = (msg) => { if (note) note.textContent = msg; };
+
+        // เตือนตั้งแต่ยังไม่ส่ง — ผู้ใช้จะได้ไม่ต้องรออัปโหลด 10 MB แล้วค่อยรู้ว่าไม่ผ่าน
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+            say('รองรับเฉพาะ JPG, PNG หรือ WebP'); return;
+        }
+        if (file.size > 12 * 1024 * 1024) {
+            say('ไฟล์ใหญ่เกิน 12 MB — ลองถ่ายใหม่ที่ความละเอียดต่ำลง'); return;
+        }
+
+        if (btn) btn.disabled = true;
+        say('กำลังอัปโหลด…');
+        try {
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            // ใช้ fetch ตรง ไม่ผ่าน CFApi เพราะ multipart ต้องให้เบราว์เซอร์
+            // ตั้ง Content-Type พร้อม boundary เอง ถ้าเราตั้งเองจะพังทันที
+            const res = await fetch((CFApi.baseUrl() || '') + '/api/media/upload',
+                { method: 'POST', body: fd, credentials: 'same-origin' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'อัปโหลดไม่สำเร็จ');
+
+            this.draft.imageUrl = data.url;
+            const f = document.getElementById('fImageUrl');
+            if (f) f.value = data.url;
+            this.repaintArt();
+            say(`อัปโหลดแล้ว ${data.width}×${data.height} · ` +
+                `${Math.round(data.originalBytes / 1024)} KB → ${Math.round(data.bytes / 1024)} KB`);
+            // ปุ่ม "เอารูปออก" เพิ่งมีความหมาย ต้องวาดใหม่ให้โผล่
+            this.refreshForm();
+        } catch (err) {
+            say(err.message || 'อัปโหลดไม่สำเร็จ');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    clearImage() {
+        this.captureForm();
+        this.draft.imageUrl = '';
+        this.refreshForm();     // กลับไปใช้ภาพวาดประกอบตามหมวดและแบบเสิร์ฟ
+    },
     setArtKey(v) { this.draft.artKey = v; this.repaintArt(); },
 
     /* ── การแก้ค่าในฟอร์ม ─────────────────────────────── */

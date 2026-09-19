@@ -179,3 +179,9 @@
 .cf-art-preview .cfk-art { width: 64%; height: 64%; }
 .cf-art-preview .cfk-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cf-art-preview .cfk-media.is-broken .cfk-img { display: none; }
+
+/* แถวปุ่มอัปโหลดรูปสินค้า — ห่อบรรทัดได้เมื่อจอแคบ ไม่ให้ปุ่มดันข้อความออกนอกกรอบ */
+.cf-upload-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.cf-upload-row .ds-note { margin: 0; flex: 1 1 180px; min-width: 0; }
