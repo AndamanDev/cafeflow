@@ -608,4 +608,4 @@ const MenuPage = {
 };
 
 window.MenuPage = MenuPage;
-document.addEventListener('DOMContentLoaded', () => MenuPage.boot());
+CFBoot.ready(() => MenuPage.boot());

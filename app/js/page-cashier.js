@@ -380,4 +380,4 @@ const CashierPage = {
 };
 
 window.CashierPage = CashierPage;
-document.addEventListener('DOMContentLoaded', () => CashierPage.boot());
+CFBoot.ready(() => CashierPage.boot());

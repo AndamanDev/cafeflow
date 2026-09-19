@@ -184,4 +184,4 @@ const ClosingPage = {
 };
 
 window.ClosingPage = ClosingPage;
-document.addEventListener('DOMContentLoaded', () => ClosingPage.boot());
+CFBoot.ready(() => ClosingPage.boot());

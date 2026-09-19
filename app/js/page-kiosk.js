@@ -45,4 +45,4 @@ const KioskBoot = {
 };
 
 window.KioskBoot = KioskBoot;
-document.addEventListener('DOMContentLoaded', () => KioskBoot.boot());
+CFBoot.ready(() => KioskBoot.boot());

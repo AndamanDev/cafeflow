@@ -10,33 +10,49 @@ const LoginPage = {
         return 'dashboard.html';
     },
 
+    /** CFAuth.login คืน Promise บนหลังบ้าน api และคืนค่าตรง ๆ บน local — รับได้ทั้งสองแบบ */
+    async attempt(username, password) {
+        const err = document.getElementById('loginError');
+        const btn = document.getElementById('loginBtn');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await CFAuth.login(username, password);
+            if (!res.ok) {
+                err.textContent = res.error;
+                err.style.display = 'block';
+                return;
+            }
+            err.style.display = 'none';
+            location.href = this.landingFor(res.user.role);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
     submit(ev) {
         ev.preventDefault();
-        const err = document.getElementById('loginError');
-        const res = CFAuth.login(
-            document.getElementById('loginUser').value,
-            document.getElementById('loginPass').value
-        );
-
-        if (!res.ok) {
-            err.textContent = res.error;
-            err.style.display = 'block';
-            return;
-        }
-        err.style.display = 'none';
-        location.href = this.landingFor(res.user.role);
+        this.attempt(document.getElementById('loginUser').value,
+                     document.getElementById('loginPass').value);
     },
 
     /** เติมฟอร์มแล้วส่งเลย — ปุ่มบัญชีตัวอย่าง */
     use(username) {
         document.getElementById('loginUser').value = username;
         document.getElementById('loginPass').value = 'demo';
-        const res = CFAuth.login(username, 'demo');
-        if (res.ok) location.href = this.landingFor(res.user.role);
+        this.attempt(username, 'demo');
     },
 
+    /**
+     * ปุ่มบัญชีตัวอย่าง — มีเฉพาะโหมดเดโม
+     * ข้อมูลจริงไม่ส่งรหัสผ่านมาให้เบราว์เซอร์ และไม่ควรมีปุ่มลัดเข้าทุกบัญชีอยู่แล้ว
+     */
     renderDemoRow() {
         const row = document.getElementById('demoRow');
+        const wrap = row.closest('.cf-demo-wrap') || row.parentElement;
+        if (CFStore.mode === 'api') {
+            if (wrap) wrap.style.display = 'none';
+            return;
+        }
         row.innerHTML = CFStore.all('users')
             .filter((u) => u.active)
             .map((u) => `<button type="button" class="cf-demo-btn"
@@ -58,4 +74,4 @@ const LoginPage = {
 };
 
 window.LoginPage = LoginPage;
-document.addEventListener('DOMContentLoaded', () => LoginPage.boot());
+CFBoot.ready(() => LoginPage.boot());

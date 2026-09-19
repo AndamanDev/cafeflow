@@ -337,4 +337,4 @@ const DashPage = {
 };
 
 window.DashPage = DashPage;
-document.addEventListener('DOMContentLoaded', () => DashPage.boot());
+CFBoot.ready(() => DashPage.boot());

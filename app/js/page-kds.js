@@ -109,4 +109,4 @@ const KdsPage = {
 };
 
 window.KdsPage = KdsPage;
-document.addEventListener('DOMContentLoaded', () => KdsPage.boot());
+CFBoot.ready(() => KdsPage.boot());

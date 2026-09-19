@@ -54,9 +54,31 @@
     window.CF_PERMS = CF_PERMS;
     window.CF_ROLE_LABEL = ROLE_LABEL;
 
+    const isApi = () => window.CFStore && CFStore.mode === 'api';
+
     window.CFAuth = {
-        /** คืน {ok:true} หรือ {ok:false, error:'ข้อความ'} */
+        /**
+         * คืน {ok:true} หรือ {ok:false, error:'ข้อความ'}
+         * หลังบ้าน api เป็น async — หน้าล็อกอินต้อง await
+         * (หลังบ้าน local ยังคืนค่าทันทีเหมือนเดิม เพื่อไม่ให้เดโมพัง)
+         */
         login(username, password) {
+            if (isApi()) {
+                return CFApi.post('/api/auth/login', { username, password })
+                    .then((res) => {
+                        // เก็บเฉพาะข้อมูลแสดงผล — ตัวตนจริงอยู่ใน cookie httpOnly
+                        // ที่ JavaScript แตะไม่ได้ และเซิร์ฟเวอร์ตรวจทุก request
+                        write({ userId: res.user.id, name: res.user.name, role: res.user.role,
+                                at: new Date().toISOString() });
+                        return { ok: true, user: res.user };
+                    })
+                    .catch((err) => ({
+                        ok: false,
+                        error: err.offline ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้'
+                                           : (err.message || 'เข้าสู่ระบบไม่สำเร็จ'),
+                    }));
+            }
+
             if (!CFStore.db) CFStore.init();
             const u = CFStore.all('users').find(
                 (x) => x.username === String(username || '').trim().toLowerCase()
@@ -69,8 +91,13 @@
         },
 
         logout() {
-            try { localStorage.removeItem(K_SESSION); } catch (e) { /* ไม่เป็นไร */ }
-            location.href = 'login.html';
+            const done = () => {
+                try { localStorage.removeItem(K_SESSION); } catch (e) { /* ไม่เป็นไร */ }
+                location.href = 'login.html';
+            };
+            // ต้องเพิกถอน session ที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ลืมมันที่ฝั่งเบราว์เซอร์
+            if (isApi()) CFApi.post('/api/auth/logout', {}).catch(() => {}).then(done);
+            else done();
         },
 
         session()   { return read(); },

@@ -388,4 +388,4 @@ function DashLabel(ev) {
 }
 
 window.OrdersPage = OrdersPage;
-document.addEventListener('DOMContentLoaded', () => OrdersPage.boot());
+CFBoot.ready(() => OrdersPage.boot());
