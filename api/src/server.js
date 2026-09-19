@@ -20,6 +20,7 @@ const { registerAuth } = require('./routes/auth');
 const { registerOrders } = require('./routes/orders');
 const { registerAdmin } = require('./routes/admin');
 const { registerPayments } = require('./routes/payments');
+const { startWorker } = require('./print/worker');
 
 loadEnv();
 
@@ -129,6 +130,13 @@ async function start() {
     const port = parseInt(process.env.PORT || '8080', 10);
     const host = process.env.HOST || '0.0.0.0';
     await app.listen({ port, host });
+
+    // ตัวเดินคิวพิมพ์ — เริ่มหลังรู้สาขาแล้วเท่านั้น
+    startWorker(pool, () => BRANCH_ID, {
+        onDone: (job, ok, err) => {
+            if (!ok) app.log.warn(`[print] งาน ${job.id} (${job.doc_type}) ล้ม: ${err}`);
+        },
+    });
 
     app.log.info(`สาขา ${process.env.CF_BRANCH_CODE || 'MAIN'} = ${BRANCH_ID}`);
     if (!hasStatic) app.log.warn('ไม่ได้ลง @fastify/static — หน้าเว็บยังต้องเปิดผ่านเซิร์ฟเวอร์เดิม');

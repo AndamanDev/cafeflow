@@ -355,6 +355,9 @@ async function sendToKitchen(c, branchId, order, ctx) {
             `INSERT INTO order_station_status (order_id, station, status, printed_at)
              VALUES ($1, $2, 'QUEUED', now())
              ON CONFLICT (order_id, station) DO NOTHING`, [order.id, s.station]);
+        // สลิปครัวเข้าคิวในทรานแซกชันเดียวกับที่ออเดอร์เข้าครัว
+        // ถ้าออเดอร์ถูก rollback ตั๋วต้องไม่ถูกพิมพ์ตามไปด้วย
+        await queueKitchenSlip(c, branchId, order, s.station);
     }
     await c.query("UPDATE order_item SET item_status = 'QUEUED' WHERE order_id = $1", [order.id]);
     await c.query(
@@ -367,6 +370,57 @@ async function sendToKitchen(c, branchId, order, ctx) {
         newStatus: 'SENT_TO_KITCHEN', actorKind: 'SYSTEM', deviceId: ctx.deviceId, ip: ctx.ip,
         payload: { stations: stations.map((x) => x.station) },
     });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   งานพิมพ์ (§19)
+   ══════════════════════════════════════════════════════════════════ */
+
+/** ดึงรายการของสถานีเดียวพร้อมตัวเลือก — สลิปครัวแยกใบต่อสถานี */
+async function itemsForStation(c, orderId, station) {
+    const r = await c.query(
+        `SELECT i.*, COALESCE(m.mods, '[]'::jsonb) AS mods
+           FROM order_item i
+           LEFT JOIN LATERAL (
+               SELECT jsonb_agg(jsonb_build_object('label', label, 'short_label', short_label)
+                      ORDER BY sort) AS mods
+                 FROM order_item_modifier WHERE order_item_id = i.id
+           ) m ON true
+          WHERE i.order_id = $1 AND ($2::text IS NULL OR i.station = $2)
+          ORDER BY i.line_no`, [orderId, station || null]);
+    return r.rows;
+}
+
+/**
+ * เข้าคิวสลิปครัว — วาดเป็นบิตแมปตั้งแต่ตอนนี้เลย
+ * เก็บ byte ที่พร้อมส่งไว้ในคิว ไม่ใช่วาดตอนจะพิมพ์ เพราะถ้าเมนูถูกแก้ระหว่าง
+ * ที่ตั๋วยังค้างคิว สิ่งที่พิมพ์ออกมาต้องเป็นสิ่งที่ลูกค้าสั่ง ไม่ใช่เมนูเวอร์ชันใหม่
+ */
+async function queueKitchenSlip(c, branchId, order, station) {
+    try {
+        const { kitchenSlip } = require('../print/raster');
+        const escpos = require('../print/escpos');
+        const { enqueue, printerFor } = require('../print/worker');
+
+        const printer = await printerFor(c, branchId, station);
+        const width = (printer && printer.paper_width) || '58mm';
+        const items = await itemsForStation(c, order.id, station);
+        if (!items.length) return null;
+
+        const label = { BAR: 'บาร์เครื่องดื่ม', KITCHEN: 'ครัวอาหาร',
+                        BAKERY: 'เบเกอรี่', DESSERT: 'ของหวาน' }[station] || station;
+        const doc = kitchenSlip({ order, items, station, stationLabel: label, width });
+        const payload = escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height });
+
+        return await enqueue(c, branchId, {
+            orderId: order.id, deviceId: printer ? printer.id : null,
+            docType: 'KITCHEN_SLIP', paperWidth: width, payload,
+        });
+    } catch (err) {
+        // พิมพ์ไม่ได้ต้องไม่ทำให้ขายไม่ได้ — ครัวยังเห็นตั๋วบน KDS อยู่
+        console.error('[print] สร้างสลิปครัวไม่สำเร็จ:', err.message);
+        return null;
+    }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -521,8 +575,93 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         return { ok: true };
     }));
 
+    /* ── พิมพ์ใบเสร็จจริงที่เครื่องพิมพ์ความร้อน ── */
+    app.post('/api/orders/:id/receipt', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'PAY_RECEIVE');
+        const { receipt } = require('../print/raster');
+        const escpos = require('../print/escpos');
+        const { enqueue, printerFor } = require('../print/worker');
+
+        const out = await tx(async (c) => {
+            const o = (await c.query('SELECT * FROM cf_order WHERE id = $1 AND branch_id = $2',
+                [req.params.id, branchId()])).rows[0];
+            if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
+
+            const items = await itemsForStation(c, o.id, null);
+            const pay = (await c.query(
+                "SELECT * FROM payment WHERE order_id = $1 AND status = 'PAID' LIMIT 1",
+                [o.id])).rows[0] || null;
+            const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId()])).rows[0];
+            const cashier = o.cashier_id
+                ? (await c.query('SELECT name_th FROM app_user WHERE id = $1', [o.cashier_id])).rows[0]
+                : null;
+
+            // ใบเสร็จออกที่เครื่องของเคาน์เตอร์ — ไม่ผูกสถานีครัว
+            const printer = await printerFor(c, branchId(), null);
+            const width = (req.body && req.body.width) || (printer && printer.paper_width) || '80mm';
+
+            const doc = receipt({
+                order: { ...o, orderNo: o.order_no }, items, payment: pay, branch, width,
+                cashier: cashier ? cashier.name_th : null,
+            });
+            const payload = escpos.document({
+                bitmap: doc.bitmap, width: doc.width, height: doc.height,
+                openDrawer: !!(pay && pay.method === 'CASH'),   // เงินสดเท่านั้นที่ต้องเปิดลิ้นชัก
+            });
+
+            const jobId = await enqueue(c, branchId(), {
+                orderId: o.id, deviceId: printer ? printer.id : null,
+                docType: 'RECEIPT', paperWidth: width, payload,
+            });
+
+            await c.query(
+                `UPDATE cf_order SET reprint_count = reprint_count + 1,
+                        rev = nextval('global_rev') WHERE id = $1`, [o.id]);
+            await audit(c, branchId(), {
+                eventType: 'PRINT', orderId: o.id, actorKind: ctx.actorKind,
+                actorUserId: ctx.actorUserId, deviceId: ctx.deviceId, ip: ctx.ip,
+                payload: { docType: 'RECEIPT', width, jobId },
+            });
+            await touch(c, branchId(), 'orders', o.id, 'update');
+            return { ok: true, jobId, width };
+        });
+        publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
+        return out;
+    }));
+
+    /** สถานะคิวพิมพ์ — หน้าภาพรวมใช้เตือนเมื่อมีใบค้าง */
+    app.get('/api/print/queue', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        const r = await query(
+            `SELECT status, count(*)::int AS n FROM print_job
+              WHERE branch_id = $1 AND created_at > now() - interval '1 day'
+              GROUP BY status`, [branchId()]);
+        const failed = await query(
+            `SELECT id, order_id, doc_type, attempts, last_error, created_at
+               FROM print_job WHERE branch_id = $1 AND status = 'FAILED'
+               ORDER BY id DESC LIMIT 20`, [branchId()]);
+        const by = {};
+        r.rows.forEach((x) => { by[x.status] = x.n; });
+        return { counts: by, failed: failed.rows };
+    }));
+
+    /** สั่งพิมพ์ใบที่ล้มอีกครั้ง — กระดาษหมดแล้วเติมเสร็จต้องกดต่อได้ */
+    app.post('/api/print/jobs/:id/retry', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'PAY_RECEIVE');
+        const r = await query(
+            `UPDATE print_job SET status = 'QUEUED', attempts = 0, last_error = NULL
+              WHERE id = $1 AND branch_id = $2 AND status = 'FAILED' RETURNING id`,
+            [req.params.id, branchId()]);
+        if (!r.rows.length) throw new ApiError(404, 'ไม่พบงานพิมพ์ที่ล้มเหลว');
+        return { ok: true };
+    }));
+
     return { context, requirePerm, handle, audit, touch, ApiError, businessDate, settingsOf };
 }
 
 module.exports = { registerOrders, createOrder, transition, setStationReady,
+                   queueKitchenSlip, itemsForStation,
                    audit, touch, ApiError, businessDate, settingsOf };
