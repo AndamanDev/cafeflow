@@ -10,8 +10,8 @@
  *
  * ร้านที่มีรูปถ่ายจริงใส่ product.imageUrl ได้ ภาพวาดจะกลายเป็น fallback ให้อัตโนมัติ
  *
- * ⚠️ ไฟล์นี้ถูกฝังในอาร์ติแฟกต์ด้วย — ห้ามอ้าง Drawer / showToast ของ DS /
- *    refreshIcons / CFAuth / localStorage / *.html โดยตรง
+ * ⚠️ ใช้ในหน้าคีออสก์ซึ่งไม่โหลด ds-overlays / lucide และไม่มีพนักงานล็อกอิน —
+ *    ห้ามอ้าง Drawer / showToast ของ DS / refreshIcons / CFAuth / *.html โดยตรง
  */
 const CFKioskArt = {
 
@@ -310,6 +310,7 @@ const CFKioskArt = {
        ══════════════════════════════════════════════════════ */
     ICON: {
         back:     '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+        up:       '<path d="M12 19V5M5 12l7-7 7 7"/>',
         check:    '<path d="M20 6 9 17l-5-5"/>',
         plus:     '<path d="M12 5v14M5 12h14"/>',
         minus:    '<path d="M5 12h14"/>',

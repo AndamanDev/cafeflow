@@ -147,18 +147,6 @@
 .cf-money { font-variant-numeric: tabular-nums; }
 .cf-quick-cash { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
-/* แถวปุ่มบัญชีเดโมในหน้า login */
-.cf-demo-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
-.cf-demo-btn {
-    flex: 1 1 auto; padding: 7px 12px; border-radius: 999px; cursor: pointer;
-    font-family: inherit; font-size: 12px; font-weight: 700;
-    background: #fff; color: var(--text-secondary);
-    border: 0.8px solid var(--brand-border); transition: .15s;
-}
-.cf-demo-btn:hover {
-    background: var(--primary-bg); color: var(--primary-dark); border-color: var(--primary-border);
-}
-
 /* แถบปุ่มแนวตั้งในแผงขวา — .ds-actions ของ DS เป็นแนวนอนอย่างเดียว */
 .ds-actions.cf-stack { flex-direction: column; border-top: none; padding: 0 16px 12px; background: transparent; }
 .ds-actions.cf-stack .btn { flex: none; width: 100%; }

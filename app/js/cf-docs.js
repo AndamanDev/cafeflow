@@ -269,23 +269,40 @@ const CFDocs = {
        ══════════════════════════════════════════════════════ */
     previewReceipt(orderId) {
         const o = CFStore.byId('orders', orderId);
-        CFPrint.preview({
-            title: 'ใบเสร็จรับเงิน — ' + (o ? o.orderNo : ''),
+        const title = 'ใบเสร็จรับเงิน — ' + (o ? o.orderNo : '');
+        const browser = {
+            title,
             size: CFStore.settings().receiptWidth,
             sizes: ['58mm', '80mm'],
             build: (w) => CFDocs.receiptRoll(orderId, w),
             docRef: { type: 'receipt', orderId },
+        };
+        const id = encodeURIComponent(orderId);
+        CFPrint.previewServer({
+            title,
+            previewPath: '/api/orders/' + id + '/print-preview?doc=receipt',
+            printPath: '/api/orders/' + id + '/receipt',
+            fallback: browser,
         });
     },
 
     previewKitchenSlip(orderId, station) {
         const o = CFStore.byId('orders', orderId);
-        CFPrint.preview({
-            title: 'สลิปครัว ' + CFApp.stationLabel(station) + ' — ' + (o ? o.orderNo : ''),
+        const title = 'สลิปครัว ' + CFApp.stationLabel(station) + ' — ' + (o ? o.orderNo : '');
+        const browser = {
+            title,
             size: CFStore.settings().kitchenSlipWidth,
             sizes: ['58mm', '80mm'],
             build: (w) => CFDocs.kitchenSlipRoll(orderId, station, w),
             docRef: { type: 'kslip', orderId, station },
+        };
+        const id = encodeURIComponent(orderId);
+        CFPrint.previewServer({
+            title,
+            previewPath: '/api/orders/' + id + '/print-preview?doc=kslip&station=' + encodeURIComponent(station),
+            printPath: '/api/orders/' + id + '/kitchen-slip',
+            printBody: { station },
+            fallback: browser,
         });
     },
 

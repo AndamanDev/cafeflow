@@ -6,20 +6,20 @@
  * โครงเป็น router หน้าเต็มจอ ไม่ใช่ drawer — เพราะคีออสก์จริงต้องการ
  * หน้าละหนึ่งหน้าที่ ปุ่มย้อนกลับตำแหน่งตายตัว และไหลเป็นเส้นตรง
  *
- * ⚠️ ไฟล์นี้ถูกฝังในอาร์ติแฟกต์ด้วย
- *    ห้ามอ้าง Drawer / showToast ของ design system / refreshIcons /
- *    CFAuth / localStorage / ลิงก์ไป *.html โดยตรง
- *    (ทุกอย่างที่ต้องใช้ต้องผ่าน CFStore, CFApp, CFRules, CFOrders, CFKioskArt)
+ * ⚠️ kiosk.html ไม่โหลด ds-components / ds-overlays / lucide (ดูเหตุผลที่หัวไฟล์นั้น)
+ *    และไม่มีพนักงานล็อกอิน — ห้ามอ้าง Drawer / showToast ของ design system /
+ *    refreshIcons / CFAuth / ลิงก์ไป *.html โดยตรง
+ *    (ทุกอย่างที่ต้องใช้ต้องผ่าน CFStore, CFApi, CFApp, CFRules, CFOrders, CFKioskArt)
  */
 const CFKiosk = {
 
-    /** ค่าเริ่มต้นอยู่ใน cf-data.js — หน้าตั้งค่าหลังบ้านใช้ตัวเดียวกัน */
+    /** ค่าเริ่มต้นอยู่ใน shared/cf-consts.js — หน้าตั้งค่าหลังบ้านใช้ตัวเดียวกัน */
     get DEFAULTS() { return CF_KIOSK_DEFAULTS; },
 
     /** อ่านค่าตั้งแบบ merge default เสมอ — ฐานข้อมูลเก่าที่ยังไม่มีคีย์จึงไม่พัง */
     cfg() { return Object.assign({}, CF_KIOSK_DEFAULTS, CFStore.settings()); },
 
-    /** ASK | DINE_IN | TAKE_AWAY — ตัวแปลงค่าอยู่ใน cf-data.js เพื่อให้หลังบ้านอ่านตัวเดียวกัน */
+    /** ASK | DINE_IN | TAKE_AWAY — ตัวแปลงค่าอยู่ใน shared/cf-consts.js เพื่อให้หลังบ้านอ่านตัวเดียวกัน */
     diningMode() { return CF_DINING_MODE(this.cfg()); },
 
     state: {
@@ -28,7 +28,7 @@ const CFKiosk = {
         upsellShown: false, deviceId: 'KIOSK-01', dirty: false,
     },
 
-    opts: { allowDeviceGate: false, demo: false },
+    opts: {},
 
     /* ══════════════════════════════════════════════════════
        BOOT
@@ -116,9 +116,9 @@ const CFKiosk = {
     },
 
     render() {
+        if (this.state.screen !== 'slip') this.stopCam();     // ไฟกล้องต้องดับเมื่อออกจากหน้าสแกน
         const fn = this['screen_' + this.state.screen];
         this.stage.innerHTML = (fn ? fn.call(this, this.state.params) : '')
-            + (this.opts.demo ? '<div class="cfk-demoonly">เดโม</div>' : '')
             + '<div class="cfk-toast" id="cfkToast"></div>';
         this.stage.scrollTop = 0;
         this.afterRender();
@@ -139,7 +139,7 @@ const CFKiosk = {
        ══════════════════════════════════════════════════════ */
     resetIdle() {
         clearTimeout(this._idle);
-        if (['attract', 'pay', 'qr', 'done'].includes(this.state.screen)) return;
+        if (['attract', 'pay', 'qr', 'slip', 'done'].includes(this.state.screen)) return;
         const sec = this.cfg().kioskIdleSec || 90;
         this._idle = setTimeout(() => this.reset(), sec * 1000);
     },
@@ -721,8 +721,7 @@ const CFKiosk = {
     /**
      * สร้างออเดอร์จริงแล้วส่งเข้าคิวแคชเชียร์
      *
-     * เป็น async เพราะเมื่อต่อกับเซิร์ฟเวอร์จริง CFOrders.create/transition คืน Promise
-     * (บนอาร์ติแฟกต์ที่ทำงานในหน่วยความจำ await กับค่าธรรมดาก็ไม่มีผลอะไร)
+     * เป็น async เพราะ CFOrders.create/transition ต้องรอเซิร์ฟเวอร์ตัดสิน
      *
      * ⚠️ ต้องกันการกดซ้ำ — ลูกค้ายืนหน้าจอแล้วปุ่มไม่ตอบทันทีจะกดรัว
      *    ถ้าปล่อยไว้จะได้สามออเดอร์และเก็บเงินสามรอบ
@@ -781,15 +780,15 @@ const CFKiosk = {
     screen_qr() {
         const o = CFStore.byId('orders', this.state.orderId);
         const sec = CFStore.settings().qrTimeoutSec || 60;
-        // ต่อกับเซิร์ฟเวอร์จริง → ขอ QR ที่ผูกยอดไว้แล้ว · โหมดเดโม → กล่องจำลองเหมือนเดิม
-        setTimeout(() => (this.canQr() ? this.loadQr() : this.startQr(sec)), 0);
+        // ขอ QR ที่ผูกยอดไว้แล้วจากเซิร์ฟเวอร์ — นับถอยหลังเริ่มเมื่อได้เวลาหมดอายุจริง
+        setTimeout(() => this.loadQr(), 0);
         return `
         ${this.topHtml({ title: 'สแกนเพื่อชำระเงิน', sub: 'ออเดอร์ ' + o.orderNo })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center">
                 <div class="cfk-qr" id="cfkQrBox">
                     ${CFKioskArt.icon('qr')}
-                    <span>${this.canQr() ? 'กำลังสร้าง QR…' : 'QR จำลองสำหรับเดโม'}</span>
+                    <span>กำลังสร้าง QR…</span>
                 </div>
                 <div class="cfk-done-no" style="font-size:calc(var(--u)*5)">฿${CFApp.money(o.total)}</div>
                 <div class="cfk-note cfk-note-ok">
@@ -800,14 +799,11 @@ const CFKiosk = {
             <div class="cfk-actionbar">
                 <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.qrTimeout()">แจ้งพนักงาน</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.qrPaid()">
-                    ${CFKioskArt.icon('check')} ${this.canQr() ? 'โอนแล้ว' : 'จำลองว่าชำระแล้ว'}
+                    ${CFKioskArt.icon('check')} โอนแล้ว · สแกนสลิป
                 </button>
             </div>
         </div>`;
     },
-
-    /** มีเซิร์ฟเวอร์จริงให้ออก QR ไหม — อาร์ติแฟกต์/เดโมไม่มี */
-    canQr() { return !!(window.CFStore && CFStore.mode === 'api'); },
 
     /**
      * ขอ QR ที่ผูกยอดจากเซิร์ฟเวอร์
@@ -848,35 +844,220 @@ const CFKiosk = {
         }, 1000);
     },
 
-    async qrPaid() {
+    /**
+     * ลูกค้ากด "โอนแล้ว" → ไปหน้าสแกนสลิป
+     *
+     * ★ คำกดของลูกค้าไม่ใช่หลักฐาน — ต้องยกสลิปในมือถือให้กล้องอ่าน QR บนสลิป
+     *   เซิร์ฟเวอร์ตรวจรูปแบบ + กันสลิปใบเดิมใช้ซ้ำ แล้วส่งไปรอแคชเชียร์ยืนยันยอด (PAYMENT_REVIEW)
+     *   ครัวได้ออเดอร์เมื่อแคชเชียร์เห็นเงินเข้าแล้วเท่านั้น (§44 Verify Before Forward)
+     */
+    qrPaid() {
+        clearInterval(this._qr);
+        this.go('slip');
+    },
+
+    /* ══════════════════════════════════════════════════════
+       หน้า 7b — สแกนสลิปจากจอมือถือลูกค้า
+       ══════════════════════════════════════════════════════ */
+    screen_slip() {
+        const o = CFStore.byId('orders', this.state.orderId);
+        setTimeout(() => this.startCam(), 0);
+        return `
+        ${this.topHtml({ title: 'สแกนสลิปโอนเงิน', sub: 'ออเดอร์ ' + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
+        <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
+            <!-- ภาพกล้องชิดบนสุด — กล้องจริงติดอยู่ขอบบนของเครื่อง ลูกค้ายกมือถือขึ้นระดับสายตา
+                 แล้วเห็นภาพตัวเองตรงนั้นพอดี ไม่ต้องก้มมองกลางจอขณะเล็งขึ้นข้างบน -->
+            <div class="cfk-center cfk-slip">
+                <div class="cfk-slip-hint">${CFKioskArt.icon('up')} ยกมือถือขึ้นหากล้องด้านบนเครื่อง</div>
+                <div class="cfk-cam" id="cfkCam">
+                    <video id="cfkVideo" playsinline muted></video>
+                    <div class="cfk-cam-frame"></div>
+                    <div class="cfk-cam-label">ให้สลิปทั้งใบอยู่ในกรอบ</div>
+                </div>
+                <div class="cfk-note cfk-note-ok" id="cfkCamMsg">
+                    ${CFKioskArt.icon('qr')}
+                    <span>เปิดสลิปในแอปธนาคาร แล้วหันจอมือถือเข้าหากล้อง ให้สลิปทั้งใบอยู่ในกรอบ</span>
+                </div>
+            </div>
+            <div class="cfk-actionbar">
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.qrTimeout()">
+                    สแกนไม่ได้ · แจ้งพนักงาน
+                </button>
+            </div>
+        </div>`;
+    },
+
+    camMsg(text, warn) {
+        const el = document.getElementById('cfkCamMsg');
+        if (!el) return;
+        el.className = 'cfk-note ' + (warn ? 'cfk-note-warn' : 'cfk-note-ok');
+        el.innerHTML = CFKioskArt.icon(warn ? 'alert' : 'qr') + '<span></span>';
+        el.querySelector('span').textContent = text;
+    },
+
+    /** สลิปไม่ผ่าน — ต้องเด่นพอให้ลูกค้าที่กำลังมองมือถือตัวเองเห็น ไม่ใช่แค่แถบเล็ก ๆ */
+    camReject(reasons) {
+        const el = document.getElementById('cfkCamMsg');
+        if (!el) return;
+        const e = CFApp.esc;
+        el.className = 'cfk-slip-reject';
+        el.innerHTML = `
+            <div class="cfk-slip-reject-head">${CFKioskArt.icon('alert')} สลิปนี้ไม่ตรงกับออเดอร์</div>
+            ${reasons.map((r) => `<div class="cfk-slip-reject-why">${e(r)}</div>`).join('')}
+            <div class="cfk-slip-reject-next">เปิดสลิปที่ถูกต้องแล้วสแกนใหม่ หรือกด "แจ้งพนักงาน" ด้านล่าง</div>`;
+    },
+
+    async startCam() {
+        this.stopCam();
+        const video = document.getElementById('cfkVideo');
+        if (!video) return;
+        // กล้องเปิดได้เฉพาะหน้าเว็บที่เบราว์เซอร์ถือว่าปลอดภัย (https หรือเปิดด้วยค่าพิเศษ)
+        // วิธีตั้งเครื่องคีออสก์อยู่ใน ops/README.md หัวข้อ "กล้องสแกนสลิป"
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.jsQR) {
+            this.camMsg('กล้องของเครื่องนี้ยังใช้ไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', true);
+            return;
+        }
+        try {
+            this._cam = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
+            });
+        } catch (err) {
+            console.warn('[kiosk] เปิดกล้องไม่ได้', err);
+            this.camMsg('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', true);
+            return;
+        }
+        if (this.state.screen !== 'slip') { this.stopCam(); return; }   // ลูกค้ากดออกไประหว่างรอ
+        video.srcObject = this._cam;
+        await video.play().catch(() => {});
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        let lastHint = 0;
+        // หมดเวลาแล้วส่งให้พนักงานดูแทน — ไม่ปล่อยให้ลูกค้ายืนงงหน้าเครื่อง
+        const deadline = Date.now() + (this.cfg().kioskSlipScanSec || 90) * 1000;
+
+        this._scan = setInterval(async () => {
+            if (this._submitting || !video.videoWidth) return;
+            if (Date.now() > deadline) { this.stopCam(); this.qrTimeout(); return; }
+            // ย่อภาพก่อนถอดรหัส — เร็วขึ้นหลายเท่า และ QR บนจอมือถือยังใหญ่พอ
+            const scale = Math.min(1, 800 / video.videoWidth);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+            if (!code || !code.data) return;
+
+            const slip = CFSlip.parse(code.data);
+            if (!slip.ok) {
+                if (Date.now() - lastHint > 3000) {
+                    lastHint = Date.now();
+                    this.camMsg('QR นี้ไม่ใช่สลิป — กรุณาเปิดหน้าสลิปหลังโอนเงินสำเร็จ', true);
+                }
+                return;
+            }
+            // สลิปใบที่เพิ่งตรวจแล้วไม่ผ่าน — ลูกค้ายังถือค้างไว้ ไม่ต้องส่งซ้ำ ย้ำข้อความเดิมพอ
+            if (slip.ref === this._rejectedRef) return;
+            this.submitSlip(code.data, this.snapSlip(video));
+        }, 200);
+    },
+
+    stopCam() {
+        clearInterval(this._scan);
+        this._scan = null;
+        if (this._cam) {
+            this._cam.getTracks().forEach((t) => t.stop());
+            this._cam = null;
+        }
+    },
+
+    /**
+     * ถ่ายภาพเฟรมนี้เก็บเป็นหลักฐาน — เต็มความละเอียดของกล้อง (ไม่ใช่ภาพย่อที่ใช้ถอดรหัส)
+     * และไม่กลับด้านแบบกระจก ตัวหนังสือบนสลิปจะได้อ่านออก
+     */
+    snapSlip(video) {
+        try {
+            const c = document.createElement('canvas');
+            const scale = Math.min(1, 1280 / video.videoWidth);
+            c.width = Math.round(video.videoWidth * scale);
+            c.height = Math.round(video.videoHeight * scale);
+            c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+            return c.toDataURL('image/jpeg', 0.8);
+        } catch (err) {
+            return null;        // ถ่ายไม่ได้ก็ยังส่งสลิปได้ — ภาพเป็นของเสริม
+        }
+    },
+
+    async submitSlip(payload, image) {
         if (this._submitting) return;
         this._submitting = true;
-        clearInterval(this._qr);
-        this.setBusy(true, 'กำลังยืนยันการชำระ…');
+        this.setBusy(true, 'กำลังตรวจสลิป…');
         try {
-            const ok = await CFOrders.transition(this.state.orderId, 'PAID',
-                { byId: 'SYSTEM', device: this.state.deviceId, ref: 'TX' + Date.now(), bank: 'KBANK' });
-            if (ok === false) { this.toast('ยืนยันการชำระไม่สำเร็จ'); return; }
-            this.go('done', { kind: 'PAID' });
+            const r = await CFApi.post('/api/orders/' + encodeURIComponent(this.state.orderId) + '/slip', { payload, image });
+            const res = r.slipId ? await this.waitSlipCheck(r.slipId) : null;
+            if (res && res.verdict === 'FAIL') {
+                // ยอด/วันที่ไม่ตรง — บอกลูกค้าตรงนี้ ให้สแกนใบที่ถูกต้องหรือแจ้งพนักงาน (กล้องยังเปิดอยู่)
+                this._rejectedRef = r.ref;
+                const why = (res.notes || []).filter((n, i) =>
+                    (i === 0 && res.checks.amount === 'FAIL') || (i === 1 && res.checks.date === 'FAIL'));
+                this.camReject(why);
+                return;
+            }
+            // ผ่าน / อ่านไม่ออก / ตัวอ่านสลิปไม่ตอบ → ให้แคชเชียร์ตรวจตามปกติ ไม่ให้ลูกค้าติดอยู่หน้าเครื่อง
+            this.stopCam();
+            this.go('done', { kind: 'REVIEW' });
+        } catch (err) {
+            // สลิปซ้ำ/ไม่ใช่สลิป → บอกเหตุผลแล้วสแกนต่อได้ ไม่ปิดกล้อง
+            this.camMsg(err.offline ? 'ติดต่อเซิร์ฟเวอร์ไม่ได้ กรุณาแจ้งพนักงาน'
+                                    : (err.message || 'ตรวจสลิปไม่สำเร็จ'), true);
+            // กันอ่าน QR เดิมซ้ำรัว ๆ ขณะที่ลูกค้ายังถือมือถือค้างไว้
+            await new Promise((r) => setTimeout(r, 2500));
         } finally {
             this._submitting = false;
             this.setBusy(false);
         }
     },
 
+    /**
+     * รอผลอ่านสลิป (OCR) — นานสุด 15 วินาที ไม่งั้นคืน null แล้วปล่อยให้แคชเชียร์ตรวจแทน
+     * ใบแรกหลังเปิดเครื่องอาจช้ากว่าปกติ (ตัวอ่านสลิปยังโหลดโมเดล)
+     */
+    async waitSlipCheck(slipId) {
+        const until = Date.now() + 15000;
+        this.setBusy(true, 'กำลังตรวจยอดเงินในสลิป…');
+        while (Date.now() < until) {
+            try {
+                const r = await CFApi.get('/api/slips/' + encodeURIComponent(slipId) + '/check');
+                if (r.status === 'DONE' || r.status === 'ERROR') return r;
+            } catch (err) {
+                return null;
+            }
+            await new Promise((ok) => setTimeout(ok, 700));
+        }
+        return null;
+    },
+
     async qrTimeout() {
         if (this._submitting) return;
         this._submitting = true;
         clearInterval(this._qr);
+        this.stopCam();
         this.setBusy(true, 'กำลังแจ้งพนักงาน…');
         try {
             const id = this.state.orderId;
+            // สถานะอาจเดินไปแล้วระหว่างที่ลูกค้ายืนสแกน (เซิร์ฟเวอร์ปิด QR ที่หมดเวลาเอง)
+            // จึงข้ามขั้นที่ผ่านไปแล้ว ไม่งั้นลูกค้าเห็นข้อความ error ทั้งที่ไม่ได้ทำอะไรผิด
+            const st = (CFStore.byId('orders', id) || {}).status;
             // ต้องรอตัวแรกให้เสร็จก่อน — สองคำสั่งนี้เป็นลำดับ ไม่ใช่ขนาน
-            await CFOrders.transition(id, 'PAYMENT_TIMEOUT',
-                { byId: 'SYSTEM', device: this.state.deviceId });
-            await CFOrders.transition(id, 'PAYMENT_REVIEW',
-                { byId: 'SYSTEM', device: this.state.deviceId,
-                  reason: 'ลูกค้ากดแจ้งพนักงานจากคีออสก์' });
+            if (st === 'WAITING_PAYMENT') {
+                await CFOrders.transition(id, 'PAYMENT_TIMEOUT',
+                    { byId: 'SYSTEM', device: this.state.deviceId });
+            }
+            if (st !== 'PAYMENT_REVIEW') {
+                await CFOrders.transition(id, 'PAYMENT_REVIEW',
+                    { byId: 'SYSTEM', device: this.state.deviceId,
+                      reason: 'ลูกค้ากดแจ้งพนักงานจากคีออสก์' });
+            }
             this.go('done', { kind: 'TIMEOUT' });
         } finally {
             this._submitting = false;
@@ -898,6 +1079,7 @@ const CFKiosk = {
             CASH: ['cash', 'cfk-note-warn', 'กรุณาชำระเงิน ฿' + CFApp.money(o.total) + ' ที่เคาน์เตอร์'],
             PAID: ['chef', 'cfk-note-ok', 'ส่งเข้าครัวแล้ว กรุณารอเรียกหมายเลข'],
             TIMEOUT: ['alert', 'cfk-note-warn', 'หากท่านชำระเงินแล้ว กรุณาแจ้งพนักงานที่เคาน์เตอร์'],
+            REVIEW: ['timer', 'cfk-note-ok', 'ได้รับสลิปแล้ว พนักงานกำลังตรวจยอดเงิน แล้วจะส่งเข้าครัวทันที'],
         }[kind];
 
         return `

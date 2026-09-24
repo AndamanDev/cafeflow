@@ -200,8 +200,7 @@ const MenuPage = {
                         <label class="sip-label">รูปสินค้า</label>
                         <div class="cf-upload-row">
                             <button type="button" class="btn btn-outline btn-sm"
-                                    id="fUploadBtn" onclick="MenuPage.pickImage()"
-                                    ${CFStore.mode === 'api' ? '' : 'disabled'}>
+                                    id="fUploadBtn" onclick="MenuPage.pickImage()">
                                 <i data-lucide="upload" class="icon-sm"></i> อัปโหลดจากเครื่อง
                             </button>
                             ${d.imageUrl ? `<button type="button" class="btn btn-outline btn-sm"
@@ -210,9 +209,7 @@ const MenuPage = {
                             </button>` : ''}
                             <input type="file" id="fImageFile" accept="image/jpeg,image/png,image/webp"
                                    hidden onchange="MenuPage.uploadImage(this)">
-                            <span class="ds-note" id="fUploadNote">${CFStore.mode === 'api'
-                                ? 'JPG · PNG · WebP — ระบบย่อให้เองอัตโนมัติ'
-                                : 'อัปโหลดได้เมื่อต่อกับเซิร์ฟเวอร์ของร้าน'}</span>
+                            <span class="ds-note" id="fUploadNote">JPG · PNG · WebP — ระบบย่อให้เองอัตโนมัติ</span>
                         </div>
                     </div>
                     <div class="sip-field">
@@ -581,22 +578,10 @@ const MenuPage = {
             Drawer.close();     // → restore drawer สินค้า แล้ว onClose จะ refresh ให้
         };
 
-        if (CFStore.mode === 'api') {
-            CFStore.cmd('patch', '/api/modifier-groups/' + encodeURIComponent(id),
-                { nameTh: name, type, required: req })
-                .then(done)
-                .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
-            return;
-        }
-
-        CFStore.mutate((db) => {
-            const g = db.modifierGroups.find((x) => x.id === id);
-            g.nameTh = name;
-            if (type != null) g.type = type;
-            if (req != null) g.required = req;
-        }, 'group-save');
-
-        done();
+        CFStore.cmd('patch', '/api/modifier-groups/' + encodeURIComponent(id),
+            { nameTh: name, type, required: req })
+            .then(done)
+            .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
     },
 
     /* ══════════════════════════════════════════════════════
@@ -614,38 +599,20 @@ const MenuPage = {
 
         const isNew = !d.id;
 
-        if (CFStore.mode === 'api') {
-            // เซิร์ฟเวอร์ออก id และตรวจราคาซ้ำอีกชั้น — ที่นี่แค่ส่งสิ่งที่ผู้ใช้กรอก
-            const body = {
-                categoryId: d.categoryId, groupTh: d.groupTh, nameTh: d.nameTh, nameEn: d.nameEn,
-                imageUrl: d.imageUrl, artKey: d.artKey, station: d.station,
-                active: d.active !== false, soldOut: !!d.soldOut, recommended: !!d.recommended,
-                prices: d.prices,
-            };
-            CFStore.cmd(isNew ? 'post' : 'put',
-                isNew ? '/api/products' : '/api/products/' + encodeURIComponent(d.id), body)
-                .then(() => {
-                    Drawer.close();
-                    showToast(isNew ? 'เพิ่มสินค้าแล้ว' : 'บันทึกการแก้ไขแล้ว', 'success');
-                })
-                .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
-            return;
-        }
-
-        CFStore.mutate((db) => {
-            if (isNew) {
-                d.id = 'P-NEW-' + Date.now().toString(36);
-                db.products.push(Object.assign({}, d, { prices: Object.assign({}, d.prices) }));
-            } else {
-                const i = db.products.findIndex((x) => x.id === d.id);
-                db.products[i] = Object.assign({}, db.products[i], d, { prices: Object.assign({}, d.prices) });
-            }
-            CFOrders._audit(db, null, 'PRODUCT_UPDATE', null, null,
-                (CFAuth.getUser() || {}).id, (isNew ? 'เพิ่มสินค้า ' : 'แก้ไขสินค้า ') + d.nameTh);
-        }, 'product-save');
-
-        Drawer.close();
-        showToast(isNew ? 'เพิ่มสินค้าแล้ว' : 'บันทึกการแก้ไขแล้ว', 'success');
+        // เซิร์ฟเวอร์ออก id และตรวจราคาซ้ำอีกชั้น — ที่นี่แค่ส่งสิ่งที่ผู้ใช้กรอก
+        const body = {
+            categoryId: d.categoryId, groupTh: d.groupTh, nameTh: d.nameTh, nameEn: d.nameEn,
+            imageUrl: d.imageUrl, artKey: d.artKey, station: d.station,
+            active: d.active !== false, soldOut: !!d.soldOut, recommended: !!d.recommended,
+            prices: d.prices,
+        };
+        CFStore.cmd(isNew ? 'post' : 'put',
+            isNew ? '/api/products' : '/api/products/' + encodeURIComponent(d.id), body)
+            .then(() => {
+                Drawer.close();
+                showToast(isNew ? 'เพิ่มสินค้าแล้ว' : 'บันทึกการแก้ไขแล้ว', 'success');
+            })
+            .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
     },
 
     async remove(id) {
@@ -659,20 +626,11 @@ const MenuPage = {
         });
         if (!ok) return;
 
-        if (CFStore.mode === 'api') {
-            try {
-                await CFStore.cmd('post', '/api/products/' + encodeURIComponent(id) + '/archive', {});
-            } catch (err) {
-                showToast(err.message || 'ปิดการขายไม่สำเร็จ', 'error', 4000);
-                return;
-            }
-        } else {
-            CFStore.mutate((db) => {
-                const x = db.products.find((y) => y.id === id);
-                x.active = false;
-                CFOrders._audit(db, null, 'PRODUCT_UPDATE', null, null,
-                    (CFAuth.getUser() || {}).id, 'ปิดการขาย ' + x.nameTh);
-            }, 'product-archive');
+        try {
+            await CFStore.cmd('post', '/api/products/' + encodeURIComponent(id) + '/archive', {});
+        } catch (err) {
+            showToast(err.message || 'ปิดการขายไม่สำเร็จ', 'error', 4000);
+            return;
         }
 
         showToast('ปิดการขาย ' + p.nameTh + ' แล้ว', 'success');

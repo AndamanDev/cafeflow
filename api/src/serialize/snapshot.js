@@ -5,7 +5,7 @@
  *
  * ฐานข้อมูล normalize (ราคาแยกแถว · เวลาแยกคอลัมน์ · สถานีแยกตาราง)
  * แต่หน้าเว็บอ่านผ่าน CFStore.all()/byId()/where() แบบ synchronous
- * บนโครงเดียวกับ CF_SEED มา 9 หน้า ~132 จุด
+ * บนโครงเดิมของฐานข้อมูลในเบราว์เซอร์ (ยุคต้นแบบ) มา 9 หน้า ~132 จุด
  *
  * เราจึง denormalize กลับที่นี่ที่เดียว แลกกับการไม่ต้องแตะ 132 จุดนั้น
  * ถ้าไฟล์นี้คืนรูปทรงเพี้ยนเมื่อไหร่ หน้าเว็บจะพังเงียบ ๆ — จึงมีเทสต์คุมไว้
@@ -39,16 +39,42 @@ function toUser(r) {
     };
 }
 
+/** สลิปที่ลูกค้าสแกน — แคชเชียร์ใช้เทียบกับแจ้งเตือนเงินเข้า */
+function toSlip(r) {
+    const { CFSlip } = require('../../../shared/cf-slip.js');
+    return {
+        id: String(r.id), orderId: r.order_id, ref: r.parsed_ref, bankCode: r.parsed_bank,
+        bankName: CFSlip.BANKS[r.parsed_bank] || null,
+        source: r.parsed_source, checks: r.checks, verdict: r.verdict, hasImage: !!r.image_path,
+        // ผลอ่านภาพ: QUEUED/RUNNING = กำลังอ่าน · DONE = มีผลใน ocr · ERROR = อ่านไม่ได้
+        ocrStatus: r.image_path ? r.ocr_status : null,
+        amount: r.parsed_amount == null ? null : Number(r.parsed_amount),
+        txAt: iso(r.parsed_tx_at),
+        ocr: (r.checks && r.checks.ocr) || null,
+        createdAt: iso(r.created_at),
+    };
+}
+
 function toDevice(r, onlineCutoffMs) {
     // สถานะมาจาก heartbeat จริง ไม่ใช่คอลัมน์ที่ใครไปตั้งค้างไว้
     const seen = r.last_seen_at ? new Date(r.last_seen_at).getTime() : 0;
     const online = seen > 0 && Date.now() - seen < onlineCutoffMs;
-    return {
+    const out = {
         id: r.id, type: r.kind, name: r.name_th, ip: r.ip,
         assignedStation: r.assigned_station, assignedCashier: r.assigned_cashier,
         lastSeen: iso(r.last_seen_at),
         status: online ? 'ONLINE' : 'OFFLINE',
     };
+    // เครื่องพิมพ์ไม่ส่ง heartbeat (TCP 9100/USB ตอบกลับไม่ได้) — ส่งค่าตั้งไปแทน
+    if (r.kind === 'PRINTER') {
+        Object.assign(out, {
+            conn: r.printer_conn || 'NETWORK',
+            printerHost: r.printer_host, printerPort: r.printer_port, printerUsb: r.printer_usb,
+            paperWidth: r.paper_width, printDots: r.print_dots, fallbackId: r.fallback_printer_id,
+            active: r.active,
+        });
+    }
+    return out;
 }
 
 function toCategory(r) {
@@ -157,5 +183,5 @@ function toAudit(r) {
 module.exports = {
     compact, iso, num,
     toUser, toDevice, toCategory, toProduct, toGroup, toOption, toRule,
-    toShift, toOrder, toOrderItem, toPayment, toAudit,
+    toShift, toOrder, toOrderItem, toPayment, toSlip, toAudit,
 };

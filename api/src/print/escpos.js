@@ -20,7 +20,13 @@ const init = () => Buffer.from([ESC, 0x40]);
 /** เลื่อนกระดาษ n บรรทัด (ก่อนตัดต้องเลื่อนพอให้พ้นใบมีด) */
 const feed = (n) => Buffer.from([ESC, 0x64, Math.max(0, Math.min(255, n))]);
 
-/** ตัดกระดาษแบบเหลือติ่ง — ดึงขาดง่ายกว่าตัดขาดและกระดาษไม่ร่วงลงพื้น */
+/**
+ * เลื่อนกระดาษจนบรรทัดสุดท้ายพ้นใบมีด แล้วตัดแบบเหลือติ่ง (GS V 66 n)
+ * ดึงขาดง่ายกว่าตัดขาดและกระดาษไม่ร่วงลงพื้น
+ *
+ * ★ คำสั่งนี้เลื่อนกระดาษไปถึงใบมีดเองแล้ว — ห้ามสั่ง feed เพิ่มก่อนหน้า
+ *   เคยใส่ ESC d 4 ไว้ก่อนตัด ขอบล่างเลยว่างเกินมาราว 17 มม. ทุกใบ
+ */
 const cut = () => Buffer.from([GS, 0x56, 66, 0x00]);
 
 /** เปิดลิ้นชักเก็บเงิน (§27) — พัลส์ที่ขา 2 */
@@ -53,8 +59,9 @@ function raster(bits, width, height, bandHeight = 255) {
 }
 
 /** ประกอบงานพิมพ์หนึ่งใบให้พร้อมส่งเข้าเครื่อง */
-function document({ bitmap, width, height, openDrawer = false, feedLines = 4 }) {
-    const parts = [init(), raster(bitmap, width, height), feed(feedLines)];
+function document({ bitmap, width, height, openDrawer = false, feedLines = 0 }) {
+    const parts = [init(), raster(bitmap, width, height)];
+    if (feedLines > 0) parts.push(feed(feedLines));
     if (openDrawer) parts.push(kickDrawer());
     parts.push(cut());
     return Buffer.concat(parts);

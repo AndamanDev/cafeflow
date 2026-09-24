@@ -18,28 +18,32 @@
     <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
     <link rel="stylesheet" href="css/cf-kiosk.css">
 
-    <script src="js/cf-config.js"></script>
+    <script>window.CF_CLIENT = 'kiosk';     // ห้ามใช้สิทธิ์พนักงาน — ดู isPublicClient() ใน api/src/routes/auth.js</script>
     <script src="../shared/cf-consts.js"></script>
     <script src="../shared/cf-flow.js"></script>
     <script src="../shared/cf-pricing.js"></script>
     <script src="../shared/cf-rules.js"></script>
     <script src="../shared/cf-perms.js"></script>
-    <script src="js/cf-data.js"></script>
+    <script src="../shared/cf-emv.js"></script>
+    <script src="../shared/cf-slip.js"></script>
+    <!-- ตัวอ่าน QR เก็บไว้ในเครื่อง — สแกนสลิปได้แม้เน็ตหลุด -->
+    <script src="vendor/jsQR.js"></script>
     <script src="js/cf-store.js"></script>
     <script src="js/cf-auth.js"></script>
     <script src="js/cf-api.js"></script>
     <script src="js/cf-boot.js"></script>
-    <script>CFBoot.gate(false);</script>
+    <!-- publicPage: ยังไม่ดึง snapshot — เครื่องที่ยังไม่จับคู่ได้ 401 ดู KioskBoot.start() -->
+    <script>CFBoot.gate(false, { publicPage: true });</script>
 </head>
 <body data-page="kiosk" class="cf-kiosk">
 
 <div id="cfkFrame"><div id="cfkStage"></div></div>
 
-<!-- เลือกเครื่อง (ครั้งแรกเท่านั้น) — ไม่มีในเวอร์ชันอาร์ติแฟกต์ -->
+<!-- จับคู่เครื่อง (ครั้งแรกเท่านั้น) — KioskBoot.showPairGate() เติมช่องกรอกรหัส -->
 <div class="cf-kiosk-gate" id="deviceGate" hidden>
     <div class="cf-kiosk-gate-card">
-        <h2>เลือกเครื่องคีออสก์</h2>
-        <p>ระบบจะจำไว้สำหรับเครื่องนี้ เพื่อให้ออเดอร์อ้างอิงจุดสั่งได้ถูกต้อง</p>
+        <h2>เครื่องนี้ยังไม่ได้จับคู่</h2>
+        <p></p>
         <div id="deviceList"></div>
         <a class="cf-kiosk-gate-link" href="login.html">← เข้าสู่ระบบสำหรับพนักงาน</a>
     </div>

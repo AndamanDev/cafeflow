@@ -1,8 +1,8 @@
 /**
  * GET /api/bootstrap
  * ══════════════════════════════════════════════════════════════════
- * คืนฐานข้อมูลก้อนเดียวรูปทรงเดียวกับ CF_SEED เพื่อให้ CFStore ฝั่งเบราว์เซอร์
- * cache ไว้ในหน่วยความจำแล้วอ่านแบบ synchronous ต่อได้เหมือนเดิม
+ * คืนฐานข้อมูลก้อนเดียว (รูปทรงดูที่ serialize/snapshot.js) เพื่อให้ CFStore
+ * ฝั่งเบราว์เซอร์ cache ไว้ในหน่วยความจำแล้วอ่านแบบ synchronous ได้
  *
  * ⚠️ ไม่ส่งทั้งฐาน — ส่ง master data ทั้งหมด + ข้อมูลธุรกรรมเฉพาะ "หน้างานวันนี้"
  *    ประวัติย้อนหลังต้องไปทาง /api/orders?from=&to= (ดู A2 ในแผน)
@@ -87,6 +87,8 @@ async function buildSnapshot(c, branchId, opts) {
           WHERE i.order_id = ANY($1) ORDER BY i.order_id, i.line_no`, [orderIds]) : [];
     const payments = orderIds.length ? await q(
         'SELECT * FROM payment WHERE order_id = ANY($1) ORDER BY created_at', [orderIds]) : [];
+    const slips = orderIds.length ? await q(
+        'SELECT * FROM payment_slip WHERE order_id = ANY($1) ORDER BY id', [orderIds]) : [];
     const audits = await q(
         `SELECT * FROM audit_log WHERE branch_id = $1
           ORDER BY ts DESC, id DESC LIMIT $2`, [branchId, auditLimit]);
@@ -127,6 +129,7 @@ async function buildSnapshot(c, branchId, opts) {
         orders: orders.map(S.toOrder),
         orderItems: items.map(S.toOrderItem),
         payments: payments.map(S.toPayment),
+        slips: slips.map(S.toSlip),
         auditLogs: audits.map(S.toAudit),
     };
 }

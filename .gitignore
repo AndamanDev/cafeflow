@@ -3,7 +3,7 @@ node_modules/
 .env.local
 *.log
 
-# ผลลัพธ์ที่ generate ได้ — dist/cafeflow-kiosk.html สร้างใหม่ด้วยสคริปต์ได้เสมอ
+# ผลลัพธ์จากเครื่องมือทดสอบเบราว์เซอร์
 .playwright-mcp/
 
 # ข้อมูลจริง ห้ามขึ้น repo เด็ดขาด
@@ -18,3 +18,7 @@ api/node_modules/
 
 # ผลลัพธ์จากเครื่องพิมพ์จำลองตอนทดสอบ
 api/out/
+
+# ตัวอ่านสลิป — Python venv ติดตั้งด้วย ocr-svc/setup.bat (ราว 900 MB)
+ocr-svc/.venv/
+__pycache__/

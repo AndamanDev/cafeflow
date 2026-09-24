@@ -55,21 +55,12 @@ async function resolveBranch() {
 }
 
 /* ── เสิร์ฟหน้าเว็บจากเซิร์ฟเวอร์เดียวกัน ──
-   ระหว่างพัฒนายังเปิดผ่าน python -m http.server ได้อยู่ แต่ในร้านจริง
-   ทุกอย่างต้องมาจาก origin เดียว ไม่งั้น cookie ของ session ข้ามพอร์ตไม่ได้ */
+   หน้าเว็บเปิดผ่านเซิร์ฟเวอร์นี้เท่านั้น — ทุกอย่างต้องมาจาก origin เดียว
+   ไม่งั้น cookie ของ session ข้ามพอร์ตไม่ได้ */
 async function registerStatic() {
     let staticPlugin;
     try { staticPlugin = require('@fastify/static'); } catch { return false; }
 
-    // ★ ทับ cf-config.js ของ static ด้วยรุ่นที่ชี้ไปหลังบ้าน api
-    //   หน้าเว็บที่เสิร์ฟจากเซิร์ฟเวอร์ในร้านจึงใช้ข้อมูลจริงเสมอ ส่วนชุดเดียวกัน
-    //   ที่เปิดด้วย static server ธรรมดายังเป็นเดโมบน localStorage เหมือนเดิม
-    //   (ต้องมาก่อน register static ไม่งั้นไฟล์จริงชนะ)
-    app.get('/app/js/cf-config.js', (req, reply) => {
-        reply.type('application/javascript; charset=utf-8')
-            .header('Cache-Control', 'no-store')
-            .send("/* เสิร์ฟโดยเซิร์ฟเวอร์ในร้าน */\nwindow.CF_BACKEND = 'api';\n");
-    });
     await app.register(staticPlugin, { root: path.join(ROOT, 'app'), prefix: '/app/' });
     await app.register(staticPlugin, {
         root: path.join(ROOT, 'shared'), prefix: '/shared/', decorateReply: false,
@@ -162,7 +153,7 @@ registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerReports(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerMedia(app, { query, branchId: () => BRANCH_ID, root: ROOT, helpers });
-registerDevices(app, { query, branchId: () => BRANCH_ID, helpers });
+registerDevices(app, { query, tx, branchId: () => BRANCH_ID, helpers });
 registerDisplay(app, { query, branchId: () => BRANCH_ID, helpers });
 
 /* ══════════════════════════════════════════════════════════════════ */
@@ -173,13 +164,24 @@ async function start() {
     const hasStatic = await registerStatic();
 
     const port = parseInt(process.env.PORT || '8080', 10);
-    const host = process.env.HOST || '0.0.0.0';
+    const host = process.env.HOST || '::';     // dual-stack — ดูเหตุผลใน .env.example
     await app.listen({ port, host });
 
     // ตัวเดินคิวพิมพ์ — เริ่มหลังรู้สาขาแล้วเท่านั้น
     startWorker(pool, () => BRANCH_ID, {
         onDone: (job, ok, err) => {
             if (!ok) app.log.warn(`[print] งาน ${job.id} (${job.doc_type}) ล้ม: ${err}`);
+        },
+    });
+
+    // อ่านสลิปด้วย OCR เบื้องหลัง — อ่านเสร็จแล้วบอกทุกจอให้การ์ดแคชเชียร์อัปเดตเอง
+    const { startOcrWorker } = require('./ocr/worker');
+    const { touch } = require('./routes/orders');
+    startOcrWorker(pool, {
+        url: process.env.CF_OCR_URL,
+        onDone: async (o) => {
+            await touch(pool, o.branch_id, 'orders', o.id, 'update');
+            publish(o.branch_id, { entity: 'orders', op: 'update', id: o.id });
         },
     });
 

@@ -3,9 +3,6 @@
  * ══════════════════════════════════════════════════════════════════
  * ที่เดียวในฝั่งเบราว์เซอร์ที่รู้จัก HTTP — หน้าเว็บทั้ง 9 หน้าไม่เคยเห็นไฟล์นี้
  * มันคุยผ่าน CFStore เหมือนเดิมทุกประการ
- *
- * ⚠️ ไฟล์นี้ต้องไม่ถูกฝังในอาร์ติแฟกต์คีออสก์ (มี fetch — ด่านตรวจของ
- *    build_kiosk_artifact.py จะล้ม build ให้เห็นเองถ้าเผลอใส่เข้าไป)
  */
 (function () {
     'use strict';
@@ -29,6 +26,8 @@
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
         if (deviceId()) headers['X-CF-Device'] = deviceId();
+        // หน้าของลูกค้าประกาศตัว → เซิร์ฟเวอร์ไม่ใช้ session พนักงานที่อาจค้างในเบราว์เซอร์นี้
+        if (window.CF_CLIENT) headers['X-CF-Client'] = window.CF_CLIENT;
 
         let res;
         try {
@@ -61,6 +60,40 @@
         return data;
     }
 
+    /** รับการเปลี่ยนแปลงผ่านสายกลางใน SharedWorker — คืนฟังก์ชันสำหรับเลิกรับ */
+    function sharedStream(onChange, onState) {
+        const w = new SharedWorker('js/cf-stream-worker.js', { name: 'cafeflow-stream' });
+        const port = w.port;
+        port.onmessage = (ev) => {
+            const m = ev.data || {};
+            if (m.type === 'change') {
+                try { onChange(JSON.parse(m.data)); } catch (err) { console.warn('[CFApi] stream payload เสีย', err); }
+            } else if (m.type === 'state') {
+                if (onState) onState(m.state);
+            }
+        };
+        port.start();
+        // worker อยู่คนละ scope กับหน้า — ต้องส่ง URL เต็ม
+        port.postMessage({ type: 'start', url: new URL(baseUrl() + '/api/stream', location.href).href });
+
+        let stopped = false;
+        let disposed = false;        // ผู้เรียกเลิกเองแล้ว — กลับจาก bfcache ก็ไม่ต้องต่อใหม่
+        const stop = () => {
+            if (stopped) return;
+            stopped = true;
+            try { port.postMessage({ type: 'stop' }); } catch (e) { /* แท็บกำลังปิด */ }
+        };
+        // แท็บปิดแล้ว worker ไม่รู้เอง — ต้องบอกก่อนไป ไม่งั้นสายค้างทั้งที่ไม่มีใครฟัง
+        window.addEventListener('pagehide', stop);
+        // กลับมาจาก back/forward cache — หน้าเดิมฟื้นขึ้นมาโดยไม่โหลดใหม่ ต้องขอสายคืน
+        window.addEventListener('pageshow', (e) => {
+            if (!e.persisted || !stopped || disposed) return;
+            stopped = false;
+            port.postMessage({ type: 'start', url: new URL(baseUrl() + '/api/stream', location.href).href });
+        });
+        return () => { disposed = true; stop(); };
+    }
+
     window.CFApi = {
         baseUrl,
 
@@ -69,7 +102,7 @@
         put:  (p, b, o) => request('PUT', p, b, o),
         patch:(p, b, o) => request('PATCH', p, b, o),
 
-        /** ก้อนข้อมูลตั้งต้น รูปทรงเดียวกับ CF_SEED */
+        /** ก้อนข้อมูลตั้งต้น — รูปทรงดูที่ api/src/serialize/snapshot.js */
         bootstrap(hours) {
             return request('GET', '/api/bootstrap' + (hours ? '?hours=' + hours : ''));
         },
@@ -88,6 +121,12 @@
          * คืนฟังก์ชันสำหรับปิดสาย
          */
         stream(onChange, onState) {
+            // ทุกแท็บใช้สายเดียวกันผ่าน SharedWorker — ดูเหตุผลใน cf-stream-worker.js
+            if (typeof SharedWorker === 'function') {
+                try { return sharedStream(onChange, onState); }
+                catch (err) { console.warn('[CFApi] SharedWorker ใช้ไม่ได้ — เปิดสายของแท็บนี้เอง', err); }
+            }
+
             let es = null;
             let closed = false;
 

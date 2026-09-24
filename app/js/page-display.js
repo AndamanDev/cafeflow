@@ -21,11 +21,6 @@ const DisplayPage = {
        BOOT
        ══════════════════════════════════════════════════════ */
     async boot() {
-        if (window.CF_BACKEND !== 'api') {
-            this.showBoot('จอแสดงคิวต้องต่อกับเซิร์ฟเวอร์',
-                'หน้านี้ใช้ได้เฉพาะเมื่อเปิดผ่านเซิร์ฟเวอร์ของร้าน ไม่รองรับโหมดเดโม');
-            return;
-        }
         try {
             await this.refresh();
             this.loadHighlights();

@@ -103,16 +103,9 @@ const ClosingPage = {
         const shift = CFStore.openShift() || CFStore.all('shifts').slice(-1)[0];
         // เขียนยอดที่นับได้ลงรอบก่อน เพื่อให้ใบพิมพ์ตรงกับที่เห็นบนจอ
         if (this.state.actual != null) {
-            if (CFStore.mode === 'api') {
-                CFStore.cmd('patch', '/api/shifts/' + encodeURIComponent(shift.id),
-                    { actualCash: this.state.actual })
-                    .catch((err) => console.warn('[Closing] บันทึกยอดนับไม่สำเร็จ', err));
-            } else {
-                CFStore.mutate((db) => {
-                    const s = db.shifts.find((x) => x.id === shift.id);
-                    s.actualCash = this.state.actual;
-                }, 'cash-count');
-            }
+            CFStore.cmd('patch', '/api/shifts/' + encodeURIComponent(shift.id),
+                { actualCash: this.state.actual })
+                .catch((err) => console.warn('[Closing] บันทึกยอดนับไม่สำเร็จ', err));
         }
         CFDocs.previewClosing(shift.id);
     },
@@ -152,50 +145,18 @@ const ClosingPage = {
         });
         if (!ok) return;
 
-        const me = (CFAuth.getUser() || {}).id;
-        const nowIso = new Date().toISOString();
-
-        if (CFStore.mode === 'api') {
-            // ปิดรอบ + เปิดรอบใหม่ อยู่ในทรานแซกชันเดียวกันฝั่งเซิร์ฟเวอร์
-            // ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้จนกว่าจะมีคนเข้าไปแก้ฐาน
-            try {
-                const res = await CFStore.cmd('post',
-                    '/api/shifts/' + encodeURIComponent(shift.id) + '/close', { actualCash: actual });
-                this.state.actual = null;
-                const el2 = document.getElementById('actualCash');
-                if (el2) el2.value = '';
-                showToast('ปิดรอบเรียบร้อย — เปิดรอบ ' + res.nextShift + ' ให้แล้ว', 'success');
-            } catch (err) {
-                showToast(err.message || 'ปิดรอบไม่สำเร็จ', 'error', 5000);
-            }
-            return;
+        // ปิดรอบ + เปิดรอบใหม่ อยู่ในทรานแซกชันเดียวกันฝั่งเซิร์ฟเวอร์
+        // ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้จนกว่าจะมีคนเข้าไปแก้ฐาน
+        try {
+            const res = await CFStore.cmd('post',
+                '/api/shifts/' + encodeURIComponent(shift.id) + '/close', { actualCash: actual });
+            this.state.actual = null;
+            const el2 = document.getElementById('actualCash');
+            if (el2) el2.value = '';
+            showToast('ปิดรอบเรียบร้อย — เปิดรอบ ' + res.nextShift + ' ให้แล้ว', 'success');
+        } catch (err) {
+            showToast(err.message || 'ปิดรอบไม่สำเร็จ', 'error', 5000);
         }
-
-        CFStore.mutate((db) => {
-            const s = db.shifts.find((x) => x.id === shift.id);
-            s.closedAt = nowIso;
-            s.closedBy = me;
-            s.actualCash = actual;
-            s.status = 'CLOSED';
-
-            // เปิดรอบใหม่ทันที เงินตั้งต้นของรอบใหม่คือเงินที่นับได้จริง
-            const seq = db.shifts.length + 1;
-            db.shifts.push({
-                id: 'SH-' + nowIso.slice(0, 10).replace(/-/g, '') + '-' + String(seq).padStart(2, '0'),
-                openedAt: nowIso, closedAt: null,
-                openedBy: me, closedBy: null,
-                openingCash: actual, actualCash: null,
-                status: 'OPEN',
-            });
-
-            CFOrders._audit(db, null, 'SHIFT_CLOSE', null, null, me,
-                'ปิดรอบ ' + shift.id + ' · ผลต่าง ' + diff.toFixed(2));
-        }, 'shift-close');
-
-        this.state.actual = null;
-        const el = document.getElementById('actualCash');
-        if (el) el.value = '';
-        showToast('ปิดรอบเรียบร้อย — เปิดรอบใหม่ให้แล้ว', 'success');
     },
 
     boot() {

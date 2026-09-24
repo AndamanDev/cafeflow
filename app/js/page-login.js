@@ -10,7 +10,7 @@ const LoginPage = {
         return 'dashboard.html';
     },
 
-    /** CFAuth.login คืน Promise บนหลังบ้าน api และคืนค่าตรง ๆ บน local — รับได้ทั้งสองแบบ */
+    /** CFAuth.login ไม่ reject — ผลลัพธ์บอกเองว่าผ่านหรือไม่ พร้อมข้อความภาษาคน */
     async attempt(username, password) {
         const err = document.getElementById('loginError');
         const btn = document.getElementById('loginBtn');
@@ -35,34 +35,7 @@ const LoginPage = {
                      document.getElementById('loginPass').value);
     },
 
-    /** เติมฟอร์มแล้วส่งเลย — ปุ่มบัญชีตัวอย่าง */
-    use(username) {
-        document.getElementById('loginUser').value = username;
-        document.getElementById('loginPass').value = 'demo';
-        this.attempt(username, 'demo');
-    },
-
-    /**
-     * ปุ่มบัญชีตัวอย่าง — มีเฉพาะโหมดเดโม
-     * ข้อมูลจริงไม่ส่งรหัสผ่านมาให้เบราว์เซอร์ และไม่ควรมีปุ่มลัดเข้าทุกบัญชีอยู่แล้ว
-     */
-    renderDemoRow() {
-        const row = document.getElementById('demoRow');
-        const wrap = row.closest('.cf-demo-wrap') || row.parentElement;
-        if (CFStore.mode === 'api') {
-            if (wrap) wrap.style.display = 'none';
-            return;
-        }
-        row.innerHTML = CFStore.all('users')
-            .filter((u) => u.active)
-            .map((u) => `<button type="button" class="cf-demo-btn"
-                            onclick="LoginPage.use('${u.username}')"
-                            title="${CF_ROLE_LABEL[u.role]} — ${u.name}">${u.username}</button>`)
-            .join('');
-    },
-
     boot() {
-        this.renderDemoRow();
         // ถูกเด้งมาเพราะสิทธิ์ไม่พอ ต้องบอกเหตุผล ไม่ใช่เงียบ ๆ
         const denied = new URLSearchParams(location.search).get('denied');
         if (denied) {

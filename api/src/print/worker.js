@@ -11,6 +11,7 @@
  */
 'use strict';
 const net = require('net');
+const { sendUsb } = require('./usb');
 
 const RETRY_MAX = 3;
 const RETRY_DELAY_MS = [1000, 4000, 10000];   // ถอยห่างขึ้นเรื่อย ๆ
@@ -42,6 +43,22 @@ function sendRaw(host, port, buf, timeoutMs = CONNECT_TIMEOUT_MS) {
             });
         });
     });
+}
+
+/**
+ * ปลายทางของเครื่องพิมพ์หนึ่งตัว — null เมื่อยังตั้งค่าไม่ครบ
+ * (LAN ต้องมี IP · USB ต้องเลือกเครื่องแล้ว)
+ */
+function targetOf(d, fallback) {
+    if (d.printer_conn === 'USB') {
+        return d.printer_usb ? { conn: 'USB', usb: d.printer_usb, name: d.name_th, fallback } : null;
+    }
+    return d.printer_host ? { conn: 'NETWORK', host: d.printer_host, port: d.printer_port || 9100,
+                              name: d.name_th, fallback } : null;
+}
+
+function sendTo(t, buf) {
+    return t.conn === 'USB' ? sendUsb(t.usb, buf) : sendRaw(t.host, t.port, buf);
 }
 
 /** สร้างงานพิมพ์ — เรียกภายในทรานแซกชันของผู้เรียกเสมอ */
@@ -80,7 +97,8 @@ async function printerFor(c, branchId, station) {
  */
 async function drain(pool, branchId, { onDone } = {}) {
     const jobs = await pool.query(
-        `SELECT j.*, d.printer_host, d.printer_port, d.fallback_printer_id, d.name_th AS printer_name
+        `SELECT j.*, d.printer_conn, d.printer_host, d.printer_port, d.printer_usb,
+                d.fallback_printer_id, d.name_th AS printer_name
            FROM print_job j LEFT JOIN device d ON d.id = j.device_id
           WHERE j.branch_id = $1 AND j.status = 'QUEUED' AND j.attempts < $2
           ORDER BY j.id LIMIT 20`, [branchId, RETRY_MAX]);
@@ -96,15 +114,15 @@ async function drain(pool, branchId, { onDone } = {}) {
 
         // ลองตัวหลักก่อน ไม่ผ่านค่อยตกไปตัวสำรอง
         const targets = [];
-        if (job.printer_host) targets.push({ host: job.printer_host, port: job.printer_port || 9100,
-                                             name: job.printer_name, fallback: false });
+        const primary = targetOf({ printer_conn: job.printer_conn, printer_host: job.printer_host,
+                                   printer_port: job.printer_port, printer_usb: job.printer_usb,
+                                   name_th: job.printer_name }, false);
+        if (primary) targets.push(primary);
         if (job.fallback_printer_id) {
-            const fb = (await pool.query('SELECT * FROM device WHERE id = $1',
+            const fb = (await pool.query('SELECT * FROM device WHERE id = $1 AND active',
                 [job.fallback_printer_id])).rows[0];
-            if (fb && fb.printer_host) {
-                targets.push({ host: fb.printer_host, port: fb.printer_port || 9100,
-                               name: fb.name_th, fallback: true });
-            }
+            const t = fb && targetOf(fb, true);
+            if (t) targets.push(t);
         }
         if (!targets.length) {
             await pool.query(
@@ -118,12 +136,12 @@ async function drain(pool, branchId, { onDone } = {}) {
         let ok = false, lastErr = null, usedFallback = false;
         for (const t of targets) {
             try {
-                await sendRaw(t.host, t.port, job.payload);
+                await sendTo(t, job.payload);
                 ok = true;
                 usedFallback = t.fallback;
                 break;
             } catch (err) {
-                lastErr = `${t.name || t.host}: ${err.message}`;
+                lastErr = `${t.name || t.host || t.usb}: ${err.message}`;
             }
         }
 
@@ -163,5 +181,5 @@ function startWorker(pool, getBranchId, { intervalMs = 2000, onDone } = {}) {
     return () => { stopped = true; if (timer) clearTimeout(timer); };
 }
 
-module.exports = { sendRaw, enqueue, printerFor, drain, startWorker,
+module.exports = { sendRaw, sendTo, targetOf, enqueue, printerFor, drain, startWorker,
                    RETRY_MAX, RETRY_DELAY_MS };

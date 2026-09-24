@@ -1,34 +1,29 @@
 /**
  * CafeFlow — ใส่ข้อมูลตั้งต้นลง PostgreSQL
  *
- * อ่านจาก app/js/cf-data.js ซึ่งเป็นไฟล์เดียวกับที่เว็บแอปใช้ — ไม่พิมพ์เมนู
- * 80 รายการใหม่ เพราะพิมพ์ใหม่แปลว่าพิมพ์ผิด และวันหนึ่งสองที่จะไม่ตรงกัน
+ * ข้อมูลมาจาก ./seed-data.js (เมนูถอดจากป้ายหน้าร้าน) — ไฟล์นี้แค่เขียนลงตาราง
  *
  * ใส่เฉพาะข้อมูลตั้งต้นของร้าน (ผู้ใช้ อุปกรณ์ หมวด สินค้า กฎตัวเลือก ค่าตั้ง)
- * ออเดอร์/การชำระเงินตัวอย่างใส่เมื่อสั่ง --demo เท่านั้น — ของจริงต้องเริ่มจากศูนย์
+ * ไม่มีออเดอร์/การชำระเงินตัวอย่าง — ของจริงต้องเริ่มจากศูนย์
  *
  *   node src/db/seed.js           ข้อมูลตั้งต้น
- *   node src/db/seed.js --demo    ใส่ออเดอร์ตัวอย่างด้วย (สำหรับเดโม/ทดสอบ)
  *   node src/db/seed.js --force   เขียนทับแม้มีข้อมูลอยู่แล้ว
  */
 'use strict';
-const path = require('path');
 const argon2 = require('argon2');
 const { pool, tx, waitReady } = require('./pool');
 const { loadEnv } = require('../env');
+const { seedData } = require('./seed-data');
 
 loadEnv();
 
-const { CF_SEED } = require(path.resolve(__dirname, '..', '..', '..', 'app', 'js', 'cf-data.js'));
-
-const DEMO = process.argv.includes('--demo');
 const FORCE = process.argv.includes('--force');
 
 /** คีย์ค่าตั้งที่เป็นข้อมูลของสาขา ไม่ใช่ค่าตั้งระบบ — ย้ายไปอยู่ตาราง branch */
 const BRANCH_KEYS = ['shopName', 'branch', 'address', 'taxId', 'vatPercent'];
 
 async function seed(c) {
-    const db = CF_SEED(new Date());
+    const db = seedData();
     const s = db.settings;
 
     /* ── สาขา ── */
@@ -163,7 +158,6 @@ async function main() {
     console.log(`  ผู้ใช้      ${out.users} คน (รหัสผ่านถูก hash ด้วย argon2id)`);
     console.log(`  สินค้า     ${out.products} รายการ · ราคา ${out.priceRows} แถว`);
     console.log(`  ค่าตั้ง     ${out.settingRows} คีย์`);
-    if (DEMO) console.log('  (--demo ยังไม่รองรับ — ออเดอร์ตัวอย่างจะเพิ่มในเฟสถัดไป)');
 }
 
 main()

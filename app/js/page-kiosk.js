@@ -1,52 +1,15 @@
 /**
  * CafeFlow — หน้าคีออสก์ (ตัวห่อบางของเว็บแอป)
  * ------------------------------------------------------------
- * ตรรกะทั้งหมดอยู่ใน cf-kiosk-core.js / cf-kiosk-art.js / cf-kiosk.css
- * ซึ่งอาร์ติแฟกต์กินไปตรง ๆ — ไฟล์นี้มีแค่สิ่งที่เป็นของ "เว็บแอป" เท่านั้น
- * คือการพิสูจน์ว่าเครื่องนี้เป็นคีออสก์ของร้านจริง
+ * ตรรกะหน้าจอทั้งหมดอยู่ใน cf-kiosk-core.js / cf-kiosk-art.js / cf-kiosk.css
+ * ไฟล์นี้มีแค่การพิสูจน์ว่าเครื่องนี้เป็นคีออสก์ของร้านจริง
  *
- * โหมด api  เครื่องต้องถูก "จับคู่" โดยผู้จัดการก่อน จึงจะสั่งออเดอร์ได้
- *           ตัวตนอยู่ใน cookie httpOnly ที่เซิร์ฟเวอร์ออกให้ JavaScript แตะไม่ได้
- * โหมด local (เดโม) เลือกเครื่องเองได้เหมือนเดิม เพราะไม่มีของจริงให้ปลอมแปลง
+ * เครื่องต้องถูก "จับคู่" โดยผู้จัดการก่อน จึงจะสั่งออเดอร์ได้
+ * ตัวตนอยู่ใน cookie httpOnly ที่เซิร์ฟเวอร์ออกให้ JavaScript แตะไม่ได้
+ * (ไม่มีการเลือกเครื่องเองจากรายการ — ไม่งั้นใครบน LAN ก็สวมเป็นคีออสก์ได้)
  */
 const KioskBoot = {
 
-    K_DEVICE: 'cafeflow.kiosk.v1',
-
-    /* ══════════════════════════════════════════════════════
-       โหมดเดโม — เลือกเครื่องเองจากรายการ
-       ══════════════════════════════════════════════════════ */
-    loadDevice() {
-        const q = new URLSearchParams(location.search).get('device');
-        if (q) { this.save(q); return q; }
-        try { return localStorage.getItem(this.K_DEVICE); } catch (e) { return null; }
-    },
-
-    save(id) {
-        try { localStorage.setItem(this.K_DEVICE, id); } catch (e) { /* โหมดอ่านอย่างเดียว */ }
-    },
-
-    showGate() {
-        const e = CFApp.esc;
-        const kiosks = CFStore.where('devices', (d) => d.type === 'KIOSK');
-        document.getElementById('deviceList').innerHTML = kiosks.map((d) => `
-            <button class="cf-kiosk-gate-btn" onclick="KioskBoot.pick('${d.id}')">
-                <span><strong>${e(d.name)}</strong><small>${e(d.id)} · ${e(d.ip)}</small></span>
-                <span class="cf-gate-chip ${d.status === 'ONLINE' ? 'ok' : ''}">
-                    ${d.status === 'ONLINE' ? 'พร้อมใช้งาน' : 'ออฟไลน์'}</span>
-            </button>`).join('');
-        document.getElementById('deviceGate').hidden = false;
-    },
-
-    pick(id) {
-        this.save(id);
-        document.getElementById('deviceGate').hidden = true;
-        CFKiosk.boot({ deviceId: id, allowDeviceGate: true });
-    },
-
-    /* ══════════════════════════════════════════════════════
-       โหมด api — จับคู่ด้วยรหัสจากผู้จัดการ
-       ══════════════════════════════════════════════════════ */
     showPairGate(msg) {
         const gate = document.getElementById('deviceGate');
         gate.querySelector('h2').textContent = 'เครื่องนี้ยังไม่ได้จับคู่';
@@ -76,8 +39,7 @@ const KioskBoot = {
         msg.textContent = 'กำลังจับคู่…';
         try {
             const res = await CFApi.post('/api/devices/pair', { code });
-            document.getElementById('deviceGate').hidden = true;
-            CFKiosk.boot({ deviceId: res.deviceId, allowDeviceGate: false });
+            await this.start(res.deviceId);
         } catch (err) {
             msg.textContent = err.message || 'จับคู่ไม่สำเร็จ';
             input.value = '';
@@ -85,14 +47,18 @@ const KioskBoot = {
         }
     },
 
-    async boot() {
-        if (CFStore.mode !== 'api') {
-            const dev = this.loadDevice();
-            if (!dev) { this.showGate(); return; }
-            CFKiosk.boot({ deviceId: dev, allowDeviceGate: true });
-            return;
-        }
+    /**
+     * ดึง snapshot แล้วเปิดหน้าจอลูกค้า — ต้องทำหลังรู้ว่าเครื่องจับคู่แล้วเท่านั้น
+     * เพราะ /api/bootstrap ตอบ 401 กับเครื่องที่ยังไม่จับคู่ (kiosk.html จึงเรียก
+     * CFBoot.gate แบบ publicPage ไม่ให้ดึงตั้งแต่ใน <head> แล้วขึ้นจอ error ทับด่านจับคู่)
+     */
+    async start(deviceId) {
+        await CFStore.init();
+        document.getElementById('deviceGate').hidden = true;
+        CFKiosk.boot({ deviceId });
+    },
 
+    async boot() {
         // ตัวตนอยู่ใน cookie — ถามเซิร์ฟเวอร์ว่าเครื่องนี้คือใคร ไม่เชื่อ localStorage
         try {
             const me = await CFApi.get('/api/devices/me');
@@ -101,7 +67,7 @@ const KioskBoot = {
                 this.showPairGate('เครื่องนี้ถูกจับคู่เป็น ' + me.kind + ' ไม่ใช่คีออสก์');
                 return;
             }
-            CFKiosk.boot({ deviceId: me.deviceId, allowDeviceGate: false });
+            await this.start(me.deviceId);
         } catch (err) {
             this.showPairGate(err.offline ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้' : err.message);
         }

@@ -33,7 +33,11 @@ function fontFamily() {
  * วาดสองรอบ: รอบแรกวัดความสูงที่ต้องใช้ รอบสองวาดจริง
  * เพราะกระดาษม้วนไม่มีความสูงตายตัว ต้องรู้ก่อนว่าจะยาวเท่าไหร่
  */
+const SEGMENTER = new Intl.Segmenter('th', { granularity: 'word' });
+const GRAPHEMES = new Intl.Segmenter('th', { granularity: 'grapheme' });
+
 function createSheet(widthDots) {
+    const measure = createCanvas(1, 1).getContext('2d');    // วัดความกว้างตอนจัดบรรทัด
     let y = 0;
     const ops = [];
     const pad = Math.round(widthDots * 0.03);
@@ -49,6 +53,44 @@ function createSheet(widthDots) {
             const align = o.align || 'left';
             ops.push({ t: 'text', text: String(text), size, weight, align, y, pad, inner });
             y += Math.round(size * (o.lh || 1.45));
+            return api;
+        },
+
+        /**
+         * ข้อความยาวที่ต้องอ่านครบทุกคำ — ตัดขึ้นบรรทัดใหม่แทนการตัดทิ้ง
+         * ตัดตามคำไทย (Intl.Segmenter) ไม่ตัดกลางคำหรือแยกสระ/วรรณยุกต์ออกจากพยัญชนะ
+         * hang = ระยะเยื้องของบรรทัดต่อ ๆ ไป เช่นให้ชื่อเมนูบรรทัดสองตรงกับตัวแรกหลัง "1 × "
+         */
+        wrap(text, o = {}) {
+            const size = o.size || 22;
+            const weight = o.bold ? '700 ' : '';
+            const indent = o.indent || 0;
+            measure.font = `${weight}${size}px "${fontFamily()}"`;
+            const hang = typeof o.hang === 'string' ? measure.measureText(o.hang).width : (o.hang || 0);
+
+            const words = [...SEGMENTER.segment(String(text))].map((x) => x.segment);
+            const lines = [];
+            let cur = '';
+            const room = () => inner - indent - (lines.length ? hang : 0);
+            for (const w of words) {
+                if (!cur && !w.trim()) continue;                   // ไม่ขึ้นบรรทัดด้วยช่องว่าง
+                if (measure.measureText(cur + w).width <= room()) { cur += w; continue; }
+                if (cur) { lines.push(cur.trimEnd()); cur = ''; if (!w.trim()) continue; }
+                // คำเดียวยาวเกินบรรทัด — ค่อยตัดทีละตัวอักษร (ยังไม่แยกสระออกจากพยัญชนะ)
+                for (const g of [...GRAPHEMES.segment(w)].map((x) => x.segment)) {
+                    if (cur && measure.measureText(cur + g).width > room()) { lines.push(cur); cur = ''; }
+                    cur += g;
+                }
+            }
+            if (cur.trim()) lines.push(cur.trimEnd());
+
+            lines.forEach((ln, i) => {
+                const off = indent + (i ? hang : 0);
+                ops.push({ t: 'text', text: ln, size, weight, align: 'left', y,
+                           pad: pad + off, inner: inner - off });
+                y += Math.round(size * (o.lh || 1.3));
+            });
+            if (lines.length) y += Math.round(size * ((o.lh || 1.45) - (o.lh || 1.3)));
             return api;
         },
 
@@ -155,8 +197,8 @@ const dateTime = (d) => new Date(d).toLocaleString('th-TH', { dateStyle: 'medium
 /* ══════════════════════════════════════════════════════════════════
    สลิปครัว (§19) — สะกดเต็มคำเสมอ ไม่ว่ากระดาษจะแคบแค่ไหน
    ══════════════════════════════════════════════════════════════════ */
-function kitchenSlip({ order, items, station, stationLabel, width = '58mm' }) {
-    const W = WIDTH[width] || WIDTH['58mm'];
+function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots }) {
+    const W = dots || WIDTH[width] || WIDTH['58mm'];
     const s = createSheet(W);
     const big = W >= 576 ? 30 : 26;
 
@@ -172,10 +214,13 @@ function kitchenSlip({ order, items, station, stationLabel, width = '58mm' }) {
     s.rule({ dashed: true });
 
     for (const it of items) {
-        s.row(`${it.qty} × ${pick(it, 'nameSnapshot', 'name_snapshot')}`, '', { size: big, bold: true });
+        // ชื่อเมนูยาวต้องขึ้นบรรทัดใหม่ ไม่ใช่ถูกตัดเป็น "…" — ครัวอ่านผิดหนึ่งคำคือทำผิดหนึ่งแก้ว
+        const qty = `${it.qty} × `;
+        s.wrap(qty + pick(it, 'nameSnapshot', 'name_snapshot'), { size: big, bold: true, hang: qty });
         const serve = { HOT: 'ร้อน', ICED: 'เย็น', FRAPPE: 'ปั่น' }[pick(it, 'serveType', 'serve_type')];
-        if (serve) s.line('   แบบ: ' + serve, { size: 21 });
-        for (const m of it.mods || []) s.line('   • ' + m.label, { size: 21 });  // เต็มคำเสมอ
+        const ind = Math.round(big * 0.9);
+        if (serve) s.wrap('แบบ: ' + serve, { size: 21, indent: ind });
+        for (const m of it.mods || []) s.wrap('• ' + m.label, { size: 21, indent: ind, hang: '• ' });  // เต็มคำเสมอ
         s.gap(6);
     }
 
@@ -188,9 +233,9 @@ function kitchenSlip({ order, items, station, stationLabel, width = '58mm' }) {
 /* ══════════════════════════════════════════════════════════════════
    ใบเสร็จรับเงิน — ร้านยังไม่จด VAT จึงไม่มีบรรทัดภาษี
    ══════════════════════════════════════════════════════════════════ */
-function receipt({ order, items, payment, branch, width = '80mm', cashier }) {
-    const W = WIDTH[width] || WIDTH['80mm'];
-    const narrow = W < 576;
+function receipt({ order, items, payment, branch, width = '80mm', cashier, dots }) {
+    const W = dots || WIDTH[width] || WIDTH['80mm'];
+    const narrow = W < 500;           // 58 มม. (360–384 จุด) — 80 มม. ที่ 180 dpi ได้ 512 ยังนับเป็นกว้าง
     const s = createSheet(W);
     const base = narrow ? 21 : 23;
 
@@ -245,4 +290,26 @@ function receipt({ order, items, payment, branch, width = '80mm', cashier }) {
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
 }
 
-module.exports = { WIDTH, createSheet, toBits, kitchenSlip, receipt, fontFamily };
+/**
+ * บิตแมป 1 บิตที่จะส่งเข้าเครื่องพิมพ์ → PNG สำหรับพรีวิวบนจอ
+ * ต้องวาดจาก "บิตแมป" ไม่ใช่จาก canvas ต้นฉบับ — พรีวิวจะได้เห็นเหมือนกระดาษจริง
+ * รวมถึงเส้นขอบตัวอักษรที่หยักหลังตัดเป็นขาวดำ
+ */
+function bitsToPng(bits, width, height) {
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(width, height);
+    const bytesPerRow = width / 8;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const on = bits[y * bytesPerRow + (x >> 3)] & (0x80 >> (x & 7));
+            const i = (y * width + x) * 4;
+            const v = on ? 0 : 255;
+            img.data[i] = v; img.data[i + 1] = v; img.data[i + 2] = v; img.data[i + 3] = 255;
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas.toBuffer('image/png');
+}
+
+module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, fontFamily };

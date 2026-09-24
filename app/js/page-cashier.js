@@ -8,6 +8,7 @@ const CashierPage = {
        RENDER
        ══════════════════════════════════════════════════════ */
     render() {
+        this.refreshSlipOcr();
         const k = CFKpi.summary();
         const shift = CFStore.openShift();
         const me = CFAuth.getUser();
@@ -213,19 +214,29 @@ const CashierPage = {
         });
         if (!ok) return;
 
-        // transition('PAID') จะสร้าง Payment แล้ว chain SENT_TO_KITCHEN ให้เอง
-        // → ตั๋วจะไปโผล่ที่ KDS ในอีกแท็บภายใน ~1.5 วินาที
-        if (CFOrders.transition(orderId, 'PAID', { received })) {
+        // เซิร์ฟเวอร์สร้าง Payment แล้ว chain SENT_TO_KITCHEN ให้เอง
+        // → ตั๋วไปโผล่ที่ KDS ทุกจอผ่าน SSE
+        if (await CFOrders.transition(orderId, 'PAID', { received })) {
             Drawer.close();
             showToast('รับชำระ ' + o.orderNo + ' แล้ว — ส่งเข้าครัวอัตโนมัติ', 'success');
         }
     },
 
     /* ── §16 ตรวจสอบ / ยืนยันการชำระแทน ────────────────── */
+    /** ผล OCR มาถึงหลังเปิด drawer ไปแล้ว ~6 วิ — เติมเฉพาะกล่องผลตรวจ */
+    refreshSlipOcr() {
+        const el = document.getElementById('slipOcrBox');
+        if (!el || !this._review) return;
+        const slip = CFStore.where('slips', (s) => s.orderId === this._review.orderId).slice(-1)[0] || null;
+        const html = CFApp.slipOcrHtml(slip);
+        if (el.innerHTML !== html) { el.innerHTML = html; refreshIcons(); }
+    },
+
     openReview(orderId) {
         const e = CFApp.esc;
         const o = CFStore.byId('orders', orderId);
-        const p = CFOrders.payment(orderId);
+        // สลิปที่ลูกค้าสแกนที่คีออสก์ (ใบล่าสุด) — ไม่มี = ลูกค้ากดแจ้งพนักงานโดยไม่ได้สแกน
+        const slip = CFStore.where('slips', (s) => s.orderId === orderId).slice(-1)[0] || null;
         const limit = CFAuth.overrideLimit();
         const overLimit = limit != null && o.total > limit;
 
@@ -237,17 +248,32 @@ const CashierPage = {
             contentHtml: `
                 <div class="sip-banner sip-banner-warning" style="margin-bottom:12px">
                     <i data-lucide="alert-triangle" class="icon-sm"></i>
-                    QR หมดเวลาแล้ว ลูกค้าแจ้งว่าชำระเงินเรียบร้อย — ต้องตรวจสอบก่อนยืนยัน
+                    ${slip
+                        ? 'ลูกค้าสแกนสลิปที่คีออสก์แล้ว — <strong>ดูแจ้งเตือนเงินเข้าของร้าน</strong> ว่ามียอด ฿' +
+                          CFApp.money(o.total) + ' เข้ามาจริงก่อนยืนยัน'
+                        : 'ลูกค้าแจ้งพนักงานโดยไม่ได้สแกนสลิป — ขอดูสลิปจากมือถือลูกค้า และเช็กเงินเข้าก่อนยืนยัน'}
                 </div>
 
-                <div class="ds-section-label">ข้อมูลการชำระที่อ่านได้จากสลิป</div>
+                <div class="ds-section-label">ข้อมูลการชำระ</div>
                 <table class="ds-table-grid">
-                    <tr><th class="l" style="width:35%">ยอดตามออเดอร์</th><td class="r">${CFApp.money(o.total)}</td></tr>
-                    <tr><th class="l">ยอดในสลิป</th><td class="r">${p ? CFApp.money(p.amount) : '—'}</td></tr>
-                    <tr><th class="l">ธนาคาร</th><td class="l">${p && p.bank ? e(p.bank) : '—'}</td></tr>
-                    <tr><th class="l">เลขอ้างอิง</th><td class="l">${p && p.ref ? e(p.ref) : '—'}</td></tr>
-                    <tr><th class="l">เวลาทำรายการ</th><td class="l">${p && p.txAt ? CFApp.dateTime(p.txAt) : '—'}</td></tr>
+                    <tr><th class="l" style="width:35%">ยอดที่ต้องได้รับ</th><td class="r"><strong>${CFApp.money(o.total)}</strong></td></tr>
+                    <tr><th class="l">สลิป</th><td class="l">${slip ? 'สแกนแล้ว ' + CFApp.time(slip.createdAt) : 'ไม่มี'}</td></tr>
+                    <tr><th class="l">ธนาคารผู้โอน</th><td class="l">${slip ? e(slip.bankName || slip.bankCode || '—') : '—'}</td></tr>
+                    <tr><th class="l">เลขอ้างอิง</th><td class="l">${slip ? e(slip.ref) : '—'}</td></tr>
+                    <tr><th class="l">สลิปซ้ำ</th><td class="l">${slip ? 'ไม่ซ้ำ — ยังไม่เคยใช้กับออเดอร์อื่น' : '—'}</td></tr>
                 </table>
+                <div id="slipOcrBox">${CFApp.slipOcrHtml(slip)}</div>
+                ${slip && slip.hasImage ? `
+                <div class="ds-section-label" style="margin-top:12px">ภาพสลิปที่กล้องคีออสก์ถ่ายไว้</div>
+                <a href="/api/slips/${e(slip.id)}/image" target="_blank" rel="noopener" title="เปิดภาพเต็ม">
+                    <img src="/api/slips/${e(slip.id)}/image" alt="ภาพสลิป"
+                         style="display:block;width:100%;max-height:360px;object-fit:contain;
+                                background:#111;border-radius:8px">
+                </a>` : ''}
+                ${slip ? `<div class="ds-note" style="margin-top:6px">
+                    QR บนสลิปบอกได้แค่เลขอ้างอิง ไม่มียอดเงินหรือบัญชีปลายทาง
+                    — ระบบยังไม่ได้ตรวจกับธนาคาร จึงต้องดูเงินเข้าจริงก่อนทุกครั้ง
+                </div>` : ''}
 
                 <div class="ds-section-label">รายการ</div>
                 ${this._itemsHtml(orderId)}
@@ -257,7 +283,7 @@ const CashierPage = {
                           placeholder="เช่น ตรวจสลิปจากแอปธนาคารของลูกค้าแล้ว ยอดและเวลาตรงกัน"
                           oninput="CashierPage.onReason(this.value)"></textarea>
                 <div class="ds-chips">
-                    ${['ตรวจสลิปจากมือถือลูกค้าแล้ว ยอดตรง', 'ยืนยันยอดเข้าบัญชีร้านแล้ว', 'ลูกค้าชำระเงินสดแทน']
+                    ${['เงินเข้าบัญชีร้านแล้ว ยอดตรง', 'ตรวจสลิปจากมือถือลูกค้าแล้ว ยอดตรง', 'ลูกค้าชำระเงินสดแทน']
                         .map((r) => `<button type="button" class="ds-chip-suggest"
                             onclick="CashierPage.setReason('${e(r)}')">${e(r)}</button>`).join('')}
                 </div>
@@ -311,7 +337,7 @@ const CashierPage = {
         });
         if (!ok) return;
 
-        if (CFOrders.transition(orderId, 'PAID', { reason, override: true })) {
+        if (await CFOrders.transition(orderId, 'PAID', { reason, override: true })) {
             Drawer.close();
             showToast('ยืนยันการชำระ ' + o.orderNo + ' แล้ว', 'success');
         }
@@ -330,7 +356,7 @@ const CashierPage = {
         });
         if (!ok) return;
 
-        if (CFOrders.transition(orderId, 'PAYMENT_FAILED', { reason })) {
+        if (await CFOrders.transition(orderId, 'PAYMENT_FAILED', { reason })) {
             Drawer.close();
             showToast('บันทึกแล้ว — ออเดอร์กลับไปรอชำระใหม่ได้', 'warning');
         }
@@ -362,9 +388,10 @@ const CashierPage = {
         });
     },
 
-    serve(orderId) {
-        if (CFOrders.transition(orderId, 'SERVED')) {
-            CFOrders.transition(orderId, 'COMPLETED');
+    async serve(orderId) {
+        // ต้องรอ SERVED สำเร็จก่อน — ยิง COMPLETED ตามไปทันทีจะถูกปฏิเสธเพราะสถานะยังไม่ขยับ
+        if (await CFOrders.transition(orderId, 'SERVED')) {
+            await CFOrders.transition(orderId, 'COMPLETED');
             Drawer.close();
             showToast('ส่งมอบเรียบร้อย', 'success');
         }

@@ -68,11 +68,19 @@ const CF_MENU = [
         items: [
             { section: 'ตั้งค่าระบบ' },
             { href: 'kiosk.html',               label: 'เปิดโหมดคีออสก์',      icon: 'monitor' },
+            { href: 'dashboard.html?shop=1',    label: 'ข้อมูลร้าน',            icon: 'fileText' },
             { href: 'dashboard.html?kiosk=1',   label: 'ตั้งค่าคีออสก์',        icon: 'settings' },
-            { href: 'dashboard.html?devices=1', label: 'อุปกรณ์และเครื่องพิมพ์', icon: 'printer' },
+            { href: 'dashboard.html?devices=1', label: 'อุปกรณ์ในเครือข่าย',    icon: 'monitor' },
+            { href: 'dashboard.html?printers=1', label: 'เครื่องพิมพ์',          icon: 'printer' },
             { href: 'dashboard.html?users=1',   label: 'ผู้ใช้และสิทธิ์',        icon: 'users', roles: 'ADMIN' },
-            { sep: 'strong' },
-            { href: 'dashboard.html?reset=1',   label: 'รีเซ็ตข้อมูลตัวอย่าง',  icon: 'refresh' },
+        ],
+    },
+
+    // ทุกบทบาทต้องเปลี่ยนรหัสของตัวเองได้ — ครัวกับแคชเชียร์เข้าเมนูตั้งค่าไม่ได้
+    {
+        group: 'account', label: '', icon: 'users', alignRight: true, title: 'บัญชีของฉัน',
+        items: [
+            { href: 'javascript:CFApp.changePassword()', label: 'เปลี่ยนรหัสผ่าน', icon: 'settings' },
         ],
     },
 ];

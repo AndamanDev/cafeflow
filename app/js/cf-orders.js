@@ -2,20 +2,14 @@
  * CafeFlow — ORDER STATE MACHINE (§7, §8, §21)
  * ------------------------------------------------------------
  * ทุกการเปลี่ยนสถานะของออเดอร์ต้องผ่าน CFOrders.transition()
- * เพื่อให้ (ก) เดินตามผังชีวิตจริง (ข) มี audit log ทุกครั้ง
+ * ตรรกะจริง (ผังสถานะ การชำระ routing เข้าครัว audit log) อยู่ที่เซิร์ฟเวอร์
+ * ไฟล์นี้เป็นตัวเรียก + ตรวจล่วงหน้าด้วยผังจาก shared/cf-flow.js ตัวเดียวกัน
+ * เพื่อให้ข้อความทันทีโดยไม่ต้องรอ network
  */
 
 /* ── ผังสถานะ CF_FLOW · CF_REASON_REQUIRED · CF_ACTION_LABEL ──
    ย้ายไป shared/cf-flow.js แล้ว เพราะเซิร์ฟเวอร์ต้องตัดสินด้วยผังเดียวกับหน้าจอ
    ไฟล์นี้เหลือเฉพาะ "การกระทำ" ส่วน "กฎ" อยู่ที่ shared/ */
-
-/**
- * หลังบ้าน api: ตรรกะทั้งหมดอยู่ที่เซิร์ฟเวอร์ ไฟล์นี้เหลือเป็นตัวเรียก
- * หลังบ้าน local: ทำงานในหน่วยความจำเหมือนเดิม (เดโมและอาร์ติแฟกต์คีออสก์ใช้ทางนี้)
- *
- * ทั้งสองทางใช้ผังสถานะจาก shared/cf-flow.js ตัวเดียวกัน จึงไม่มีทางตัดสินต่างกัน
- */
-const _api = () => window.CFStore && CFStore.mode === 'api';
 
 /** แสดง error ให้ผู้ใช้เห็นเป็นภาษาคน แล้วคืน false เพื่อให้ผู้เรียกเดินต่อได้ */
 function _fail(err) {
@@ -35,309 +29,74 @@ const CFOrders = {
 
     /**
      * เปลี่ยนสถานะออเดอร์
-     * คืน true เมื่อสำเร็จ / false พร้อม toast เมื่อถูกปฏิเสธ
+     * คืน Promise<true> เมื่อสำเร็จ / Promise<false> พร้อม toast เมื่อถูกปฏิเสธ
      */
     transition(orderId, newStatus, opts) {
         opts = opts || {};
 
-        if (_api()) {
-            // เซิร์ฟเวอร์ตรวจผัง เหตุผล และสิทธิ์ซ้ำอีกชั้นเสมอ — ที่ตรวจตรงนี้เพื่อ
-            // ไม่ให้ยิงไปทั้งที่รู้อยู่แล้วว่าไม่ผ่าน และให้ข้อความทันทีโดยไม่ต้องรอ network
-            const order = CFStore.byId('orders', orderId);
-            if (order && !CFFlow.canGo(order.status, newStatus)) {
-                showToast('เปลี่ยนสถานะจาก "' + CFApp.statusLabel(order.status) +
-                          '" ไปเป็น "' + CFApp.statusLabel(newStatus) + '" ไม่ได้', 'error', 4000);
-                return Promise.resolve(false);
-            }
-            if (CFFlow.needsReason(newStatus) && !String(opts.reason || '').trim()) {
-                showToast('ต้องระบุเหตุผลก่อนทำรายการนี้', 'error');
-                return Promise.resolve(false);
-            }
-            return CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/transition',
-                Object.assign({ status: newStatus }, opts))
-                .then(() => true).catch(_fail);
-        }
-
+        // เซิร์ฟเวอร์ตรวจผัง เหตุผล และสิทธิ์ซ้ำอีกชั้นเสมอ — ที่ตรวจตรงนี้เพื่อ
+        // ไม่ให้ยิงไปทั้งที่รู้อยู่แล้วว่าไม่ผ่าน และให้ข้อความทันทีโดยไม่ต้องรอ network
         const order = CFStore.byId('orders', orderId);
-        if (!order) { showToast('ไม่พบออเดอร์', 'error'); return false; }
-
-        // (1) ผังสถานะ — ปฏิเสธออกมาดัง ๆ ดีกว่าเขียนข้อมูลผิดเงียบ ๆ
-        if (!this.canGo(order, newStatus)) {
-            showToast(
-                'เปลี่ยนสถานะจาก "' + CFApp.statusLabel(order.status) +
-                '" ไปเป็น "' + CFApp.statusLabel(newStatus) + '" ไม่ได้', 'error', 4000
-            );
-            return false;
+        if (order && !CFFlow.canGo(order.status, newStatus)) {
+            showToast('เปลี่ยนสถานะจาก "' + CFApp.statusLabel(order.status) +
+                      '" ไปเป็น "' + CFApp.statusLabel(newStatus) + '" ไม่ได้', 'error', 4000);
+            return Promise.resolve(false);
         }
-
-        // (2) เหตุผลบังคับ — ผู้เรียกต้องเก็บมาก่อน
-        const reason = (opts.reason || '').trim();
-        if (CFFlow.needsReason(newStatus) && !reason) {
+        if (CFFlow.needsReason(newStatus) && !String(opts.reason || '').trim()) {
             showToast('ต้องระบุเหตุผลก่อนทำรายการนี้', 'error');
-            return false;
+            return Promise.resolve(false);
         }
-
-        const actor = opts.byId || (CFAuth.getUser() || {}).id || 'SYSTEM';
-        const nowIso = new Date().toISOString();
-
-        CFStore.mutate((db) => {
-            const o = db.orders.find((x) => x.id === orderId);
-            const from = o.status;
-
-            o.prevStatus = from;
-            o.status = newStatus;
-            if (reason) o.cancelReason = reason;
-
-            const stamp = CFFlow.stampFor(newStatus);
-            if (stamp) { o.ts = o.ts || {}; o.ts[stamp] = nowIso; }
-
-            this._audit(db, orderId, 'STATUS_CHANGE', from, newStatus, actor, reason, opts.device);
-
-            /* ── ผลพลอยได้ที่ต้องอยู่ใน mutate เดียวกัน ── */
-
-            // ชำระแล้ว → บันทึกการชำระ + ส่งเข้าครัวทันที (§7 "Verify Before Forward")
-            if (newStatus === 'PAID') {
-                o.cashierId = actor;
-                this._settlePayment(db, o, opts, nowIso, actor);
-                this._sendToKitchen(db, o, nowIso, actor);
-            }
-
-            // ยกเลิก/คืนเงิน → เอารายการออกจากบอร์ดครัว
-            if (['CANCELLED', 'VOIDED', 'REFUNDED'].includes(newStatus)) {
-                db.orderItems.filter((i) => i.orderId === orderId).forEach((i) => { i.itemStatus = 'VOID'; });
-                const p = db.payments.find((x) => x.orderId === orderId);
-                if (p && newStatus === 'REFUNDED') p.status = 'REFUNDED';
-            }
-        }, 'transition:' + newStatus);
-
-        return true;
-    },
-
-    /** สร้าง/ปิดรายการชำระเงินให้ครบเมื่อออเดอร์กลายเป็น PAID */
-    _settlePayment(db, o, opts, nowIso, actor) {
-        let p = db.payments.find((x) => x.orderId === o.id);
-        if (!p) {
-            p = {
-                id: 'PM-' + (++db.counters.paymentSeq), orderId: o.id,
-                method: o.paymentMethod, amount: o.total,
-                received: null, change: null, ref: null, bank: null, txAt: null,
-                verifiedBy: null, overrideBy: null, overrideReason: null, overrideAt: null,
-                status: 'PAID', createdAt: nowIso,
-            };
-            db.payments.push(p);
-        }
-        p.status = 'PAID';
-        p.amount = o.total;
-        if (opts.received != null) { p.received = opts.received; p.change = opts.received - o.total; }
-        if (opts.ref)  p.ref  = opts.ref;
-        if (opts.bank) p.bank = opts.bank;
-        p.verifiedBy = actor;
-
-        // การ override ต้องเก็บครบสามช่องตาม §16
-        if (opts.override) {
-            p.overrideBy = actor;
-            p.overrideReason = opts.reason || opts.overrideReason || null;
-            p.overrideAt = nowIso;
-            this._audit(db, o.id, 'PAYMENT_OVERRIDE', null, null, actor, p.overrideReason, opts.device);
-        } else {
-            this._audit(db, o.id, o.paymentMethod === 'CASH' ? 'PAYMENT_RECEIVED' : 'PAYMENT_VERIFIED',
-                null, null, actor,
-                opts.received != null ? ('รับเงิน ' + opts.received + ' ทอน ' + (opts.received - o.total)) : null,
-                opts.device);
-        }
-    },
-
-    /** §18 routing — ตั้งคิวของทุกสถานีที่ออเดอร์นี้แตะ */
-    _sendToKitchen(db, o, nowIso, actor) {
-        const items = db.orderItems.filter((i) => i.orderId === o.id);
-        const stations = [...new Set(items.map((i) => i.station))];
-
-        o.stationStatus = {};
-        stations.forEach((s) => { o.stationStatus[s] = 'QUEUED'; });
-        items.forEach((i) => { i.itemStatus = 'QUEUED'; });
-
-        o.prevStatus = o.status;
-        o.status = 'SENT_TO_KITCHEN';
-        o.ts.sentAt = nowIso;
-
-        this._audit(db, o.id, 'STATUS_CHANGE', 'PAID', 'SENT_TO_KITCHEN', actor,
-            'ส่งเข้า ' + stations.map((s) => CFApp.stationLabel(s)).join(' / '));
+        return CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/transition',
+            Object.assign({ status: newStatus }, opts))
+            .then(() => true).catch(_fail);
     },
 
     /**
      * §21 — สถานีหนึ่งทำเสร็จ
      * ออเดอร์จะเป็น READY ก็ต่อเมื่อ "ทุกสถานี" พร้อม ไม่ใช่สถานีแรกที่กด
      */
-    setStationReady(orderId, station, byId) {
-        if (_api()) {
-            return CFStore.cmd('post',
-                '/api/orders/' + encodeURIComponent(orderId) +
-                '/stations/' + encodeURIComponent(station) + '/ready', {})
-                .then(() => true).catch(_fail);
-        }
-
-        const order = CFStore.byId('orders', orderId);
-        if (!order) return false;
-        if (!['SENT_TO_KITCHEN', 'PREPARING'].includes(order.status)) {
-            showToast('ออเดอร์นี้ไม่ได้อยู่ในขั้นตอนการผลิต', 'error');
-            return false;
-        }
-
-        const actor = byId || (CFAuth.getUser() || {}).id || 'SYSTEM';
-        let allReady = false;
-
-        CFStore.mutate((db) => {
-            const o = db.orders.find((x) => x.id === orderId);
-            o.stationStatus[station] = 'READY';
-            db.orderItems
-                .filter((i) => i.orderId === orderId && i.station === station)
-                .forEach((i) => { i.itemStatus = 'READY'; });
-
-            const pending = Object.keys(o.stationStatus).filter((s) => o.stationStatus[s] !== 'READY');
-            allReady = pending.length === 0;
-
-            this._audit(db, orderId, 'STATION_READY', null, null, actor,
-                CFApp.stationLabel(station) + ' พร้อมแล้ว' +
-                (allReady ? ' — ครบทุกสถานี' : ' — รออีก ' + pending.length + ' สถานี'),
-                CFApp.deviceId());
-
-            if (allReady) {
-                o.prevStatus = o.status;
-                o.status = 'READY';
-                o.ts = o.ts || {};
-                o.ts.readyAt = new Date().toISOString();
-                this._audit(db, orderId, 'STATUS_CHANGE', o.prevStatus, 'READY', actor, 'ทุกสถานีพร้อม');
-            } else if (o.status === 'SENT_TO_KITCHEN') {
-                o.prevStatus = o.status;
-                o.status = 'PREPARING';
-            }
-        }, 'station-ready');
-
-        showToast(allReady ? 'ออเดอร์พร้อมรับแล้ว' : CFApp.stationLabel(station) + ' เสร็จแล้ว — รอสถานีอื่น',
-            allReady ? 'success' : 'info');
-        return true;
+    setStationReady(orderId, station) {
+        return CFStore.cmd('post',
+            '/api/orders/' + encodeURIComponent(orderId) +
+            '/stations/' + encodeURIComponent(station) + '/ready', {})
+            .then(() => true).catch(_fail);
     },
 
     /**
      * สร้างออเดอร์ใหม่จากตะกร้าของคีออสก์ (§9)
      * cart = [{ productId, serveType, qty, mods:[{groupId,optionId,label,shortLabel,priceDelta}] }]
-     * คืน orderId · ออเดอร์เริ่มที่ ORDER_CONFIRMED แล้วผู้เรียกค่อย transition ไปตามวิธีชำระ
+     * คืน Promise ของ orderId (null เมื่อไม่สำเร็จ — toast แล้ว)
+     * ออเดอร์เริ่มที่ ORDER_CONFIRMED แล้วผู้เรียกค่อย transition ไปตามวิธีชำระ
      */
     create(cart, opts) {
         opts = opts || {};
-        if (!cart || !cart.length) return null;
+        if (!cart || !cart.length) return Promise.resolve(null);
 
-        if (_api()) {
-            // clientUuid ทำให้ retry ตอน Wi-Fi สะดุดไม่กลายเป็นสองออเดอร์
-            // สร้างครั้งเดียวต่อการกด "ชำระเงิน" ไม่ใช่ต่อการยิงแต่ละครั้ง
-            const clientUuid = opts.clientUuid ||
-                (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
-            return CFStore.cmd('post', '/api/orders', {
-                clientUuid,
-                cart: cart.map((l) => ({
-                    productId: l.productId, serveType: l.serveType, qty: l.qty,
-                    mods: (l.mods || []).map((m) => ({ optionId: m.optionId })),
-                })),
-                diningOption: opts.diningOption || 'DINE_IN',
-                paymentMethod: opts.paymentMethod || 'CASH',
-                kioskId: opts.kioskId || null,
-                expectTotal: opts.expectTotal,      // ไม่ตรงกับที่เซิร์ฟเวอร์คิด = ปฏิเสธ
-            }).then((res) => res.orderId).catch((err) => { _fail(err); return null; });
-        }
-
-        let orderId = null;
-        CFStore.mutate((db) => {
-            const orderNo = CFStore.nextOrderNo();
-            orderId = 'O-' + orderNo;
-            const nowIso = new Date().toISOString();
-            const shift = db.shifts.find((s) => s.status === 'OPEN');
-
-            let subtotal = 0;
-            const stations = new Set();
-
-            cart.forEach((line) => {
-                const p = db.products.find((x) => x.id === line.productId);
-                if (!p) return;
-                const base = p.prices[line.serveType];
-                if (base == null) return;   // กันไม่ให้ขายแบบเสิร์ฟที่ร้านไม่มี
-
-                const mods = line.mods || [];
-                const unitPrice = base + mods.reduce((s, m) => s + (m.priceDelta || 0), 0);
-                subtotal += unitPrice * line.qty;
-                stations.add(p.station);
-
-                db.orderItems.push({
-                    id: 'OI-' + (++db.counters.itemSeq),
-                    orderId, productId: p.id,
-                    nameSnapshot: p.nameTh,
-                    serveType: line.serveType,
-                    qty: line.qty, unitPrice,
-                    station: p.station,
-                    mods: mods.map((m) => ({
-                        groupId: m.groupId, optionId: m.optionId,
-                        label: m.label, shortLabel: m.shortLabel, priceDelta: m.priceDelta || 0,
-                    })),
-                    itemStatus: 'DRAFT',
-                });
-            });
-
-            const stationStatus = {};
-            [...stations].forEach((s) => { stationStatus[s] = 'QUEUED'; });
-
-            db.orders.push({
-                id: orderId, orderNo,
-                shiftId: shift ? shift.id : null,
-                createdAt: nowIso,
-                kioskId: opts.kioskId || 'KIOSK-01',
-                diningOption: opts.diningOption || 'DINE_IN',   // DINE_IN | TAKE_AWAY (§9)
-                cashierId: null,
-                status: 'ORDER_CONFIRMED', prevStatus: 'DRAFT',
-                paymentMethod: opts.paymentMethod || 'CASH',
-                subtotal, discount: 0, total: subtotal,
-                stationStatus, reprintCount: 0,
-                ts: { createdAt: nowIso },
-                cancelReason: null,
-            });
-
-            this._audit(db, orderId, 'ORDER_CREATED', 'DRAFT', 'ORDER_CONFIRMED',
-                'KIOSK', 'ลูกค้าสั่งเองที่ ' + (opts.kioskId || 'KIOSK-01'), opts.kioskId);
-        }, 'order-create');
-
-        return orderId;
+        // clientUuid ทำให้ retry ตอน Wi-Fi สะดุดไม่กลายเป็นสองออเดอร์
+        // สร้างครั้งเดียวต่อการกด "ชำระเงิน" ไม่ใช่ต่อการยิงแต่ละครั้ง
+        const clientUuid = opts.clientUuid ||
+            (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+        return CFStore.cmd('post', '/api/orders', {
+            clientUuid,
+            cart: cart.map((l) => ({
+                productId: l.productId, serveType: l.serveType, qty: l.qty,
+                mods: (l.mods || []).map((m) => ({ optionId: m.optionId })),
+            })),
+            diningOption: opts.diningOption || 'DINE_IN',
+            paymentMethod: opts.paymentMethod || 'CASH',
+            kioskId: opts.kioskId || null,
+            expectTotal: opts.expectTotal,      // ไม่ตรงกับที่เซิร์ฟเวอร์คิด = ปฏิเสธ
+        }).then((res) => res.orderId).catch((err) => { _fail(err); return null; });
     },
 
     /** บันทึกการพิมพ์ (§19 reprint) */
     logPrint(orderId, docType, width, station) {
-        if (_api()) {
-            // ยิงแล้วไม่ต้องรอ — กระดาษออกไปแล้ว การบันทึกช้าไปเสี้ยววินาทีไม่เป็นไร
-            // แต่ถ้าบันทึกไม่ได้ต้องรู้ ไม่ใช่เงียบ
-            if (!orderId) return;
-            CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/print',
-                { docType, width, station })
-                .catch((err) => console.warn('[CFOrders] บันทึกการพิมพ์ไม่สำเร็จ', err));
-            return;
-        }
-        CFStore.mutate((db) => {
-            const o = db.orders.find((x) => x.id === orderId);
-            if (o && docType === 'receipt') o.reprintCount = (o.reprintCount || 0) + 1;
-            this._audit(db, orderId || null, 'PRINT', null, null,
-                (CFAuth.getUser() || {}).id || 'SYSTEM',
-                [docType, station, width].filter(Boolean).join(' · '), CFApp.deviceId());
-        }, 'print');
-    },
-
-    /** §8 — โครงข้อมูลขั้นต่ำของ audit log */
-    _audit(db, orderId, eventType, oldStatus, newStatus, actor, reason, device) {
-        db.auditLogs.unshift({
-            id: 'AU-' + (++db.counters.auditSeq),
-            ts: new Date().toISOString(),
-            eventType, orderId,
-            oldStatus: oldStatus || null, newStatus: newStatus || null,
-            actor: actor || 'SYSTEM',
-            device: device || CFApp.deviceId(),
-            reason: reason || null,
-            sourceIp: '192.168.1.31',
-        });
+        // ยิงแล้วไม่ต้องรอ — กระดาษออกไปแล้ว การบันทึกช้าไปเสี้ยววินาทีไม่เป็นไร
+        // แต่ถ้าบันทึกไม่ได้ต้องรู้ ไม่ใช่เงียบ
+        if (!orderId) return;
+        CFStore.cmd('post', '/api/orders/' + encodeURIComponent(orderId) + '/print',
+            { docType, width, station })
+            .catch((err) => console.warn('[CFOrders] บันทึกการพิมพ์ไม่สำเร็จ', err));
     },
 
     /** ประวัติของออเดอร์หนึ่ง เรียงใหม่ก่อน */

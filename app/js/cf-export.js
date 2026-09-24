@@ -156,7 +156,7 @@ const CFExport = {
          * ไฟล์ที่ส่งให้บัญชีจะขาดข้อมูลไปแบบเงียบ ๆ — ผิดแบบที่ไม่มีใครจับได้
          * จนกว่าจะไปกระทบงบ
          */
-        if (CFStore.mode === 'api' && shift) {
+        if (shift) {
             try {
                 showToast('กำลังดึงข้อมูลทั้งรอบ…', 'info');
                 const patch = await CFApi.get(

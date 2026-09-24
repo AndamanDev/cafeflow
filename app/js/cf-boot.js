@@ -1,15 +1,11 @@
 /**
  * CafeFlow — ลำดับการเปิดหน้า
  * ══════════════════════════════════════════════════════════════════
- * เดิมทุกหน้าทำสองอย่างแบบ synchronous ใน <head> ก่อนวาดจอครั้งแรก:
- *     CFStore.init(); CFAuth.guard('PAY_RECEIVE');
- * พอข้อมูลมาจากเน็ตเวิร์ก การ boot จะเป็น async เสมอ — แต่เราไม่อยากให้
- * ทุกหน้าต้องรู้เรื่องนั้น จึงรวมไว้ที่นี่ที่เดียว
+ * ข้อมูลมาจากเซิร์ฟเวอร์ การ boot จึงเป็น async เสมอ — แต่เราไม่อยากให้
+ * ทุกหน้าต้องรู้เรื่องนั้น จึงรวมไว้ที่นี่ที่เดียว (ดึง snapshot แล้วตรวจสิทธิ์)
  *
  *   ใน <head>          CFBoot.gate('PAY_RECEIVE')
  *   ท้าย page-*.js     CFBoot.ready(() => XPage.boot())
- *
- * ใช้ได้เหมือนกันทั้งหลังบ้าน local (ทำงานทันที) และ api (รอ snapshot)
  */
 (function () {
     'use strict';
@@ -45,11 +41,26 @@
             readyPromise = (async () => {
                 // หน้าที่เปิดได้ก่อนล็อกอิน (เช่นหน้าล็อกอินเอง) ต้องไม่ดึง snapshot
                 // เพราะ /api/bootstrap ต้องมีตัวตนก่อน — จะกลายเป็นไก่กับไข่
-                // โหมดเดโมยังต้องโหลด เพราะหน้าล็อกอินอ่านรายชื่อบัญชีตัวอย่างจากที่นั่น
-                if (opts.publicPage && window.CF_BACKEND === 'api') return;
+                if (opts.publicPage) return;
 
-                const out = CFStore.init();
-                if (out && typeof out.then === 'function') await out;
+                // ไม่มี session → เด้งก่อนดึงข้อมูล: /api/bootstrap ต้องล็อกอินก่อน
+                // ถ้าไปดึงก่อนจะได้ 401 กลายเป็นจอ error แทนที่จะไปหน้าล็อกอิน
+                const needsLogin = window.CFAuth && permission !== false;
+                if (needsLogin && !CFAuth.isLoggedIn()) {
+                    CFAuth.toLogin();
+                    throw new Error('redirecting');
+                }
+
+                try {
+                    await CFStore.init();
+                } catch (err) {
+                    // มี session ในเบราว์เซอร์ แต่เซิร์ฟเวอร์ไม่รับแล้ว (หมดอายุ/ถูกเพิกถอน)
+                    if (needsLogin && err && err.status === 401) {
+                        CFAuth.toLogin();
+                        throw new Error('redirecting');
+                    }
+                    throw err;
+                }
 
                 // ตรวจสิทธิ์หลังข้อมูลพร้อม (ตาราง users อยู่ใน snapshot)
                 // นี่เป็นด่านระดับ UX เท่านั้น — เซิร์ฟเวอร์ต้องตรวจซ้ำทุก endpoint เสมอ

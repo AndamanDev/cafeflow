@@ -35,11 +35,11 @@ const OrdersPage = {
     /**
      * ค้นย้อนหลังที่เซิร์ฟเวอร์
      * cache ในเบราว์เซอร์มีแค่ 24 ชั่วโมง + ใบที่ยังไม่จบ — ค้นของเมื่อวานจึงไม่เจอ
-     * ถ้าไม่ผ่านทางนี้ (โหมดเดโมไม่มีเซิร์ฟเวอร์ ก็ค้นในหน่วยความจำเหมือนเดิม)
+     * คำค้นสั้นกว่า 2 ตัวอักษรค้นเฉพาะใน cache (ยิงทุกตัวอักษรเปลืองเซิร์ฟเวอร์เปล่า ๆ)
      */
     async searchServer() {
         const q = this.state.q.trim();
-        if (CFStore.mode !== 'api' || q.length < 2) {
+        if (q.length < 2) {
             this.state.found = null;
             this.state.searchNote = '';
             this.render();
@@ -116,7 +116,7 @@ const OrdersPage = {
 
         // ออเดอร์ที่ค้นเจอจากเซิร์ฟเวอร์อาจอยู่นอกหน้าต่าง cache — ต้องดึงรายละเอียดมาก่อน
         // ไม่งั้นกดแล้วแผงขวาว่างเปล่าโดยไม่บอกอะไร
-        if (CFStore.mode === 'api' && !CFStore.byId('orders', id)) {
+        if (!CFStore.byId('orders', id)) {
             CFApi.get('/api/orders/' + encodeURIComponent(id))
                 .then((patch) => {
                     CFStore.hydrate(patch);
@@ -239,12 +239,41 @@ const OrdersPage = {
             </div>`;
     },
 
+    /**
+     * สลิปที่ลูกค้าสแกนที่คีออสก์ — ย้อนดูได้ตลอด ไม่ใช่แค่ตอนแคชเชียร์ตรวจ
+     * (ลูกค้ามาโต้แย้งทีหลัง / เจ้าของร้านตรวจย้อนหลังว่ามีใครเอาสลิปร้านอื่นมาใช้)
+     * ภาพเป็นข้อมูลส่วนตัวของลูกค้า — เซิร์ฟเวอร์ให้ดูเฉพาะคนที่รับเงินได้ จึงซ่อนจากคนอื่นด้วย
+     */
+    slipHtml(o) {
+        const e = CFApp.esc;
+        const slips = CFStore.where('slips', (s) => s.orderId === o.id);
+        if (!slips.length) return '';
+        const canSee = CFAuth.can('PAY_RECEIVE');
+        return `
+            <div class="ds-section-label" style="margin-top:16px">สลิปที่ลูกค้าสแกน (${slips.length})</div>
+            ${slips.map((s) => `
+                <table class="ds-table-grid" style="margin-bottom:8px">
+                    <tr><th class="l" style="width:30%">สแกนเมื่อ</th><td class="l">${CFApp.dateTime(s.createdAt)}</td></tr>
+                    <tr><th class="l">ธนาคารผู้โอน</th><td class="l">${e(s.bankName || s.bankCode || '—')}</td></tr>
+                    <tr><th class="l">เลขอ้างอิง</th><td class="l">${e(s.ref || '—')}</td></tr>
+                </table>
+                ${CFApp.slipOcrHtml(s)}
+                ${s.hasImage && canSee ? `
+                <a href="/api/slips/${e(s.id)}/image" target="_blank" rel="noopener" title="เปิดภาพเต็ม">
+                    <img src="/api/slips/${e(s.id)}/image" alt="ภาพสลิป"
+                         style="display:block;width:100%;max-height:420px;object-fit:contain;
+                                background:#111;border-radius:8px;margin-bottom:12px">
+                </a>` : `<div class="ds-note" style="margin-bottom:12px">${s.hasImage
+                    ? 'มีภาพสลิป — ดูได้เฉพาะพนักงานที่รับเงินได้'
+                    : 'ไม่มีภาพสลิป'}</div>`}`).join('')}`;
+    },
+
     renderPayment(o) {
         const e = CFApp.esc;
         const p = CFOrders.payment(o.id);
         if (!p) {
             document.getElementById('tabPayment').innerHTML =
-                '<div class="ds-empty-sm">ยังไม่มีรายการชำระเงินสำหรับออเดอร์นี้</div>';
+                '<div class="ds-empty-sm">ยังไม่มีรายการชำระเงินสำหรับออเดอร์นี้</div>' + this.slipHtml(o);
             return;
         }
         const row = (label, value) => `<tr><th class="l" style="width:30%">${label}</th><td class="l">${value}</td></tr>`;
@@ -264,7 +293,8 @@ const OrdersPage = {
                 ${row('สถานะ', e(p.status))}
             </table>
             ${o.cancelReason ? `<div class="sip-banner sip-banner-danger">
-                <i data-lucide="info" class="icon-sm"></i> ${e(o.cancelReason)}</div>` : ''}`;
+                <i data-lucide="info" class="icon-sm"></i> ${e(o.cancelReason)}</div>` : ''}
+            ${this.slipHtml(o)}`;
     },
 
     renderAudit(o) {
@@ -347,8 +377,8 @@ const OrdersPage = {
 
     setSlipStation(st) { this.state.slipStation = st; },
 
-    go(status) {
-        if (CFOrders.transition(this.state.selectedId, status)) {
+    async go(status) {
+        if (await CFOrders.transition(this.state.selectedId, status)) {
             showToast('เปลี่ยนสถานะเป็น "' + CFApp.statusLabel(status) + '" แล้ว', 'success');
         }
     },
@@ -419,7 +449,7 @@ const OrdersPage = {
         });
         if (!ok) return;
 
-        if (CFOrders.transition(this.state.selectedId, status, { reason: text })) {
+        if (await CFOrders.transition(this.state.selectedId, status, { reason: text })) {
             Drawer.close();
             showToast('บันทึกแล้ว', 'success');
         }

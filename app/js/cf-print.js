@@ -156,6 +156,106 @@ const CFPrint = {
         document.head.appendChild(el);
     },
 
+    /* ══════════════════════════════════════════════════════
+       พิมพ์ผ่านเซิร์ฟเวอร์
+       ------------------------------------------------------
+       พรีวิวเป็นภาพที่เซิร์ฟเวอร์วาด = บิตแมปชุดเดียวกับที่ส่งเข้าเครื่องพิมพ์
+       กด "พิมพ์" แล้วออกที่เครื่องพิมพ์เลย ไม่ผ่านหน้าต่างพิมพ์ของเบราว์เซอร์
+       ความกว้างกระดาษมาจากเครื่องพิมพ์จริง จึงไม่มีปุ่มสลับขนาด
+
+       opts: { title, previewPath, printPath, printBody, fallback }
+         fallback = ตัวเลือกของ preview() เดิม — ใช้เมื่อยังไม่ได้ตั้งเครื่องพิมพ์
+       ══════════════════════════════════════════════════════ */
+    previewServer(opts) {
+        this._server = opts;
+        Drawer.open({
+            title: CFApp.esc(opts.title),
+            width: '460px',
+            contentHtml: '<div class="ds-empty-sm">กำลังสร้างภาพตัวอย่าง…</div>',
+            footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
+        });
+
+        CFApi.get(opts.previewPath).then((r) => {
+            if (this._server !== opts) return;              // เปิดใบอื่นไปแล้ว
+            // ทางสำรองผ่านเบราว์เซอร์ก็ต้องใช้ขนาดของเครื่องพิมพ์จริง ไม่ใช่ค่าตั้งเก่าใน settings
+            if (opts.fallback && CF_PAPER[r.width]) {
+                opts.fallback.size = r.width;
+                opts.fallback.sizes = null;
+            }
+            const p = r.printer;
+            const ready = p && p.ready;
+            const panel = document.querySelector('#drawerRoot .drawer-panel');
+            // 1 จุดของเครื่องพิมพ์ = 1 พิกเซลบนจอ — ไม่ย่อไม่ขยาย ตัวอักษรจะได้คมเท่าของจริง
+            if (panel) panel.style.width = (r.dots + 84) + 'px';
+
+            Drawer.setTitle(CFApp.esc(opts.title) +
+                ' <span class="sip-chip sip-chip-muted">' + (CF_PAPER[r.width] || {}).label + '</span>');
+            Drawer.setContent(`
+                <div class="ds-paper-viewport is-roll">
+                    <img src="${r.image}" alt="ตัวอย่างงานพิมพ์" width="${r.dots}"
+                         style="display:block;margin:0 auto;max-width:100%;image-rendering:pixelated;
+                                background:#fff;box-shadow:0 0 0 0.8px #DFDFDF">
+                </div>`);
+            Drawer.setFooter(`
+                <span class="ds-hint" style="flex:1">${ready
+                    ? 'พิมพ์ที่ <strong>' + CFApp.esc(p.name) + '</strong> · ' + (p.conn === 'USB' ? 'USB' : 'LAN')
+                    : '<span style="color:var(--danger,#D92D20)">ยังไม่ได้ตั้งเครื่องพิมพ์ของส่วนนี้</span>'}</span>
+                <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
+                ${ready
+                    ? `<button class="btn btn-primary" onclick="CFPrint.runServer()">
+                           <i data-lucide="printer" class="icon-sm"></i> พิมพ์</button>`
+                    : `<button class="btn btn-outline" onclick="CFPrint.browserFallback()">พิมพ์ผ่านเบราว์เซอร์</button>`}`);
+            refreshIcons();
+        }).catch((err) => {
+            if (this._server !== opts) return;
+            Drawer.setContent('<div class="ds-empty-sm">' + CFApp.esc(err.message || 'สร้างภาพตัวอย่างไม่สำเร็จ') + '</div>');
+        });
+    },
+
+    /** ยังไม่มีเครื่องพิมพ์ — กลับไปใช้หน้าต่างพิมพ์ของเบราว์เซอร์แบบเดิม */
+    browserFallback() {
+        const o = this._server;
+        if (o && o.fallback) this.preview(o.fallback);
+    },
+
+    async runServer() {
+        const o = this._server;
+        if (!o) return;
+        let r;
+        try {
+            r = await CFApi.post(o.printPath, o.printBody || {});
+        } catch (err) {
+            showToast(err.message || 'สั่งพิมพ์ไม่สำเร็จ', 'error', 5000);
+            return;
+        }
+        Drawer.close();
+        const where = r.printer ? r.printer.name : 'เครื่องพิมพ์';
+        showToast('ส่งไปที่ ' + where + ' แล้ว', 'success');
+        this._watchJob(r.jobId, where);
+    },
+
+    /**
+     * ถามสถานะงานต่ออีกครู่ — ถ้าพิมพ์ไม่ออก (สายหลุด/เครื่องปิด) ต้องบอกคนกด
+     * ไม่งั้นเขาจะคิดว่าออกแล้วและไม่มีใครรู้จนลูกค้ามาทวง
+     * ⚠️ DONE แปลว่าส่งถึงเครื่องแล้ว ไม่ได้แปลว่ากระดาษออก (กระดาษหมดก็ DONE)
+     */
+    _watchJob(jobId, where) {
+        if (!jobId) return;
+        const t0 = Date.now();
+        const tick = () => {
+            CFApi.get('/api/print/jobs/' + jobId).then((j) => {
+                if (j.status === 'FAILED') {
+                    showToast('พิมพ์ไม่ออกที่ ' + where + ': ' + (j.last_error || 'ไม่ทราบสาเหตุ'), 'error', 8000);
+                } else if (j.status === 'DONE') {
+                    if (j.last_error) showToast(where + ' ใช้ไม่ได้ — ' + j.last_error, 'warning', 6000);
+                } else if (Date.now() - t0 < 30000) {
+                    setTimeout(tick, 1500);
+                }
+            }).catch(() => { /* ถามไม่ได้ไม่เป็นไร งานยังอยู่ในคิว */ });
+        };
+        setTimeout(tick, 1200);
+    },
+
     _logPrint(ref, size) {
         try {
             CFOrders.logPrint(ref.orderId || null, ref.type, size, ref.station || null);

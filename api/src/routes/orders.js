@@ -398,29 +398,69 @@ async function itemsForStation(c, orderId, station) {
 }
 
 /**
+ * วาดสลิปครัวของสถานีหนึ่ง — ใช้ทั้งตอนพิมพ์จริงและตอนพรีวิว ให้เห็นตรงกันทุกจุด
+ * ความกว้างมาจากเครื่องพิมพ์ของสถานีนั้น (ไม่มีเครื่อง = 58 มม.)
+ */
+async function renderKitchenSlip(c, branchId, order, station) {
+    const { kitchenSlip } = require('../print/raster');
+    const escpos = require('../print/escpos');
+    const { printerFor } = require('../print/worker');
+
+    const printer = await printerFor(c, branchId, station);
+    const width = (printer && printer.paper_width) || '58mm';
+    const items = await itemsForStation(c, order.id, station);
+    if (!items.length) return null;
+
+    const label = { BAR: 'บาร์เครื่องดื่ม', KITCHEN: 'ครัวอาหาร',
+                    BAKERY: 'เบเกอรี่', DESSERT: 'ของหวาน' }[station] || station;
+    const doc = kitchenSlip({ order: { ...order, orderNo: order.order_no || order.orderNo },
+                              items, station, stationLabel: label, width,
+                              dots: printer && printer.print_dots });
+    const payload = escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height });
+    return { doc, payload, printer, width };
+}
+
+/** วาดใบเสร็จ — ออกที่เครื่องของเคาน์เตอร์ ไม่ผูกสถานีครัว */
+async function renderReceipt(c, branchId, o) {
+    const { receipt } = require('../print/raster');
+    const escpos = require('../print/escpos');
+    const { printerFor } = require('../print/worker');
+
+    const items = await itemsForStation(c, o.id, null);
+    const pay = (await c.query(
+        "SELECT * FROM payment WHERE order_id = $1 AND status = 'PAID' LIMIT 1",
+        [o.id])).rows[0] || null;
+    const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId])).rows[0];
+    const cashier = o.cashier_id
+        ? (await c.query('SELECT name_th FROM app_user WHERE id = $1', [o.cashier_id])).rows[0]
+        : null;
+
+    const printer = await printerFor(c, branchId, null);
+    const width = (printer && printer.paper_width) || '80mm';
+    const doc = receipt({
+        order: { ...o, orderNo: o.order_no }, items, payment: pay, branch, width,
+        cashier: cashier ? cashier.name_th : null, dots: printer && printer.print_dots,
+    });
+    const payload = escpos.document({
+        bitmap: doc.bitmap, width: doc.width, height: doc.height,
+        openDrawer: !!(pay && pay.method === 'CASH'),   // เงินสดเท่านั้นที่ต้องเปิดลิ้นชัก
+    });
+    return { doc, payload, printer, width };
+}
+
+/**
  * เข้าคิวสลิปครัว — วาดเป็นบิตแมปตั้งแต่ตอนนี้เลย
  * เก็บ byte ที่พร้อมส่งไว้ในคิว ไม่ใช่วาดตอนจะพิมพ์ เพราะถ้าเมนูถูกแก้ระหว่าง
  * ที่ตั๋วยังค้างคิว สิ่งที่พิมพ์ออกมาต้องเป็นสิ่งที่ลูกค้าสั่ง ไม่ใช่เมนูเวอร์ชันใหม่
  */
 async function queueKitchenSlip(c, branchId, order, station) {
     try {
-        const { kitchenSlip } = require('../print/raster');
-        const escpos = require('../print/escpos');
-        const { enqueue, printerFor } = require('../print/worker');
-
-        const printer = await printerFor(c, branchId, station);
-        const width = (printer && printer.paper_width) || '58mm';
-        const items = await itemsForStation(c, order.id, station);
-        if (!items.length) return null;
-
-        const label = { BAR: 'บาร์เครื่องดื่ม', KITCHEN: 'ครัวอาหาร',
-                        BAKERY: 'เบเกอรี่', DESSERT: 'ของหวาน' }[station] || station;
-        const doc = kitchenSlip({ order, items, station, stationLabel: label, width });
-        const payload = escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height });
-
+        const { enqueue } = require('../print/worker');
+        const r = await renderKitchenSlip(c, branchId, order, station);
+        if (!r) return null;
         return await enqueue(c, branchId, {
-            orderId: order.id, deviceId: printer ? printer.id : null,
-            docType: 'KITCHEN_SLIP', paperWidth: width, payload,
+            orderId: order.id, deviceId: r.printer ? r.printer.id : null,
+            docType: 'KITCHEN_SLIP', paperWidth: r.width, payload: r.payload,
         });
     } catch (err) {
         // พิมพ์ไม่ได้ต้องไม่ทำให้ขายไม่ได้ — ครัวยังเห็นตั๋วบน KDS อยู่
@@ -612,37 +652,14 @@ function registerOrders(app, { pool, tx, query, branchId }) {
     app.post('/api/orders/:id/receipt', handle(async (req) => {
         const ctx = await context(req);
         requirePerm(ctx, 'PAY_RECEIVE');
-        const { receipt } = require('../print/raster');
-        const escpos = require('../print/escpos');
-        const { enqueue, printerFor } = require('../print/worker');
+        const { enqueue } = require('../print/worker');
 
         const out = await tx(async (c) => {
             const o = (await c.query('SELECT * FROM cf_order WHERE id = $1 AND branch_id = $2',
                 [req.params.id, branchId()])).rows[0];
             if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
 
-            const items = await itemsForStation(c, o.id, null);
-            const pay = (await c.query(
-                "SELECT * FROM payment WHERE order_id = $1 AND status = 'PAID' LIMIT 1",
-                [o.id])).rows[0] || null;
-            const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId()])).rows[0];
-            const cashier = o.cashier_id
-                ? (await c.query('SELECT name_th FROM app_user WHERE id = $1', [o.cashier_id])).rows[0]
-                : null;
-
-            // ใบเสร็จออกที่เครื่องของเคาน์เตอร์ — ไม่ผูกสถานีครัว
-            const printer = await printerFor(c, branchId(), null);
-            const width = (req.body && req.body.width) || (printer && printer.paper_width) || '80mm';
-
-            const doc = receipt({
-                order: { ...o, orderNo: o.order_no }, items, payment: pay, branch, width,
-                cashier: cashier ? cashier.name_th : null,
-            });
-            const payload = escpos.document({
-                bitmap: doc.bitmap, width: doc.width, height: doc.height,
-                openDrawer: !!(pay && pay.method === 'CASH'),   // เงินสดเท่านั้นที่ต้องเปิดลิ้นชัก
-            });
-
+            const { payload, printer, width } = await renderReceipt(c, branchId(), o);
             const jobId = await enqueue(c, branchId(), {
                 orderId: o.id, deviceId: printer ? printer.id : null,
                 docType: 'RECEIPT', paperWidth: width, payload,
@@ -657,10 +674,95 @@ function registerOrders(app, { pool, tx, query, branchId }) {
                 payload: { docType: 'RECEIPT', width, jobId },
             });
             await touch(c, branchId(), 'orders', o.id, 'update');
-            return { ok: true, jobId, width };
+            return { ok: true, jobId, width, printer: printerInfo(printer) };
         });
         publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
         return out;
+    }));
+
+    /** สลิปครัวต้องเป็นคนครัวหรือหน้าเคาน์เตอร์ — ใบเสร็จต้องรับเงินได้ */
+    function requirePrintPerm(ctx, docType) {
+        if (docType === 'receipt') return requirePerm(ctx, 'PAY_RECEIVE');
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        if (!CFPerms.can(ctx.user.role, 'KITCHEN') && !CFPerms.can(ctx.user.role, 'PAY_RECEIVE')) {
+            throw new ApiError(403, 'บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้');
+        }
+    }
+
+    const printerInfo = (p) => {
+        const { targetOf } = require('../print/worker');
+        return p ? { id: p.id, name: p.name_th, conn: p.printer_conn || 'NETWORK',
+                     ready: !!targetOf(p, false) } : null;
+    };
+
+    async function loadOrder(c, id) {
+        const o = (await c.query('SELECT * FROM cf_order WHERE id = $1 AND branch_id = $2',
+            [id, branchId()])).rows[0];
+        if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
+        return o;
+    }
+
+    /**
+     * พรีวิวตามจริง — ภาพที่ได้คือบิตแมปชุดเดียวกับที่จะส่งเข้าเครื่องพิมพ์
+     * ความกว้างเป็นของเครื่องพิมพ์ที่ใช้จริง เลือกเองไม่ได้ (เลือกแล้วก็ไม่ตรงกับกระดาษในเครื่อง)
+     *   ?doc=receipt | ?doc=kslip&station=BAR
+     */
+    app.get('/api/orders/:id/print-preview', handle(async (req) => {
+        const ctx = await context(req);
+        const docType = req.query.doc === 'kslip' ? 'kslip' : 'receipt';
+        requirePrintPerm(ctx, docType);
+        const { bitsToPng } = require('../print/raster');
+
+        const r = await tx(async (c) => {
+            const o = await loadOrder(c, req.params.id);
+            return docType === 'receipt'
+                ? renderReceipt(c, branchId(), o)
+                : renderKitchenSlip(c, branchId(), o, String(req.query.station || ''));
+        });
+        if (!r) throw new ApiError(404, 'สถานีนี้ไม่มีรายการในออเดอร์');
+
+        const png = bitsToPng(r.doc.bitmap, r.doc.width, r.doc.height);
+        return { image: 'data:image/png;base64,' + png.toString('base64'),
+                 width: r.width, dots: r.doc.width, printer: printerInfo(r.printer) };
+    }));
+
+    /** พิมพ์สลิปครัวซ้ำ — ออกที่เครื่องของสถานีนั้น */
+    app.post('/api/orders/:id/kitchen-slip', handle(async (req) => {
+        const ctx = await context(req);
+        requirePrintPerm(ctx, 'kslip');
+        const { enqueue } = require('../print/worker');
+        const station = String((req.body || {}).station || '');
+
+        const out = await tx(async (c) => {
+            const o = await loadOrder(c, req.params.id);
+            const r = await renderKitchenSlip(c, branchId(), o, station);
+            if (!r) throw new ApiError(404, 'สถานีนี้ไม่มีรายการในออเดอร์');
+            const jobId = await enqueue(c, branchId(), {
+                orderId: o.id, deviceId: r.printer ? r.printer.id : null,
+                docType: 'KITCHEN_SLIP', paperWidth: r.width, payload: r.payload,
+            });
+            await audit(c, branchId(), {
+                eventType: 'PRINT', orderId: o.id, actorKind: ctx.actorKind,
+                actorUserId: ctx.actorUserId, deviceId: ctx.deviceId, ip: ctx.ip,
+                payload: { docType: 'KITCHEN_SLIP', station, width: r.width, jobId },
+            });
+            await touch(c, branchId(), 'orders', o.id, 'update');
+            return { ok: true, jobId, width: r.width, printer: printerInfo(r.printer) };
+        });
+        publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
+        return out;
+    }));
+
+    /** สถานะงานพิมพ์ใบเดียว — หน้าจอถามซ้ำหลังสั่งพิมพ์ เพื่อบอกได้ว่าออกหรือพัง */
+    app.get('/api/print/jobs/:id', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        const r = await query(
+            `SELECT j.id, j.status, j.attempts, j.last_error, d.name_th AS printer
+               FROM print_job j LEFT JOIN device d ON d.id = j.device_id
+              WHERE j.id = $1 AND j.branch_id = $2`, [req.params.id, branchId()]);
+        if (!r.rows.length) throw new ApiError(404, 'ไม่พบงานพิมพ์');
+        return r.rows[0];
     }));
 
     /** สถานะคิวพิมพ์ — หน้าภาพรวมใช้เตือนเมื่อมีใบค้าง */

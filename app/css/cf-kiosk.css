@@ -522,6 +522,46 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 
 /* พอมี QR จริงแล้ว กรอบเส้นประของ placeholder ไม่จำเป็นอีก และ aspect-ratio
    ที่ล็อกเป็นสี่เหลี่ยมจัตุรัสจะบีบให้คำอธิบายทับตัวโค้ด */
+/* ── สแกนสลิปจากจอมือถือ ──
+   ชิดบนแทนกึ่งกลาง: กล้องติดขอบบนของเครื่อง ภาพต้องอยู่ใกล้กล้องที่สุด (ระดับสายตา) */
+.cfk-slip { justify-content: flex-start; padding-top: calc(var(--u) * 1); }
+.cfk-slip-hint {
+    display: flex; align-items: center; gap: calc(var(--u) * .6);
+    font-size: calc(var(--u) * 1.5); font-weight: 700; color: var(--text-primary);
+}
+.cfk-slip-hint .cfk-ic { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
+.cfk-cam {
+    position: relative; width: min(100%, calc(var(--u) * 64)); aspect-ratio: 4 / 3;
+    border-radius: calc(var(--u) * 1.6); overflow: hidden; background: #111;
+}
+/* กล้องหน้า: ภาพกลับด้านแบบกระจก ลูกค้าเล็งมือถือเข้ากรอบได้เป็นธรรมชาติ (การถอดรหัสใช้ภาพจริง ไม่กลับด้าน) */
+.cfk-cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+/* กรอบเล็งกว้างเกือบเต็มภาพ — ลูกค้าอาจยกมือถือหรือแท็บเล็ต/iPad มาก็ได้ ทั้งแนวตั้งและแนวนอน
+   ห้ามเป็นสี่เหลี่ยมเล็ก ๆ: ลูกค้าจะเล็งแค่ QR มุมสลิป ภาพหลักฐานจะไม่เห็นยอดเงินกับชื่อ */
+.cfk-cam-frame {
+    position: absolute; top: 5%; bottom: 13%; left: 6%; right: 6%;
+    border: 4px dashed rgba(255,255,255,.95); border-radius: calc(var(--u) * 1.6);
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,.4);
+}
+.cfk-slip-reject {
+    width: min(100%, calc(var(--u) * 64)); display: grid; gap: calc(var(--u) * .6); text-align: left;
+    padding: calc(var(--u) * 1.4) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1.2);
+    background: #FDECEA; border: 2px solid #D92D20; color: #8A1C12;
+}
+.cfk-slip-reject-head {
+    display: flex; align-items: center; gap: calc(var(--u) * .6);
+    font-size: calc(var(--u) * 1.9); font-weight: 700; color: #B42318;
+}
+.cfk-slip-reject-head .cfk-ic { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
+.cfk-slip-reject-why { font-size: calc(var(--u) * 1.5); font-weight: 600; }
+.cfk-slip-reject-next { font-size: calc(var(--u) * 1.3); color: #5B2A24; }
+
+.cfk-cam-label {
+    position: absolute; left: 0; right: 0; bottom: 2%; text-align: center;
+    font-size: calc(var(--u) * 1.3); font-weight: 700; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,.7);
+}
+
 .cfk-qr.has-qr {
     width: auto; aspect-ratio: auto; border: 0; background: transparent;
     gap: calc(var(--u) * 1.2); color: var(--text-secondary);
@@ -572,16 +612,8 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 }
 .cfk-toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ป้ายบอกว่านี่คือเดโม */
-.cfk-demoonly {
-    position: absolute; top: calc(var(--u) * 1); right: calc(var(--u) * 1); z-index: 40;
-    padding: calc(var(--u) * .4) calc(var(--u) * 1); border-radius: 999px;
-    background: rgba(17, 17, 17, .6); color: #fff;
-    font-size: calc(var(--u) * 1.1); font-weight: 700; pointer-events: none;
-}
-
 /* ══════════════════════════════════════════════════════════
-   9. หน้าเลือกเครื่อง — เฉพาะเว็บแอป ไม่มีในอาร์ติแฟกต์
+   9. หน้าจับคู่เครื่อง — แสดงเมื่อเครื่องนี้ยังไม่ถูกจับคู่เป็นคีออสก์
    ══════════════════════════════════════════════════════════ */
 .cf-kiosk-gate[hidden] { display: none !important; }
 .cf-kiosk-gate {
@@ -607,12 +639,6 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 .cf-kiosk-gate-btn:hover  { border-color: var(--primary); background: var(--primary-bg); }
 .cf-kiosk-gate-btn strong { display: block; font-size: 15px; color: #111; }
 .cf-kiosk-gate-btn small  { font-size: 12px; color: var(--text-muted); }
-.cf-gate-chip {
-    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
-    background: var(--surface-1); color: var(--text-muted);
-    border: 0.8px solid var(--brand-border); white-space: nowrap;
-}
-.cf-gate-chip.ok { background: var(--primary-bg); color: var(--primary-dark); border-color: var(--primary-border); }
 .cf-kiosk-gate-link {
     display: block; margin-top: 16px; text-align: center;
     font-size: 13px; color: var(--text-muted); text-decoration: none;

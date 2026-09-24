@@ -20,19 +20,17 @@
     <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
     <link rel="stylesheet" href="css/cf-app.css">
 
-    <script src="js/cf-config.js"></script>
     <script src="../shared/cf-consts.js"></script>
     <script src="../shared/cf-flow.js"></script>
     <script src="../shared/cf-pricing.js"></script>
     <script src="../shared/cf-rules.js"></script>
     <script src="../shared/cf-perms.js"></script>
-    <script src="js/cf-data.js"></script>
     <script src="js/cf-store.js"></script>
     <script src="js/cf-auth.js"></script>
     <script src="js/cf-api.js"></script>
     <script src="js/cf-boot.js"></script>
     <script>
-        // publicPage: หน้านี้เปิดได้ก่อนล็อกอิน จึงต้องไม่ดึง snapshot ในโหมด api
+        // publicPage: หน้านี้เปิดได้ก่อนล็อกอิน จึงต้องไม่ดึง snapshot
         // (/api/bootstrap ต้องมีตัวตนก่อน — ถ้าดึงตรงนี้จะกลายเป็นไก่กับไข่)
         CFBoot.gate(false, { publicPage: true });
         // ล็อกอินอยู่แล้ว → ข้ามไปหน้าหลักเลย
@@ -75,20 +73,12 @@
             <button class="login-btn" type="submit" id="loginBtn">เข้าสู่ระบบ</button>
         </form>
 
-        <!-- บัญชีตัวอย่าง — คลิกเพื่อเติมฟอร์มแล้วเข้าสู่ระบบทันที
-             มีไว้ให้สลับ role ดูความต่างของเมนูและสิทธิ์ได้ในคลิกเดียว -->
-        <div class="cf-demo-wrap">
-            <div class="login-divider" style="margin:26px 0 14px"></div>
-            <div class="login-label" style="margin-bottom:8px">บัญชีตัวอย่าง (รหัสผ่าน demo)</div>
-            <div class="cf-demo-row" id="demoRow"></div>
-        </div>
-
         <div class="login-divider" style="margin:22px 0 14px"></div>
         <a class="btn btn-outline btn-block" href="kiosk.html">
             เปิดโหมดคีออสก์ (ลูกค้าสั่งเอง)
         </a>
 
-        <div class="login-footer">CafeFlow V1 · ระบบเดโม ข้อมูลเก็บในเบราว์เซอร์เครื่องนี้เท่านั้น</div>
+        <div class="login-footer" id="loginFooter">CafeFlow V1 · เชื่อมต่อเซิร์ฟเวอร์ของร้าน</div>
     </div>
 </div>
 

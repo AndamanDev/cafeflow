@@ -19,13 +19,11 @@
     <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
     <link rel="stylesheet" href="css/cf-app.css">
 
-    <script src="js/cf-config.js"></script>
     <script src="../shared/cf-consts.js"></script>
     <script src="../shared/cf-flow.js"></script>
     <script src="../shared/cf-pricing.js"></script>
     <script src="../shared/cf-rules.js"></script>
     <script src="../shared/cf-perms.js"></script>
-    <script src="js/cf-data.js"></script>
     <script src="js/cf-store.js"></script>
     <script src="js/cf-auth.js"></script>
     <script src="js/cf-api.js"></script>
@@ -50,6 +48,14 @@
             <button class="btn btn-outline" onclick="DashPage.openDevices()">
                 <i data-lucide="monitor" class="icon-sm"></i> อุปกรณ์
             </button>
+            <button class="btn btn-outline" data-role-gate="ADMIN MANAGER" id="btnPrinters"
+                    onclick="DashPage.openPrinters()">
+                <i data-lucide="printer" class="icon-sm"></i> เครื่องพิมพ์
+            </button>
+            <button class="btn btn-outline" data-role-gate="ADMIN MANAGER"
+                    onclick="DashPage.openShop()">
+                <i data-lucide="store" class="icon-sm"></i> ข้อมูลร้าน
+            </button>
             <button class="btn btn-outline" data-role-gate="ADMIN MANAGER"
                     onclick="DashPage.openKioskSettings()">
                 <i data-lucide="tablet-smartphone" class="icon-sm"></i> ตั้งค่าคีออสก์
@@ -57,11 +63,11 @@
             <button class="btn btn-outline" data-role-gate="ADMIN" onclick="DashPage.openUsers()">
                 <i data-lucide="users" class="icon-sm"></i> ผู้ใช้และสิทธิ์
             </button>
-            <button class="btn btn-ghost" onclick="CFApp.confirmReset()">
-                <i data-lucide="rotate-ccw" class="icon-sm"></i> รีเซ็ตข้อมูลตัวอย่าง
-            </button>
         </div>
     </div>
+
+    <!-- เตือนแอดมินเมื่อยังมีบัญชีใช้รหัสตั้งต้น -->
+    <div id="weakPwBanner" style="display:none;margin-bottom:14px"></div>
 
     <!-- ยอดขาย (§25) -->
     <div class="ds-kpi-grid" id="kpiSales"></div>
@@ -102,6 +108,8 @@
 <div id="toastContainer" class="toast-container"></div>
 <div id="dsPrintStage"></div>
 
+<!-- ไอคอนเก็บไว้ในเครื่อง — ร้านต้องใช้ได้แม้เน็ตหลุด (ds-icons.js จะไม่ไปโหลดจาก CDN เมื่อมี window.lucide แล้ว) -->
+<script src="vendor/lucide.min.js"></script>
 <script src="../design-system-2/js/ds-icons.js"></script>
 <script src="../design-system-2/js/ds-navbar.js"></script>
 <script src="../design-system-2/js/ds-drawer.js"></script>

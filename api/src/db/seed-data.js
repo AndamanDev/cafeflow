@@ -1,34 +1,22 @@
 /**
- * CafeFlow — SEED DATA
+ * CafeFlow — ข้อมูลตั้งต้นของร้าน (ใช้โดย seed.js เท่านั้น)
  * ------------------------------------------------------------
- * CF_SEED(now) คืนฐานข้อมูลเดโมชุดใหม่ทุกครั้ง
- * เป็น "ฟังก์ชัน" ไม่ใช่ค่าคงที่ เพื่อให้ timestamp อิงเวลาที่ seed จริง
- * (ไม่งั้นเปิดเดโมวันถัดไปจะเห็น dashboard ว่างและ timer KDS 20 ชั่วโมง)
+ * สาขา/ค่าตั้ง ผู้ใช้ อุปกรณ์ หมวด สินค้า กลุ่มตัวเลือก และกฎตัวเลือก
+ * เดิมอยู่ที่ app/js/cf-data.js ฝั่งเบราว์เซอร์ — หน้าเว็บอ่านจากเซิร์ฟเวอร์อย่างเดียวแล้ว
+ * ข้อมูลชุดนี้จึงย้ายมาอยู่ฝั่งเซิร์ฟเวอร์ที่เดียวที่ใช้มัน
+ * ไม่มีออเดอร์/การชำระเงินตัวอย่าง — ร้านจริงต้องเริ่มจากศูนย์
  *
  * เมนูถอดจากป้ายหน้าร้านจริง — ดูหมายเหตุที่หัวข้อ PRODUCTS
  * โครงสร้างอิง CafeFlow_System_Design_AndamanTech.md
- *   §8 audit · §10 menu · §11 modifier · §18 routing · §29 roles · §30 devices
+ *   §10 menu · §11 modifier · §18 routing · §29 roles · §30 devices
+ *
+ * รหัสผ่านตั้งต้น 'demo' ต้องตรงกับ SEED_PASSWORD ใน routes/auth.js —
+ * ผู้ใช้ที่ยังใช้รหัสนี้จะถูกบังคับให้เปลี่ยนก่อนใช้งาน
  */
+'use strict';
 
-/* ══════════════════════════════════════════════════════════
-   ค่าคงที่ที่ใช้ร่วมทั้งแอป — ย้ายไป shared/cf-consts.js แล้ว
-   (CF_STATIONS · CF_SERVE · CF_SERVE_ORDER · CF_STATUS · CF_DINING ·
-    CF_DINING_MODES · CF_DINING_MODE · CF_KIOSK_DEFAULTS · CF_KIOSK_SIZES)
-   เซิร์ฟเวอร์ Node ต้องใช้ชุดเดียวกับเบราว์เซอร์ — shared/ จึงต้องโหลดก่อนไฟล์นี้เสมอ
-   ══════════════════════════════════════════════════════════ */
-
-/* ══════════════════════════════════════════════════════════
-   SEED
-   ══════════════════════════════════════════════════════════ */
-function CF_SEED(now) {
-    const T = now instanceof Date ? now : new Date();
-    const iso = (minsAgo) => new Date(T.getTime() - minsAgo * 60000).toISOString();
-    const todayAt = (h, m) => {
-        const d = new Date(T);
-        d.setHours(h, m || 0, 0, 0);
-        return d.toISOString();
-    };
-
+/** คืนชุดใหม่ทุกครั้ง — ตัวเรียกแก้ไขได้โดยไม่กระทบรอบถัดไป */
+function seedData() {
     /* ── ผู้ใช้ (§29) ──────────────────────────────────────── */
     const users = [
         { id: 'U-1', username: 'admin',   password: 'demo', name: 'ศิริพร ก.',  role: 'ADMIN',   active: true, overrideLimit: null },
@@ -38,15 +26,16 @@ function CF_SEED(now) {
         { id: 'U-5', username: 'viewer',  password: 'demo', name: 'ผู้ชมข้อมูล', role: 'VIEWER',  active: true, overrideLimit: 0 },
     ];
 
-    /* ── อุปกรณ์ (§30) ─────────────────────────────────────── */
+    /* ── อุปกรณ์ (§30) ───────────────────────────────────────
+       สถานะ ONLINE/OFFLINE และเวลาเห็นล่าสุดไม่อยู่ในนี้ — ของจริงมาจาก heartbeat เท่านั้น */
     const devices = [
-        { id: 'KIOSK-01',   type: 'KIOSK',   name: 'คีออสก์ 01',      ip: '192.168.1.21', assignedStation: null,  assignedCashier: 'CASHIER-01', lastSeen: iso(0),   status: 'ONLINE' },
-        { id: 'KIOSK-02',   type: 'KIOSK',   name: 'คีออสก์ 02',      ip: '192.168.1.22', assignedStation: null,  assignedCashier: 'CASHIER-01', lastSeen: iso(0),   status: 'ONLINE' },
-        { id: 'KIOSK-03',   type: 'KIOSK',   name: 'คีออสก์ 03',      ip: '192.168.1.23', assignedStation: null,  assignedCashier: 'CASHIER-01', lastSeen: iso(42),  status: 'OFFLINE' },
-        { id: 'CASHIER-01', type: 'CASHIER', name: 'เคาน์เตอร์ 01',   ip: '192.168.1.31', assignedStation: null,  assignedCashier: null,         lastSeen: iso(0),   status: 'ONLINE' },
-        { id: 'BAR-KDS',    type: 'KDS',     name: 'จอครัว — บาร์',   ip: '192.168.1.41', assignedStation: 'BAR', assignedCashier: null,         lastSeen: iso(0),   status: 'ONLINE' },
-        { id: 'BAR-PRN',    type: 'PRINTER', name: 'เครื่องพิมพ์บาร์', ip: '192.168.1.51', assignedStation: 'BAR', assignedCashier: null,         lastSeen: iso(1),   status: 'ONLINE' },
-        { id: 'DISPLAY-01', type: 'DISPLAY', name: 'จอแสดงคิว',       ip: '192.168.1.61', assignedStation: null,  assignedCashier: null,         lastSeen: iso(95),  status: 'OFFLINE' },
+        { id: 'KIOSK-01',   type: 'KIOSK',   name: 'คีออสก์ 01',      ip: '192.168.1.21', assignedStation: null,  assignedCashier: 'CASHIER-01' },
+        { id: 'KIOSK-02',   type: 'KIOSK',   name: 'คีออสก์ 02',      ip: '192.168.1.22', assignedStation: null,  assignedCashier: 'CASHIER-01' },
+        { id: 'KIOSK-03',   type: 'KIOSK',   name: 'คีออสก์ 03',      ip: '192.168.1.23', assignedStation: null,  assignedCashier: 'CASHIER-01' },
+        { id: 'CASHIER-01', type: 'CASHIER', name: 'เคาน์เตอร์ 01',   ip: '192.168.1.31', assignedStation: null,  assignedCashier: null },
+        { id: 'BAR-KDS',    type: 'KDS',     name: 'จอครัว — บาร์',   ip: '192.168.1.41', assignedStation: 'BAR', assignedCashier: null },
+        { id: 'BAR-PRN',    type: 'PRINTER', name: 'เครื่องพิมพ์บาร์', ip: '192.168.1.51', assignedStation: 'BAR', assignedCashier: null },
+        { id: 'DISPLAY-01', type: 'DISPLAY', name: 'จอแสดงคิว',       ip: '192.168.1.61', assignedStation: null,  assignedCashier: null },
     ];
 
     /* ── หมวดเมนู (§10) — ตามป้ายหน้าร้าน ─────────────────── */
@@ -256,235 +245,40 @@ function CF_SEED(now) {
     PS('P-DS2', 'ของหวาน',  'ชีสเค้กนิวยอร์ก',   'NY Cheesecake',       'C-DESSERT', 90, 'DESSERT');
     PS('P-DS3', 'ของหวาน',  'บราวนี่อัลมอนด์',   'Almond Brownie',      'C-DESSERT', 70, 'DESSERT', { active: false });
 
-    /* ── รอบการขาย (§27) ──────────────────────────────────── */
-    const shifts = [{
-        id: 'SH-' + T.toISOString().slice(0, 10).replace(/-/g, '') + '-01',
-        openedAt: todayAt(8, 0), closedAt: null,
-        openedBy: 'U-3', closedBy: null,
-        openingCash: 2000, actualCash: null,
-        status: 'OPEN',
-    }];
-    const shiftId = shifts[0].id;
+    /* ── ค่าตั้งร้าน — seed.js แยก shopName/branch/address/taxId/vatPercent
+          ไปตาราง branch ที่เหลือเป็น key/value ใน app_setting ── */
+    const settings = {
+        shopName: 'CafeFlow Demo Cafe',
+        branch: 'สาขาสำนักงานใหญ่',
+        address: '99/1 ถ.ศรีสุนทร ต.เชิงทะเล อ.ถลาง จ.ภูเก็ต 83110',
+        taxId: '0835566001234',
+        vatPercent: 7,
+        qrTimeoutSec: 60,
+        cashMode: 'A',
+        kdsWarnMin: 3,
+        kdsDangerMin: 6,
+        receiptWidth: '80mm',
+        kitchenSlipWidth: '58mm',
+        closingWidth: '80mm',
+        cashierOverrideLimit: 500,
 
-    /* ══════════════════════════════════════════════════════
-       ออเดอร์
-       ══════════════════════════════════════════════════════ */
-    const orders = [], orderItems = [], payments = [], auditLogs = [];
-    let seqItem = 0, seqPay = 0, seqAudit = 0;
-
-    const audit = (o, eventType, oldStatus, newStatus, minsAgo, actor, reason) => {
-        auditLogs.push({
-            id: 'AU-' + (++seqAudit),
-            ts: iso(minsAgo),
-            eventType, orderId: o,
-            oldStatus: oldStatus || null, newStatus: newStatus || null,
-            actor: actor || 'U-3', device: 'CASHIER-01',
-            reason: reason || null, sourceIp: '192.168.1.31',
-        });
+        /* ── คีออสก์ (§9, §35) — จอสัมผัส 21-32 นิ้ว Full HD ──
+           อ่านผ่าน CFKiosk.cfg() ที่ merge CF_KIOSK_DEFAULTS เสมอ
+           ร้านที่ยังไม่มีคีย์พวกนี้ในฐานข้อมูลจึงไม่พัง */
+        kioskOrientation: 'PORTRAIT',   // PORTRAIT | LANDSCAPE
+        kioskScale: 1,                  // ตัวคูณขนาด: จอ 21" ควรใช้ 1.25, 32" ใช้ 0.95
+        kioskFrame: true,               // กรอบจำลอง 9:16 บนจอคอม
+        kioskDiningMode: 'ASK',         // ASK = ถามลูกค้า · DINE_IN/TAKE_AWAY = ข้ามหน้าถาม
+        kioskUpsell: true,              // หน้าแนะนำเมนูก่อนชำระ (ครั้งเดียวต่อออเดอร์)
+        kioskImages: true,              // แสดงรูปสินค้า
+        kioskIdleSec: 90,               // ไม่มีการใช้งานแล้วกลับหน้าแรก
+        kioskDoneSec: 12,               // ปิดหน้าสรุปออเดอร์อัตโนมัติ
     };
-
-    /** spec.items = [[productId, serveType, qty, [optionIds]], ...] */
-    const mkOrder = (spec) => {
-        const id = 'O-' + spec.no;
-        let subtotal = 0;
-        const stations = new Set();
-
-        spec.items.forEach(([pid, serveType, qty, optIds]) => {
-            const p = products.find((x) => x.id === pid);
-            const base = p.prices[serveType];
-            if (base == null) throw new Error('seed: ' + pid + ' ไม่มีแบบเสิร์ฟ ' + serveType);
-
-            const mods = (optIds || []).map((oid) => {
-                const o = modifierOptions.find((x) => x.id === oid);
-                return { groupId: o.groupId, optionId: o.id, label: o.nameTh, shortLabel: o.shortLabel, priceDelta: o.priceDelta };
-            });
-            const unitPrice = base + mods.reduce((s, m) => s + m.priceDelta, 0);
-            subtotal += unitPrice * qty;
-            stations.add(p.station);
-            orderItems.push({
-                id: 'OI-' + (++seqItem), orderId: id, productId: p.id,
-                nameSnapshot: p.nameTh, serveType, qty, unitPrice,
-                station: p.station, mods,
-                itemStatus: spec.itemStatus || 'QUEUED',
-            });
-        });
-
-        const stationStatus = {};
-        [...stations].forEach((s) => { stationStatus[s] = (spec.stationStatus && spec.stationStatus[s]) || 'QUEUED'; });
-
-        orders.push(Object.assign({
-            id, orderNo: spec.no, shiftId,
-            createdAt: iso(spec.minsAgo),
-            kioskId: spec.kiosk, cashierId: spec.cashierId || null,
-            status: spec.status, prevStatus: null,
-            paymentMethod: spec.method,
-            subtotal, discount: 0, total: subtotal,
-            stationStatus, reprintCount: 0,
-            ts: spec.ts || {},
-            cancelReason: spec.cancelReason || null,
-        }, spec.extra || {}));
-
-        audit(id, 'ORDER_CREATED', null, 'ORDER_CONFIRMED', spec.minsAgo, 'KIOSK', 'สร้างที่ ' + spec.kiosk);
-        return id;
-    };
-
-    const pay = (orderId, spec) => {
-        payments.push(Object.assign({
-            id: 'PM-' + (++seqPay), orderId,
-            method: spec.method, amount: spec.amount,
-            received: spec.received || null, change: spec.change || null,
-            ref: spec.ref || null, bank: spec.bank || null, txAt: spec.txAt || null,
-            verifiedBy: spec.verifiedBy || null,
-            overrideBy: spec.overrideBy || null, overrideReason: spec.overrideReason || null, overrideAt: spec.overrideAt || null,
-            status: spec.status || 'PAID', createdAt: spec.createdAt,
-        }));
-    };
-
-    /* ── รอชำระเงินสด (§24) ── */
-    mkOrder({ no: 'A118', minsAgo: 3, kiosk: 'KIOSK-02', status: 'WAITING_CASH', method: 'CASH',
-        items: [['P-VL1', 'ICED', 2, ['MO-S25', 'MO-I-S']], ['P-BK1', 'STD', 1, []]] });
-    mkOrder({ no: 'A119', minsAgo: 2, kiosk: 'KIOSK-01', status: 'WAITING_CASH', method: 'CASH',
-        items: [['P-HB2', 'ICED', 1, ['MO-S0', 'MO-I-N', 'MO-B-STD']]] });
-    mkOrder({ no: 'A120', minsAgo: 1, kiosk: 'KIOSK-02', status: 'WAITING_CASH', method: 'CASH',
-        items: [['P-FD1', 'STD', 1, []], ['P-TE2', 'ICED', 2, ['MO-S50', 'MO-I-L']]] });
-
-    /* ── รอตรวจสอบการชำระ (§16) ── */
-    const rv = mkOrder({ no: 'A117', minsAgo: 9, kiosk: 'KIOSK-01', status: 'PAYMENT_REVIEW', method: 'QR',
-        items: [['P-HB4', 'ICED', 1, ['MO-S50', 'MO-I-N', 'MO-B-DOI']], ['P-DS1', 'STD', 1, []]] });
-    pay(rv, { method: 'QR', amount: 180, ref: 'TX20260919-88421', bank: 'KBANK', txAt: iso(8), status: 'REVIEW', createdAt: iso(9) });
-    audit(rv, 'PAYMENT_TIMEOUT', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 8, 'SYSTEM', 'เกิน 60 วินาที');
-    audit(rv, 'STATUS_CHANGE', 'PAYMENT_TIMEOUT', 'PAYMENT_REVIEW', 8, 'U-3', 'ลูกค้าแจ้งว่าชำระแล้ว');
-
-    /* ── กำลังทำอยู่ที่ครัว ── */
-    const k1 = mkOrder({ no: 'A114', minsAgo: 7, kiosk: 'KIOSK-01', status: 'PREPARING', method: 'QR',
-        cashierId: 'U-3',
-        items: [['P-VL1', 'ICED', 2, ['MO-S25', 'MO-I-S']], ['P-HB2', 'HOT', 1, ['MO-S0']]],
-        ts: { paidAt: iso(6), sentAt: iso(6) } });
-    pay(k1, { method: 'QR', amount: 120, ref: 'TX20260919-88390', bank: 'SCB', txAt: iso(6), verifiedBy: 'SYSTEM', createdAt: iso(6) });
-    audit(k1, 'PAYMENT_VERIFIED', 'WAITING_PAYMENT', 'PAID', 6, 'SYSTEM', 'ตรวจสลิปอัตโนมัติ');
-    audit(k1, 'STATUS_CHANGE', 'PAID', 'SENT_TO_KITCHEN', 6, 'SYSTEM', 'ส่งเข้า BAR');
-
-    const k2 = mkOrder({ no: 'A115', minsAgo: 5, kiosk: 'KIOSK-02', status: 'PREPARING', method: 'CASH',
-        cashierId: 'U-3',
-        items: [['P-FD2', 'STD', 1, []], ['P-MA4', 'FRAPPE', 1, ['MO-S50', 'MO-M-CER']], ['P-DS2', 'STD', 1, []]],
-        stationStatus: { BAR: 'READY' },
-        ts: { paidAt: iso(4), sentAt: iso(4) } });
-    pay(k2, { method: 'CASH', amount: 320, received: 500, change: 180, createdAt: iso(4), verifiedBy: 'U-3' });
-    audit(k2, 'PAYMENT_RECEIVED', 'WAITING_CASH', 'PAID', 4, 'U-3', 'รับเงินสด 500 ทอน 180');
-    audit(k2, 'STATION_READY', null, null, 2, 'U-4', 'BAR พร้อมแล้ว — รออีก 2 สถานี');
-
-    const k3 = mkOrder({ no: 'A116', minsAgo: 11, kiosk: 'KIOSK-01', status: 'PREPARING', method: 'CASH',
-        cashierId: 'U-3', items: [['P-FD1', 'STD', 2, []]],
-        ts: { paidAt: iso(10), sentAt: iso(10) } });
-    pay(k3, { method: 'CASH', amount: 290, received: 300, change: 10, createdAt: iso(10), verifiedBy: 'U-3' });
-    audit(k3, 'PAYMENT_RECEIVED', 'WAITING_CASH', 'PAID', 10, 'U-3', 'รับเงินสด');
-
-    /* ── พร้อมรับ ── */
-    const readySpecs = [
-        [['P-HB1', 'ICED', 1, ['MO-S0', 'MO-I-N']]],
-        [['P-MA4', 'ICED', 2, ['MO-S75', 'MO-I-N', 'MO-A-KONJ']]],
-        [['P-BK1', 'STD', 2, []], ['P-HB4', 'HOT', 1, ['MO-S50']]],
-    ];
-    readySpecs.forEach((items, i) => {
-        const mins = 15 + i * 2;
-        const id = mkOrder({ no: 'A' + (111 + i), minsAgo: mins, kiosk: i % 2 ? 'KIOSK-02' : 'KIOSK-01',
-            status: 'READY', method: i % 2 ? 'CASH' : 'QR', cashierId: 'U-3',
-            items,
-            stationStatus: { BAR: 'READY', BAKERY: 'READY' },
-            itemStatus: 'READY',
-            ts: { paidAt: iso(mins - 0.7 - i * 0.4), sentAt: iso(mins - 0.7 - i * 0.4), readyAt: iso(2 + i) } });
-        const amt = orders.find((o) => o.id === id).total;
-        pay(id, i % 2
-            ? { method: 'CASH', amount: amt, received: Math.ceil(amt / 100) * 100, change: Math.ceil(amt / 100) * 100 - amt, createdAt: iso(mins), verifiedBy: 'U-3' }
-            : { method: 'QR', amount: amt, ref: 'TX20260919-883' + (10 + i), bank: 'KBANK', txAt: iso(mins), verifiedBy: 'SYSTEM', createdAt: iso(mins) });
-        audit(id, 'STATUS_CHANGE', 'PREPARING', 'READY', 2 + i, 'U-4', 'ทุกสถานีพร้อม');
-    });
-
-    /* ── เสร็จสิ้นแล้ว (ให้ dashboard/closing มียอดจริง) ── */
-    const menuPool = [
-        [['P-HB1', 'ICED', 1, ['MO-S0', 'MO-I-N']]],
-        [['P-VL1', 'ICED', 2, ['MO-S25', 'MO-I-S']]],
-        [['P-HB4', 'ICED', 1, ['MO-S50', 'MO-I-N']], ['P-BK1', 'STD', 1, []]],
-        [['P-FD1', 'STD', 1, []], ['P-TE2', 'ICED', 1, ['MO-S50', 'MO-I-N']]],
-        [['P-MA4', 'FRAPPE', 1, ['MO-S50', 'MO-A-OAT']]],
-        [['P-DS1', 'STD', 1, []], ['P-HB2', 'HOT', 1, ['MO-S0']]],
-        [['P-RC7', 'ICED', 1, ['MO-S50', 'MO-I-N']], ['P-DS2', 'STD', 1, []]],
-        [['P-SD1', 'ICED', 2, ['MO-S50', 'MO-I-N']]],
-    ];
-    for (let i = 0; i < 24; i++) {
-        // i=0 คือใหม่สุด (40 นาทีก่อน) จึงได้เลขสูงสุด — เลขออเดอร์ไล่ตามเวลาจริง
-        // ช่วง A081-A104 สงวนไว้ ไม่ให้ชนกับ A105 (ยกเลิก) และ A111+ (ที่ยังทำอยู่)
-        const no = 'A' + String(104 - i).padStart(3, '0');
-        const mins = 40 + i * 9;
-        const method = i % 3 === 0 ? 'CASH' : 'QR';
-        // กระจายเวลาแต่ละช่วงให้ต่างกันจริง ไม่งั้นค่าเฉลี่ยบน dashboard ออกมากลมเป๊ะแบบข้อมูลปลอม
-        const tWait = 0.6 + (i % 5) * 0.5;
-        const tPrep = 2.5 + (i % 6) * 1.1;
-        const tPick = 0.8 + (i % 3) * 0.7;
-        const id = mkOrder({ no, minsAgo: mins, kiosk: i % 2 ? 'KIOSK-02' : 'KIOSK-01',
-            status: 'COMPLETED', method, cashierId: 'U-3',
-            items: menuPool[i % menuPool.length],
-            stationStatus: { BAR: 'READY', KITCHEN: 'READY', BAKERY: 'READY', DESSERT: 'READY' },
-            itemStatus: 'READY',
-            ts: { paidAt: iso(mins - tWait), sentAt: iso(mins - tWait),
-                  readyAt: iso(mins - tWait - tPrep), servedAt: iso(mins - tWait - tPrep - tPick) } });
-        const amt = orders.find((o) => o.id === id).total;
-        pay(id, method === 'CASH'
-            ? { method: 'CASH', amount: amt, received: Math.ceil(amt / 100) * 100, change: Math.ceil(amt / 100) * 100 - amt, createdAt: iso(mins), verifiedBy: 'U-3' }
-            : { method: 'QR', amount: amt, ref: 'TX20260919-87' + String(100 + i), bank: i % 2 ? 'SCB' : 'KBANK', txAt: iso(mins), verifiedBy: 'SYSTEM', createdAt: iso(mins) });
-    }
-
-    /* ── ยกเลิก + คืนเงิน (ให้ closing มีรายการหักจริง) ── */
-    const cx = mkOrder({ no: 'A105', minsAgo: 33, kiosk: 'KIOSK-03', status: 'CANCELLED', method: 'CASH',
-        items: [['P-SD3', 'FRAPPE', 1, ['MO-S50']]], cancelReason: 'ลูกค้ายกเลิก — รอนานเกินไป' });
-    audit(cx, 'STATUS_CHANGE', 'WAITING_CASH', 'CANCELLED', 30, 'U-3', 'ลูกค้ายกเลิก — รอนานเกินไป');
-
-    const rf = mkOrder({ no: 'A080', minsAgo: 256, kiosk: 'KIOSK-01', status: 'REFUNDED', method: 'QR',
-        cashierId: 'U-3', items: [['P-HB5', 'ICED', 1, ['MO-S50', 'MO-I-N']]],
-        cancelReason: 'ชงผิดรายการ — คืนเงินเต็มจำนวน',
-        ts: { paidAt: iso(255) } });
-    pay(rf, { method: 'QR', amount: 70, ref: 'TX20260919-87055', bank: 'KBANK', txAt: iso(255), verifiedBy: 'SYSTEM', status: 'REFUNDED', createdAt: iso(255) });
-    audit(rf, 'STATUS_CHANGE', 'COMPLETED', 'REFUNDED', 240, 'U-2', 'ชงผิดรายการ — คืนเงินเต็มจำนวน');
-
-    /* ── เรียงเหตุการณ์ใหม่ล่าสุดอยู่บน ── */
-    auditLogs.sort((a, b) => (a.ts < b.ts ? 1 : -1));
 
     return {
-        meta: { schema: 2, seededAt: T.toISOString().slice(0, 10), rev: 1 },
-        settings: {
-            shopName: 'CafeFlow Demo Cafe',
-            branch: 'สาขาสำนักงานใหญ่',
-            address: '99/1 ถ.ศรีสุนทร ต.เชิงทะเล อ.ถลาง จ.ภูเก็ต 83110',
-            taxId: '0835566001234',
-            vatPercent: 7,
-            qrTimeoutSec: 60,
-            cashMode: 'A',
-            kdsWarnMin: 3,
-            kdsDangerMin: 6,
-            receiptWidth: '80mm',
-            kitchenSlipWidth: '58mm',
-            closingWidth: '80mm',
-            cashierOverrideLimit: 500,
-
-            /* ── คีออสก์ (§9, §35) — จอสัมผัส 21-32 นิ้ว Full HD ──
-               อ่านผ่าน CFKiosk.cfg() ที่ merge DEFAULTS เสมอ
-               ฐานข้อมูลเก่าที่ยังไม่มีคีย์พวกนี้จึงไม่พัง และไม่ต้อง bump SCHEMA */
-            kioskOrientation: 'PORTRAIT',   // PORTRAIT | LANDSCAPE
-            kioskScale: 1,                  // ตัวคูณขนาด: จอ 21" ควรใช้ 1.25, 32" ใช้ 0.95
-            kioskFrame: true,               // กรอบจำลอง 9:16 บนจอคอม
-            kioskDiningMode: 'ASK',         // ASK = ถามลูกค้า · DINE_IN/TAKE_AWAY = ข้ามหน้าถาม
-            kioskUpsell: true,              // หน้าแนะนำเมนูก่อนชำระ (ครั้งเดียวต่อออเดอร์)
-            kioskImages: true,              // แสดงรูปสินค้า
-            kioskIdleSec: 90,               // ไม่มีการใช้งานแล้วกลับหน้าแรก
-            kioskDoneSec: 12,               // ปิดหน้าสรุปออเดอร์อัตโนมัติ
-        },
-        counters: { orderSeq: 120, auditSeq: seqAudit, paymentSeq: seqPay, itemSeq: seqItem },
-        users, devices, categories, products,
+        settings, users, devices, categories, products,
         modifierGroups, modifierOptions, modifierRules,
-        orders, orderItems, payments, shifts, auditLogs,
     };
 }
 
-
-/* ให้เซิร์ฟเวอร์ require() ไปใช้ seed ฐานข้อมูลจริงได้ — เบราว์เซอร์ข้ามบรรทัดนี้ */
-if (typeof module === 'object' && module.exports) module.exports = { CF_SEED };
+module.exports = { seedData };

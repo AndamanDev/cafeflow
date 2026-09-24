@@ -1,10 +1,12 @@
 /**
  * CafeFlow — AUTH
  * ------------------------------------------------------------
- * session เดโมบน localStorage (ไม่ใช่ sessionStorage โดยตั้งใจ
- * เพื่อให้แท็บ KDS กับแท็บ Cashier ใช้การล็อกอินเดียวกัน)
+ * ตัวตนจริงอยู่ใน cookie httpOnly ที่เซิร์ฟเวอร์ออกให้ตอนล็อกอิน
+ * ที่ localStorage เก็บแค่ข้อมูลแสดงผล (ชื่อ บทบาท) ไว้ซ่อนปุ่ม/วาด navbar
+ * (localStorage ไม่ใช่ sessionStorage โดยตั้งใจ เพื่อให้แท็บ KDS กับแท็บ Cashier
+ * เห็นการล็อกอินเดียวกัน)
  *
- * ⚠️ นี่คือด่านระดับ UX เท่านั้น — ระบบจริงต้องตรวจสิทธิ์ที่ server
+ * ⚠️ นี่คือด่านระดับ UX เท่านั้น — เซิร์ฟเวอร์ตรวจสิทธิ์ทุก endpoint เอง
  *
  * ตารางสิทธิ์แปลงตรงจาก §29 ของสเปก
  */
@@ -30,40 +32,26 @@
     window.CF_PERMS = CF_PERMS;
     window.CF_ROLE_LABEL = ROLE_LABEL;
 
-    const isApi = () => window.CFStore && CFStore.mode === 'api';
-
     window.CFAuth = {
         /**
-         * คืน {ok:true} หรือ {ok:false, error:'ข้อความ'}
-         * หลังบ้าน api เป็น async — หน้าล็อกอินต้อง await
-         * (หลังบ้าน local ยังคืนค่าทันทีเหมือนเดิม เพื่อไม่ให้เดโมพัง)
+         * คืน Promise ของ {ok:true, user} หรือ {ok:false, error:'ข้อความ'} — ไม่ reject
          */
         login(username, password) {
-            if (isApi()) {
-                return CFApi.post('/api/auth/login', { username, password })
-                    .then((res) => {
-                        // เก็บเฉพาะข้อมูลแสดงผล — ตัวตนจริงอยู่ใน cookie httpOnly
-                        // ที่ JavaScript แตะไม่ได้ และเซิร์ฟเวอร์ตรวจทุก request
-                        write({ userId: res.user.id, name: res.user.name, role: res.user.role,
-                                at: new Date().toISOString() });
-                        return { ok: true, user: res.user };
-                    })
-                    .catch((err) => ({
-                        ok: false,
-                        error: err.offline ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้'
-                                           : (err.message || 'เข้าสู่ระบบไม่สำเร็จ'),
-                    }));
-            }
-
-            if (!CFStore.db) CFStore.init();
-            const u = CFStore.all('users').find(
-                (x) => x.username === String(username || '').trim().toLowerCase()
-            );
-            if (!u || u.password !== password) return { ok: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
-            if (!u.active) return { ok: false, error: 'บัญชีนี้ถูกปิดการใช้งาน' };
-
-            write({ userId: u.id, name: u.name, role: u.role, at: new Date().toISOString() });
-            return { ok: true, user: u };
+            return CFApi.post('/api/auth/login', { username, password })
+                .then((res) => {
+                    // เก็บเฉพาะข้อมูลแสดงผล — ตัวตนจริงอยู่ใน cookie httpOnly
+                    // ที่ JavaScript แตะไม่ได้ และเซิร์ฟเวอร์ตรวจทุก request
+                    write({ userId: res.user.id, name: res.user.name, role: res.user.role,
+                            at: new Date().toISOString(),
+                            // ล็อกอินด้วยรหัสตั้งต้น — ทุกหน้าจะเปิดหน้าต่างเปลี่ยนรหัสจนกว่าจะเปลี่ยน
+                            mustChangePassword: !!res.mustChangePassword });
+                    return { ok: true, user: res.user };
+                })
+                .catch((err) => ({
+                    ok: false,
+                    error: err.offline ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้'
+                                       : (err.message || 'เข้าสู่ระบบไม่สำเร็จ'),
+                }));
         },
 
         logout() {
@@ -72,8 +60,23 @@
                 location.href = 'login.html';
             };
             // ต้องเพิกถอน session ที่เซิร์ฟเวอร์ด้วย ไม่ใช่แค่ลืมมันที่ฝั่งเบราว์เซอร์
-            if (isApi()) CFApi.post('/api/auth/logout', {}).catch(() => {}).then(done);
-            else done();
+            CFApi.post('/api/auth/logout', {}).catch(() => {}).then(done);
+        },
+
+        /**
+         * ไปหน้าล็อกอินแล้วกลับมาหน้านี้หลังล็อกอินเสร็จ
+         * ล้าง session ฝั่งเบราว์เซอร์ด้วย — ใช้ตอนเซิร์ฟเวอร์ตอบ 401
+         * (cookie หมดอายุ/ถูกเพิกถอน แต่ localStorage ยังคิดว่าล็อกอินอยู่)
+         */
+        toLogin() {
+            try { localStorage.removeItem(K_SESSION); } catch (e) { /* ไม่เป็นไร */ }
+            location.replace('login.html?next=' + encodeURIComponent(location.pathname.split('/').pop()));
+        },
+
+        /** เปลี่ยนรหัสสำเร็จแล้ว — เลิกบังคับ */
+        clearMustChange() {
+            const s = read();
+            if (s) { delete s.mustChangePassword; write(s); }
         },
 
         session()   { return read(); },
@@ -129,7 +132,7 @@
          */
         guard(permKey) {
             if (!this.isLoggedIn()) {
-                location.replace('login.html?next=' + encodeURIComponent(location.pathname.split('/').pop()));
+                this.toLogin();
                 return false;
             }
             if (permKey && !this.can(permKey)) {

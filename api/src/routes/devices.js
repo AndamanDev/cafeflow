@@ -14,7 +14,9 @@
  */
 'use strict';
 const crypto = require('crypto');
-const { ApiError } = require('./orders');
+const net = require('net');
+const { ApiError, audit, touch } = require('./orders');
+const { listUsbPrinters, isLinuxDevice } = require('../print/usb');
 const { publish } = require('./stream');
 
 const COOKIE = 'cf_device';
@@ -51,8 +53,65 @@ function tooManyFails(ip) {
     return n >= 10;
 }
 
+const STATIONS = ['BAR', 'KITCHEN', 'BAKERY', 'DESSERT'];
+
+/**
+ * ตรวจและแปลงค่าตั้งเครื่องพิมพ์จากหน้าเว็บ → คอลัมน์ของตาราง device
+ * cur = แถวเดิม (ตอนแก้) — ฟิลด์ที่ไม่ได้ส่งมาใช้ค่าเดิม
+ */
+async function printerFields(c, branchId, body, cur) {
+    const pick = (k, dflt) => (body[k] !== undefined ? body[k] : dflt);
+
+    const name = String(pick('name', cur && cur.name_th) || '').trim();
+    if (!name) throw new ApiError(400, 'ต้องตั้งชื่อเครื่องพิมพ์');
+
+    const conn = pick('conn', (cur && cur.printer_conn) || 'NETWORK');
+    if (!['NETWORK', 'USB'].includes(conn)) throw new ApiError(400, 'การเชื่อมต่อต้องเป็น LAN หรือ USB');
+
+    let host = null, port = 9100, usb = null;
+    if (conn === 'NETWORK') {
+        host = String(pick('host', cur && cur.printer_host) || '').trim();
+        if (!net.isIP(host)) throw new ApiError(400, 'IP ของเครื่องพิมพ์ไม่ถูกต้อง เช่น 192.168.1.50');
+        port = Number(pick('port', (cur && cur.printer_port) || 9100));
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            throw new ApiError(400, 'พอร์ตต้องเป็นตัวเลข 1–65535 (ปกติคือ 9100)');
+        }
+    } else {
+        usb = String(pick('usb', cur && cur.printer_usb) || '').trim();
+        if (!usb) throw new ApiError(400, 'ต้องเลือกเครื่องพิมพ์ USB');
+        if (process.platform !== 'win32' && !isLinuxDevice(usb)) {
+            throw new ApiError(400, 'เครื่องพิมพ์ USB ต้องเป็นอุปกรณ์เช่น /dev/usb/lp0');
+        }
+    }
+
+    const station = pick('station', cur ? cur.assigned_station : null) || null;
+    if (station && !STATIONS.includes(station)) throw new ApiError(400, 'ส่วนที่พิมพ์ไม่ถูกต้อง');
+
+    const paper = pick('paperWidth', (cur && cur.paper_width) || '80mm');
+    if (!['58mm', '80mm'].includes(paper)) throw new ApiError(400, 'กระดาษต้องเป็น 58mm หรือ 80mm');
+
+    const fallback = pick('fallbackId', cur ? cur.fallback_printer_id : null) || null;
+    if (fallback) {
+        if (cur && fallback === cur.id) throw new ApiError(400, 'เครื่องสำรองต้องเป็นเครื่องอื่น ไม่ใช่ตัวเอง');
+        const fb = await c.query(
+            `SELECT id FROM device WHERE id = $1 AND branch_id = $2 AND kind = 'PRINTER' AND active`,
+            [fallback, branchId]);
+        if (!fb.rows.length) throw new ApiError(400, 'ไม่พบเครื่องพิมพ์สำรองที่เลือก');
+    }
+
+    // ความกว้างที่พิมพ์ได้ (จุด) — null = มาตรฐาน 203 dpi ตามขนาดกระดาษ
+    let dots = pick('dots', cur ? cur.print_dots : null);
+    dots = dots == null || dots === '' ? null : Number(dots);
+    if (dots != null && !(Number.isInteger(dots) && dots >= 200 && dots <= 832 && dots % 8 === 0)) {
+        throw new ApiError(400, 'ความกว้างที่พิมพ์ได้ต้องเป็นจำนวนจุด 200–832 ที่หารด้วย 8 ลงตัว');
+    }
+
+    const active = pick('active', cur ? cur.active : true) !== false;
+    return { name, conn, host, port, usb, station, paper, dots, fallback, active };
+}
+
 function registerDevices(app, deps) {
-    const { query, branchId } = deps;
+    const { query, tx, branchId } = deps;
     const { context, requirePerm, handle } = deps.helpers;
 
     /**
@@ -127,6 +186,83 @@ function registerDevices(app, deps) {
         if (!dev) return { paired: false };
         return { paired: true, deviceId: dev.id, name: dev.name_th, kind: dev.kind,
                  station: dev.assigned_station };
+    }));
+
+    /* ══════════════════════════════════════════════════════
+       เครื่องพิมพ์ (§19) — เพิ่ม/แก้จากหน้าภาพรวม
+       ลบจริงไม่ได้: print_job เก่ายังอ้าง device_id อยู่ → ปิดใช้งานแทน
+       ══════════════════════════════════════════════════════ */
+
+    /** เครื่องพิมพ์ที่เครื่องเซิร์ฟเวอร์มองเห็น — ใช้เติมตัวเลือก USB */
+    app.get('/api/printers/usb', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'MENU_EDIT');
+        try {
+            return { platform: process.platform, printers: await listUsbPrinters() };
+        } catch (err) {
+            throw new ApiError(500, 'อ่านรายชื่อเครื่องพิมพ์ในเครื่องไม่ได้: ' + err.message);
+        }
+    }));
+
+    async function savePrinter(c, ctx, id, isNew, body) {
+        let cur = null;
+        if (!isNew) {
+            cur = (await c.query(
+                `SELECT * FROM device WHERE id = $1 AND branch_id = $2 AND kind = 'PRINTER' FOR UPDATE`,
+                [id, branchId()])).rows[0];
+            if (!cur) throw new ApiError(404, 'ไม่พบเครื่องพิมพ์');
+        }
+        const f = await printerFields(c, branchId(), body, cur);
+
+        if (isNew) {
+            await c.query(
+                `INSERT INTO device (id, branch_id, kind, name_th, printer_conn, printer_host, printer_port,
+                                     printer_usb, assigned_station, paper_width, fallback_printer_id, active,
+                                     print_dots)
+                 VALUES ($1,$2,'PRINTER',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+                [id, branchId(), f.name, f.conn, f.host, f.port, f.usb, f.station, f.paper,
+                 f.fallback, f.active, f.dots]);
+        } else {
+            await c.query(
+                `UPDATE device SET name_th = $3, printer_conn = $4, printer_host = $5, printer_port = $6,
+                        printer_usb = $7, assigned_station = $8, paper_width = $9,
+                        fallback_printer_id = $10, active = $11, print_dots = $12
+                  WHERE id = $1 AND branch_id = $2`,
+                [id, branchId(), f.name, f.conn, f.host, f.port, f.usb, f.station, f.paper,
+                 f.fallback, f.active, f.dots]);
+            // ปิดเครื่องที่เป็นสำรองของเครื่องอื่น → ถอดออก ไม่งั้นดูเหมือนมีสำรองแต่ใช้ไม่ได้จริง
+            if (!f.active) {
+                await c.query(
+                    `UPDATE device SET fallback_printer_id = NULL
+                      WHERE branch_id = $1 AND fallback_printer_id = $2`, [branchId(), id]);
+            }
+        }
+
+        await audit(c, branchId(), {
+            eventType: 'DEVICE_UPDATE', actorKind: ctx.actorKind,
+            actorUserId: ctx.actorUserId, deviceId: ctx.deviceId, ip: ctx.ip,
+            reason: (isNew ? 'เพิ่มเครื่องพิมพ์ ' : 'แก้ไขเครื่องพิมพ์ ') + f.name,
+            payload: { printerId: id, conn: f.conn, host: f.host, usb: f.usb, station: f.station },
+        });
+        await touch(c, branchId(), 'devices', id, isNew ? 'insert' : 'update');
+        return { ok: true, id };
+    }
+
+    app.post('/api/printers', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'MENU_EDIT');
+        const id = 'PRN-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        const out = await tx((c) => savePrinter(c, ctx, id, true, req.body || {}));
+        publish(branchId(), { entity: 'devices', op: 'insert', id });
+        return out;
+    }));
+
+    app.patch('/api/printers/:id', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'MENU_EDIT');
+        const out = await tx((c) => savePrinter(c, ctx, req.params.id, false, req.body || {}));
+        publish(branchId(), { entity: 'devices', op: 'update', id: req.params.id });
+        return out;
     }));
 
     /** เลิกจับคู่ — เครื่องหาย ถูกขโมย หรือย้ายไปใช้ที่อื่น */
