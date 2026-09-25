@@ -265,11 +265,12 @@ const CashierPage = {
                 <div id="slipOcrBox">${CFApp.slipOcrHtml(slip)}</div>
                 ${slip && slip.hasImage ? `
                 <div class="ds-section-label" style="margin-top:12px">ภาพสลิปที่กล้องคีออสก์ถ่ายไว้</div>
-                <a href="/api/slips/${e(slip.id)}/image" target="_blank" rel="noopener" title="เปิดภาพเต็ม">
+                <button type="button" class="cf-slip-thumb" title="ดูภาพเต็ม"
+                        onclick="CFApp.showImage('/api/slips/${e(slip.id)}/image', 'สลิป ${e(o.orderNo)}')">
                     <img src="/api/slips/${e(slip.id)}/image" alt="ภาพสลิป"
                          style="display:block;width:100%;max-height:360px;object-fit:contain;
                                 background:#111;border-radius:8px">
-                </a>` : ''}
+                </button>` : ''}
                 ${slip ? `<div class="ds-note" style="margin-top:6px">
                     QR บนสลิปบอกได้แค่เลขอ้างอิง ไม่มียอดเงินหรือบัญชีปลายทาง
                     — ระบบยังไม่ได้ตรวจกับธนาคาร จึงต้องดูเงินเข้าจริงก่อนทุกครั้ง
@@ -399,6 +400,7 @@ const CashierPage = {
 
     boot() {
         CFApp.boot({ page: 'cashier' });
+        CFAlerts.start('cashier');
 
         // เติมตัวเลือกสถานะในช่องค้นหา
         document.getElementById('searchStatus').innerHTML +=

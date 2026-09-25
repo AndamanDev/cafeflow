@@ -172,6 +172,20 @@ const DashPage = {
     },
 
     /** ตั้งค่าครบพอให้ส่งงานได้ไหม — ตรงกับ targetOf() ใน api/src/print/worker.js */
+    async toggleAutoReceipt() {
+        const on = CFStore.settings().autoPrintReceipt === false;     // ตอนนี้ปิดอยู่ → เปิด
+        try {
+            await CFStore.cmd('PATCH', '/api/settings', { autoPrintReceipt: on });
+            document.getElementById('autoReceipt')?.classList.toggle('is-on', on);
+            showToast(on ? 'เปิดพิมพ์ใบเสร็จอัตโนมัติแล้ว' : 'ปิดพิมพ์ใบเสร็จอัตโนมัติแล้ว', 'success');
+        } catch (err) {
+            showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000);
+        }
+    },
+
+    kiosks() { return CFStore.all('devices').filter((d) => d.type === 'KIOSK'); },
+    kioskName(id) { const k = CFStore.byId('devices', id); return k ? k.name : id; },
+
     printerReady(p) {
         return p.conn === 'USB' ? !!p.printerUsb : !!p.printerHost;
     },
@@ -186,7 +200,8 @@ const DashPage = {
      * station = null คือใบเสร็จ/เคาน์เตอร์
      */
     printerForStation(station) {
-        const act = this.printers().filter((p) => p.active !== false)
+        // เครื่องที่ผูกคีออสก์ไม่รับงานของส่วนอื่น — ตรงกับ printerFor() ฝั่งเซิร์ฟเวอร์
+        const act = this.printers().filter((p) => p.active !== false && !p.kioskId)
             .sort((a, b) => (a.id < b.id ? -1 : 1));
         if (station) {
             return act.find((p) => p.assignedStation === station)
@@ -213,6 +228,17 @@ const DashPage = {
                 <td>${st ? CFApp.stationChip(st) : '<span class="sip-chip sip-chip-muted">ใบเสร็จ / เคาน์เตอร์</span>'}</td>
                 <td>${where}</td>
             </tr>`;
+        }).join('') + this.kiosks().map((k) => {
+            // ใบรับออเดอร์ไม่บังคับ — ไม่มีเครื่องก็แค่ไม่พิมพ์ จึงเป็นสีเทา ไม่ใช่แดง
+            const p = this.printers().find((x) => x.kioskId === k.id && x.active !== false);
+            const where = p
+                ? `<div class="td-name">${e(p.name)}</div><div class="td-sub">${e(this.printerConnText(p))}</div>` +
+                  (this.printerReady(p) ? '' : '<span class="status-badge danger">ตั้งค่าไม่ครบ</span>')
+                : '<span class="text-muted">ไม่พิมพ์ใบรับออเดอร์</span>';
+            return `<tr>
+                <td><span class="sip-chip sip-chip-muted">ใบรับออเดอร์ · ${e(k.name)}</span></td>
+                <td>${where}</td>
+            </tr>`;
         }).join('');
 
         const list = this.printers().map((p) => `<tr class="${p.active === false ? 'text-muted' : ''}">
@@ -220,7 +246,8 @@ const DashPage = {
                     <div class="td-name">${e(p.name)}${p.active === false ? ' (ปิดใช้งาน)' : ''}</div>
                     <div class="td-sub">${e(this.printerConnText(p))}</div>
                 </td>
-                <td>${p.assignedStation ? CFApp.stationChip(p.assignedStation) : '<span class="text-muted">เคาน์เตอร์</span>'}</td>
+                <td>${p.kioskId ? `<span class="sip-chip sip-chip-muted">${e(this.kioskName(p.kioskId))}</span>`
+                     : p.assignedStation ? CFApp.stationChip(p.assignedStation) : '<span class="text-muted">เคาน์เตอร์</span>'}</td>
                 <td class="cf-nowrap">${e(p.paperWidth || '80mm')}</td>
                 <td class="cf-nowrap">
                     <button class="btn btn-outline btn-sm" onclick="DashPage.editPrinter('${e(p.id)}')">
@@ -234,6 +261,17 @@ const DashPage = {
             title: 'เครื่องพิมพ์',
             width: '640px',
             contentHtml: `
+                <div class="sip-field">
+                    <button type="button" class="ds-toggle ${CFStore.settings().autoPrintReceipt !== false ? 'is-on' : ''}"
+                            id="autoReceipt" onclick="DashPage.toggleAutoReceipt()">
+                        <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span>
+                        พิมพ์ใบเสร็จอัตโนมัติเมื่อชำระเงินแล้ว
+                    </button>
+                    <div class="ds-note" style="margin-top:4px">
+                        ออกที่เครื่องเคาน์เตอร์ทันทีที่รับเงินสดหรือยืนยันสลิป · เงินสดเปิดลิ้นชักให้ด้วย
+                    </div>
+                </div>
+
                 <div class="ds-section-label">แต่ละส่วนพิมพ์ที่ไหน</div>
                 <div class="table-responsive">
                     <table class="data-table compact">
@@ -275,7 +313,7 @@ const DashPage = {
         };
         const e = CFApp.esc;
         const others = this.printers().filter((x) => x.id !== (p && p.id) && x.active !== false);
-        const station = p ? p.assignedStation || '' : '';
+        const station = p && !p.kioskId ? p.assignedStation || '' : '';
         const paper = p ? p.paperWidth || '80mm' : '80mm';
         const dots = p ? p.printDots || null : null;
 
@@ -335,6 +373,10 @@ const DashPage = {
                         <option value="" ${station ? '' : 'selected'}>ใบเสร็จ / เคาน์เตอร์ (และส่วนที่ไม่มีเครื่องของตัวเอง)</option>
                         ${Object.keys(CF_STATIONS).map((st) => `<option value="${st}" ${station === st ? 'selected' : ''}>
                             ${e(CFApp.stationLabel(st))}</option>`).join('')}
+                        ${this.kiosks().length ? `<optgroup label="ใบรับออเดอร์ของคีออสก์ (ต้องเป็นเครื่องพิมพ์ LAN)">
+                            ${this.kiosks().map((k) => `<option value="KIOSK:${e(k.id)}" ${p && p.kioskId === k.id ? 'selected' : ''}>
+                                ${e(k.name)} (${e(k.id)})</option>`).join('')}
+                        </optgroup>` : ''}
                     </select>
                 </div>
 
@@ -435,7 +477,9 @@ const DashPage = {
         const body = {
             name: (val('pName') || '').trim(),
             conn: d.conn,
-            station: val('pStation') || null,
+            // ค่าในช่องเดียวกันเป็นได้ทั้งสถานี (BAR) และคีออสก์ (KIOSK:KIOSK-01)
+            station: /^KIOSK:/.test(val('pStation') || '') ? null : (val('pStation') || null),
+            kiosk: /^KIOSK:/.test(val('pStation') || '') ? val('pStation').slice(6) : null,
             paperWidth: val('pPaper'),
             // 180 dpi: จำนวนจุดขึ้นกับกระดาษ — เก็บเป็นจุดเพื่อให้ตัววาดใช้ได้ตรง ๆ
             dots: val('pDots') === '180' ? (val('pPaper') === '58mm' ? 360 : 512) : null,
@@ -450,6 +494,8 @@ const DashPage = {
         } else {
             body.usb = d.usb;
             if (!body.usb) { showToast('ต้องเลือกเครื่องพิมพ์ USB', 'error'); return; }
+            // USB ต้องเสียบที่เครื่องเซิร์ฟเวอร์ — เสียบที่ตู้คีออสก์แล้วเซิร์ฟเวอร์สั่งพิมพ์ไม่ได้
+            if (body.kiosk) { showToast('เครื่องพิมพ์ของคีออสก์ต้องต่อแบบ LAN / IP', 'error', 5000); return; }
         }
 
         try {
@@ -545,6 +591,8 @@ const DashPage = {
             ${tg('kioskUpsell', 'แนะนำเมนูเพิ่มก่อนชำระเงิน',
                  'แสดงครั้งเดียวต่อออเดอร์ ไม่เด้งทุกครั้งที่เพิ่มของ')}
             ${tg('kioskImages', 'แสดงรูปภาพสินค้า')}
+            ${tg('kioskCamMirror', 'กลับด้านภาพกล้องสแกนสลิปแบบกระจก',
+                 'ปิดไว้ดีกว่า — ถ้าเปิด ตัวหนังสือบนสลิปจะกลับด้าน ลูกค้าอ่านแล้วงง')}
 
             <div class="ds-section-label">การชำระเงิน</div>
             <div class="sip-field">

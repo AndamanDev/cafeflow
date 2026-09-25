@@ -290,6 +290,49 @@ function receipt({ order, items, payment, branch, width = '80mm', cashier, dots 
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   ใบรับออเดอร์ (§12 Mode B) — พิมพ์ที่คีออสก์ทันทีที่ลูกค้าสั่งเสร็จ
+   เลขคิวต้องใหญ่ที่สุดในใบ: ลูกค้าใช้มันจับคู่กับจอเรียกคิว
+   ══════════════════════════════════════════════════════════════════ */
+const TICKET_STATUS = {
+    CASH:    ['กรุณาชำระเงินที่เคาน์เตอร์', 'แสดงใบนี้กับพนักงาน'],
+    REVIEW:  ['ส่งสลิปแล้ว รอพนักงานตรวจสอบ', 'ตรวจเสร็จแล้วส่งเข้าครัวทันที'],
+    TIMEOUT: ['กรุณาติดต่อพนักงานที่เคาน์เตอร์', 'แสดงใบนี้กับพนักงาน'],
+    PAID:    ['ชำระแล้ว', 'รอเรียกหมายเลขที่จอ'],
+};
+
+function kioskTicket({ order, items, branch, kind, width = '80mm', dots }) {
+    const W = dots || WIDTH[width] || WIDTH['80mm'];
+    const narrow = W < 500;
+    const s = createSheet(W);
+    const base = narrow ? 21 : 23;
+
+    s.line(branch.name_th, { size: narrow ? 24 : 28, bold: true, align: 'center' });
+    s.line('ใบรับออเดอร์', { size: base, align: 'center' });
+    s.rule();
+    s.line('หมายเลขคิว', { size: base, align: 'center' });
+    s.line(pick(order, 'orderNo', 'order_no') || '—', { size: narrow ? 72 : 96, bold: true, align: 'center', lh: 1.15 });
+    s.line((pick(order, 'diningOption', 'dining_option') === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน') +
+           ' · ' + dateTime(pick(order, 'createdAt', 'created_at') || Date.now()), { size: 18, align: 'center' });
+    s.rule({ dashed: true });
+
+    for (const it of items) {
+        const serve = { HOT: 'ร้อน', ICED: 'เย็น', FRAPPE: 'ปั่น' }[pick(it, 'serveType', 'serve_type')];
+        const name = pick(it, 'nameSnapshot', 'name_snapshot') + (serve ? ` (${serve})` : '');
+        s.wrap(`${it.qty} × ${name}`, { size: base, hang: `${it.qty} × ` });
+    }
+    s.rule();
+    s.row('ยอดรวม', '฿' + money(order.total), { size: base + 6, bold: true });
+    s.gap(6);
+    const [head, sub] = TICKET_STATUS[kind] || TICKET_STATUS.CASH;
+    s.wrap(head, { size: base + 2, bold: true });
+    s.line(sub, { size: 18 });
+    s.gap(4);
+
+    const { canvas, height } = s.render();
+    return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
+}
+
 /**
  * บิตแมป 1 บิตที่จะส่งเข้าเครื่องพิมพ์ → PNG สำหรับพรีวิวบนจอ
  * ต้องวาดจาก "บิตแมป" ไม่ใช่จาก canvas ต้นฉบับ — พรีวิวจะได้เห็นเหมือนกระดาษจริง
@@ -312,4 +355,4 @@ function bitsToPng(bits, width, height) {
     return canvas.toBuffer('image/png');
 }
 
-module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, fontFamily };
+module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket, fontFamily };

@@ -97,6 +97,7 @@ const KdsPage = {
 
     boot() {
         CFApp.boot({ page: 'kds' });
+        CFAlerts.start('kds');
 
         // สถานีเริ่มต้นจากอุปกรณ์ที่ผูกไว้ (§30) — จอบาร์ควรเปิดมาที่บาร์เลย
         const dev = CFStore.byId('devices', CFApp.deviceId());

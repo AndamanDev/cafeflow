@@ -78,6 +78,13 @@ UNION ALL SELECT 'shift', count(*) FROM shift
 UNION ALL SELECT 'audit_log', count(*) FROM audit_log
 ORDER BY 1;" > "$AFTER"
 
+# ภาพสลิป/รูปสินค้า — คืนเฉพาะไฟล์ที่หายไป ไม่ทับของที่มีอยู่
+if [ -d "$OUT_DIR/data" ]; then
+    mkdir -p "$ROOT/data"
+    cp -rn "$OUT_DIR/data/." "$ROOT/data/"
+    echo "   คืนไฟล์ data/ (ภาพสลิป รูปสินค้า) จาก $OUT_DIR/data แล้ว"
+fi
+
 echo "   กู้แล้วมี:"
 sed 's/^/     /' "$AFTER"
 

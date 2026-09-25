@@ -259,11 +259,12 @@ const OrdersPage = {
                 </table>
                 ${CFApp.slipOcrHtml(s)}
                 ${s.hasImage && canSee ? `
-                <a href="/api/slips/${e(s.id)}/image" target="_blank" rel="noopener" title="เปิดภาพเต็ม">
+                <button type="button" class="cf-slip-thumb" title="ดูภาพเต็ม"
+                        onclick="CFApp.showImage('/api/slips/${e(s.id)}/image', 'สลิป ${e(o.orderNo)}')">
                     <img src="/api/slips/${e(s.id)}/image" alt="ภาพสลิป"
                          style="display:block;width:100%;max-height:420px;object-fit:contain;
                                 background:#111;border-radius:8px;margin-bottom:12px">
-                </a>` : `<div class="ds-note" style="margin-bottom:12px">${s.hasImage
+                </button>` : `<div class="ds-note" style="margin-bottom:12px">${s.hasImage
                     ? 'มีภาพสลิป — ดูได้เฉพาะพนักงานที่รับเงินได้'
                     : 'ไม่มีภาพสลิป'}</div>`}`).join('')}`;
     },

@@ -75,6 +75,23 @@ test('สลิปกรุงไทย: ยอดมีจุลภาค + ว
     assert.deepStrictEqual(CFSlipRules.findDate(KTB), { y: 2026, m: 9, d: 16, hh: 19, mm: 3 });
 });
 
+// พร้อมเพย์กรุงไทย — ยอด "55 บาท" ไม่มีทศนิยม · OCR แยกตัวเลขกับคำว่าบาทคนละบรรทัด · วันที่อยู่นอกภาพ
+const NODEC = ['นางสาว รัชฎา นาไชยธง', 'Prompt', 'Pay', 'เลขพร้อมเพย์:****** 5706', '55', 'บาท',
+    'จำนวนเงิน', '0 บาท', 'ค่าธรรมเนียม', 'บันทึกช่วยจำ', 'ทดสอบ', 'รหัสอ้างอิง', 'Ed6eef5a0f94c4ba0',
+    'บันทึก/แชร์', 'เสร็จสิ้น'];
+
+test('ยอดไม่มีทศนิยม "55 บาท" (ตัวเลขกับบาทคนละบรรทัด) · เลขพร้อมเพย์ 5706 ไม่ถูกนับ', () => {
+    assert.strictEqual(CFSlipRules.findAmount(NODEC), 55);
+    assert.strictEqual(CFSlipRules.findAmount(['ยอดโอน 1,250 บาท']), 1250);
+    assert.strictEqual(CFSlipRules.findAmount(['เลขบัญชี 5706', 'รหัส 123456']), null);
+});
+
+test('ยอดตรงแต่วันที่อยู่นอกภาพ → WARN (ไม่เตือนแดง)', () => {
+    const r = CFSlipRules.evaluate(NODEC, { total: 55, orderAt: AT(24, '17:16'), scannedAt: AT(24, '17:17') });
+    assert.strictEqual(r.checks.amount, 'PASS');
+    assert.strictEqual(r.verdict, 'WARN');
+});
+
 test('อ่านอะไรไม่ออกเลย → WARN', () => {
     const r = CFSlipRules.evaluate(['???', 'K+'], { total: 100, scannedAt: AT(24, '15:32') });
     assert.strictEqual(r.verdict, 'WARN');

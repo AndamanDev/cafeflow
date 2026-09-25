@@ -13,6 +13,7 @@ const CFApp = {
     boot(opts) {
         opts = opts || {};
         this.applyRoleGate();
+        this.watchUpdates();
 
         const sess = CFAuth.session();
         if (sess && sess.mustChangePassword) setTimeout(() => this.changePassword({ forced: true }), 300);
@@ -22,6 +23,56 @@ const CFApp = {
         if (q.get('denied')) {
             setTimeout(() => showToast('ไม่มีสิทธิ์เข้าหน้าที่ร้องขอ (' + q.get('denied') + ')', 'warning', 4000), 300);
         }
+    },
+
+    /**
+     * ดูภาพเต็มจอในหน้าเดิม (ภาพสลิป) — กดพื้นหลัง / ปุ่มปิด / Esc เพื่อปิด
+     * ไม่เปิดแท็บใหม่: แคชเชียร์ต้องกลับมาที่การ์ดเดิมเพื่อกดยืนยัน แท็บใหม่ทำให้หลง
+     */
+    showImage(src, title) {
+        const old = document.getElementById('cfLightbox');
+        if (old) old.remove();
+        const box = document.createElement('div');
+        box.id = 'cfLightbox';
+        box.className = 'cf-lightbox';
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+        box.innerHTML = `
+            <div class="cf-lightbox-bar">
+                <span>${this.esc(title || 'ภาพสลิป')}</span>
+                <button type="button" class="btn btn-outline btn-sm cf-lightbox-close">ปิด</button>
+            </div>
+            <img src="${this.esc(src)}" alt="${this.esc(title || 'ภาพสลิป')}">`;
+        const close = () => { box.remove(); document.removeEventListener('keydown', onKey, true); };
+        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+        box.addEventListener('click', (e) => { if (e.target === box || e.target.closest('.cf-lightbox-close')) close(); });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(box);
+        box.querySelector('.cf-lightbox-close').focus();
+    },
+
+    /**
+     * มีเวอร์ชันใหม่ → ขึ้นแถบให้กดโหลดใหม่ และโหลดใหม่เองเมื่อไม่มีใครใช้งาน
+     * "ไม่มีใครใช้งาน" = ไม่ได้แตะจอ 60 วิ + ไม่มีหน้าต่าง (drawer) เปิดค้าง + ไม่ได้พิมพ์อะไรอยู่
+     * — กันโหลดทับตอนแคชเชียร์กำลังนับเงินหรือพิมพ์เหตุผลค้างไว้
+     */
+    watchUpdates() {
+        let lastTouch = Date.now();
+        ['pointerdown', 'keydown'].forEach((ev) =>
+            document.addEventListener(ev, () => { lastTouch = Date.now(); }, { passive: true, capture: true }));
+        CFApi.watchVersion(() => {
+            const bar = document.createElement('div');
+            bar.className = 'cf-update-bar';
+            bar.innerHTML = '<span>มีเวอร์ชันใหม่ของระบบ</span>' +
+                '<button type="button" class="btn btn-primary btn-sm">โหลดใหม่ตอนนี้</button>';
+            bar.querySelector('button').onclick = () => location.reload();
+            document.body.appendChild(bar);
+            setInterval(() => {
+                const drawerOpen = !!(window.Drawer && Drawer.isOpen && Drawer.isOpen());
+                const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+                if (Date.now() - lastTouch > 60000 && !drawerOpen && !typing) location.reload();
+            }, 5000);
+        });
     },
 
     /**

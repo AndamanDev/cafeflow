@@ -84,6 +84,34 @@ async function registerStatic() {
    ══════════════════════════════════════════════════════════════════ */
 
 /** คีออสก์เรียกทุก 5 วินาที — หลุดเกิน 30 วิแล้วมันจะขึ้นหน้า "สั่งที่เคาน์เตอร์" */
+/**
+ * เวอร์ชันของหน้าเว็บ — ลายนิ้วมือจากเวลาแก้ไขล่าสุดของไฟล์ที่หน้าเว็บโหลด
+ * ทุกจอถามเป็นระยะ ถ้าเปลี่ยนแปลว่ามีการอัปเดต → โหลดใหม่เอง (ไม่ต้องไล่กด F5 ทุกเครื่อง)
+ * ไม่ต้องล็อกอิน: บอกแค่ตัวเลข ไม่มีข้อมูลร้าน · คำนวณใหม่ไม่เกินทุก 5 วินาที
+ */
+let _ver = { at: 0, v: '' };
+function webVersion() {
+    if (Date.now() - _ver.at < 5000) return _ver.v;
+    const fs = require('fs');
+    let n = 0, max = 0;
+    const walk = (dir) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+            const p = path.join(dir, e.name);
+            if (e.isDirectory()) walk(p);
+            else if (/\.(js|css|html)$/.test(e.name)) { n++; max = Math.max(max, fs.statSync(p).mtimeMs); }
+        }
+    };
+    for (const d of ['app', 'shared', 'design-system-2']) {
+        try { walk(path.join(ROOT, d)); } catch { /* ไม่มีโฟลเดอร์ก็ข้าม */ }
+    }
+    _ver = { at: Date.now(), v: Math.round(max).toString(36) + '-' + n };
+    return _ver.v;
+}
+app.get('/api/version', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    return { version: webVersion() };
+});
+
 app.get('/api/health', async () => {
     const t0 = Date.now();
     await query('SELECT 1');

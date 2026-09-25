@@ -52,15 +52,34 @@
         return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() };
     }
 
-    /** ยอดเงินในสลิป — ตัวแรกที่ไม่ใช่ 0.00 (0.00 คือค่าธรรมเนียม) · หลังคำว่า "จำนวน" ถ้าหาเจอ */
+    /**
+     * ยอดเงินในสลิป — ตัวแรกที่ไม่ใช่ 0 (0 คือค่าธรรมเนียม) · หลังคำว่า "จำนวน" ถ้าหาเจอ
+     * รับสองรูปแบบ: มีทศนิยม "135.00" · ไม่มีทศนิยมแต่มีคำว่าบาทกำกับ "55 บาท" (บางแอป เช่นพร้อมเพย์กรุงไทย)
+     * ตัวเลขเปล่า ๆ ที่ไม่มีบาทกำกับ (เลขบัญชี "5706" เลขที่รายการ) ห้ามนับ
+     */
     function findAmount(lines) {
         const MONEY = /(?:^|[^\d.,])((?:\d{1,3}(?:,\d{3})+|\d{1,7})\.\d{2})(?![\d])/g;
+        // "บาท" อ่านเพี้ยนบ่อย (บาn บาก) — จับแค่ "บา" ตามด้วยอะไรก็ได้ 0–1 ตัว
+        const BAHT = /^\s*(?:บา.?|thb)|^\s*บา/i;
+        const INT_BAHT = /(?:^|[^\d.,])((?:\d{1,3}(?:,\d{3})+|\d{1,7}))\s*(?:บา|thb)/gi;
         const found = [];
         lines.forEach((ln, i) => {
             let m;
             MONEY.lastIndex = 0;
             while ((m = MONEY.exec(' ' + ln)) !== null) {
                 const v = Number(m[1].replace(/,/g, ''));
+                if (v > 0) found.push({ v, i });
+            }
+            if (MONEY.test(' ' + ln)) return;
+            INT_BAHT.lastIndex = 0;
+            while ((m = INT_BAHT.exec(' ' + ln)) !== null) {
+                const v = Number(m[1].replace(/,/g, ''));
+                if (v > 0) found.push({ v, i });
+            }
+            // OCR แยก "55" กับ "บาท" เป็นคนละบรรทัด
+            const bare = /^\s*((?:\d{1,3}(?:,\d{3})+|\d{1,7}))\s*$/.exec(ln);
+            if (bare && lines[i + 1] && BAHT.test(lines[i + 1])) {
+                const v = Number(bare[1].replace(/,/g, ''));
                 if (v > 0) found.push({ v, i });
             }
         });

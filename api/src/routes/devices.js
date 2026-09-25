@@ -84,7 +84,16 @@ async function printerFields(c, branchId, body, cur) {
         }
     }
 
-    const station = pick('station', cur ? cur.assigned_station : null) || null;
+    // พิมพ์ให้คีออสก์ตัวไหน — ผูกคีออสก์แล้วไม่ผูกสถานี (เครื่องนี้พิมพ์แค่ใบรับออเดอร์ของตู้นั้น)
+    const kiosk = pick('kiosk', cur ? cur.serves_kiosk : null) || null;
+    if (kiosk) {
+        const k = await c.query(
+            `SELECT id FROM device WHERE id = $1 AND branch_id = $2 AND kind = 'KIOSK'`, [kiosk, branchId]);
+        if (!k.rows.length) throw new ApiError(400, 'ไม่พบคีออสก์ที่เลือก');
+    }
+    // USB ต้องเสียบที่เครื่องเซิร์ฟเวอร์ — เสียบที่ตู้คีออสก์แล้วเซิร์ฟเวอร์สั่งพิมพ์ไม่ได้
+    if (kiosk && conn === 'USB') throw new ApiError(400, 'เครื่องพิมพ์ของคีออสก์ต้องต่อแบบ LAN / IP');
+    const station = kiosk ? null : (pick('station', cur ? cur.assigned_station : null) || null);
     if (station && !STATIONS.includes(station)) throw new ApiError(400, 'ส่วนที่พิมพ์ไม่ถูกต้อง');
 
     const paper = pick('paperWidth', (cur && cur.paper_width) || '80mm');
@@ -107,7 +116,7 @@ async function printerFields(c, branchId, body, cur) {
     }
 
     const active = pick('active', cur ? cur.active : true) !== false;
-    return { name, conn, host, port, usb, station, paper, dots, fallback, active };
+    return { name, conn, host, port, usb, station, kiosk, paper, dots, fallback, active };
 }
 
 function registerDevices(app, deps) {
@@ -218,18 +227,18 @@ function registerDevices(app, deps) {
             await c.query(
                 `INSERT INTO device (id, branch_id, kind, name_th, printer_conn, printer_host, printer_port,
                                      printer_usb, assigned_station, paper_width, fallback_printer_id, active,
-                                     print_dots)
-                 VALUES ($1,$2,'PRINTER',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+                                     print_dots, serves_kiosk)
+                 VALUES ($1,$2,'PRINTER',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
                 [id, branchId(), f.name, f.conn, f.host, f.port, f.usb, f.station, f.paper,
-                 f.fallback, f.active, f.dots]);
+                 f.fallback, f.active, f.dots, f.kiosk]);
         } else {
             await c.query(
                 `UPDATE device SET name_th = $3, printer_conn = $4, printer_host = $5, printer_port = $6,
                         printer_usb = $7, assigned_station = $8, paper_width = $9,
-                        fallback_printer_id = $10, active = $11, print_dots = $12
+                        fallback_printer_id = $10, active = $11, print_dots = $12, serves_kiosk = $13
                   WHERE id = $1 AND branch_id = $2`,
                 [id, branchId(), f.name, f.conn, f.host, f.port, f.usb, f.station, f.paper,
-                 f.fallback, f.active, f.dots]);
+                 f.fallback, f.active, f.dots, f.kiosk]);
             // ปิดเครื่องที่เป็นสำรองของเครื่องอื่น → ถอดออก ไม่งั้นดูเหมือนมีสำรองแต่ใช้ไม่ได้จริง
             if (!f.active) {
                 await c.query(

@@ -534,8 +534,10 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     position: relative; width: min(100%, calc(var(--u) * 64)); aspect-ratio: 4 / 3;
     border-radius: calc(var(--u) * 1.6); overflow: hidden; background: #111;
 }
-/* กล้องหน้า: ภาพกลับด้านแบบกระจก ลูกค้าเล็งมือถือเข้ากรอบได้เป็นธรรมชาติ (การถอดรหัสใช้ภาพจริง ไม่กลับด้าน) */
-.cfk-cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+/* ภาพกล้องไม่กลับด้านเป็นค่าเริ่มต้น — ตัวหนังสือบนสลิปอ่านได้ปกติ
+   เปิดแบบกระจกได้ที่ ตั้งค่าคีออสก์ (kioskCamMirror) · การถอดรหัสใช้ภาพจริงเสมอ ไม่เกี่ยวกับตรงนี้ */
+.cfk-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cfk-cam-mirror .cfk-cam video { transform: scaleX(-1); }
 /* กรอบเล็งกว้างเกือบเต็มภาพ — ลูกค้าอาจยกมือถือหรือแท็บเล็ต/iPad มาก็ได้ ทั้งแนวตั้งและแนวนอน
    ห้ามเป็นสี่เหลี่ยมเล็ก ๆ: ลูกค้าจะเล็งแค่ QR มุมสลิป ภาพหลักฐานจะไม่เห็นยอดเงินกับชื่อ */
 .cfk-cam-frame {
@@ -555,6 +557,16 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 .cfk-slip-reject-head .cfk-ic { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
 .cfk-slip-reject-why { font-size: calc(var(--u) * 1.5); font-weight: 600; }
 .cfk-slip-reject-next { font-size: calc(var(--u) * 1.3); color: #5B2A24; }
+.cfk-slip-retake { background: #FFF6E0; border-color: #E0A100; color: #6B4A00; }
+.cfk-slip-retake .cfk-slip-reject-head { color: #8A5A00; }
+.cfk-slip-retake .cfk-slip-reject-next { color: #6B4A00; }
+
+/* ภาพที่ถ่ายได้ ทับภาพสดขณะรอลูกค้าตัดสินใจถ่ายใหม่ */
+.cfk-cam-preview {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+    background: #111; z-index: 2;
+}
+.cfk-preview-actions { display: flex; gap: calc(var(--u) * .8); margin-top: calc(var(--u) * .6); }
 
 .cfk-cam-label {
     position: absolute; left: 0; right: 0; bottom: 2%; text-align: center;

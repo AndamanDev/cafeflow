@@ -60,6 +60,8 @@ const DisplayPage = {
         // จอที่จับคู่แล้วต้องรายงานตัว ไม่งั้นหน้าภาพรวมจะขึ้นว่าออฟไลน์ตลอด
         clearInterval(this._beat);
         this._beat = setInterval(() => CFApi.heartbeat().catch(() => {}), 20000);
+        // ทีวีแขวนผนัง ไม่มีใครกด F5 ให้ — มีเวอร์ชันใหม่ก็โหลดใหม่เลย
+        if (!this._ver) this._ver = CFApi.watchVersion(() => location.reload());
     },
 
     async refresh() {

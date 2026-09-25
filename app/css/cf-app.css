@@ -188,3 +188,31 @@
     font-size: 17px;
     font-weight: 800;
 }
+
+/* ── มีเวอร์ชันใหม่ (CFApp.watchUpdates) ── */
+.cf-update-bar {
+    position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    z-index: 9000; display: flex; align-items: center; gap: 12px;
+    background: #23282D; color: #fff; border-radius: 10px; padding: 8px 8px 8px 16px;
+    font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.18); max-width: calc(100vw - 32px);
+}
+
+/* ── ปุ่มเสียงเตือน (CFAlerts) — มุมซ้ายล่าง ไม่บังปุ่มงาน ── */
+.cf-sound-toggle {
+    position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 8000;
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: 0.8px solid #DFDFDF; background: #fff; color: #058739; border-radius: 999px; padding: 6px 14px;
+}
+.cf-sound-toggle.is-locked { background: #FEF3E2; border-color: #F2B35C; color: #8A5A00; animation: cf-pulse 1.6s ease-in-out infinite; }
+.cf-sound-toggle.is-off { color: #6B7280; }
+@keyframes cf-pulse { 50% { box-shadow: 0 0 0 6px rgba(242,179,92,.25); } }
+@media (prefers-reduced-motion: reduce) { .cf-sound-toggle.is-locked { animation: none; } }
+
+/* ── ภาพเต็มจอในหน้าเดิม (CFApp.showImage) ── */
+.cf-slip-thumb { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.cf-lightbox {
+    position: fixed; inset: 0; z-index: 10000; background: rgba(10, 12, 11, .88);
+    display: grid; grid-template-rows: auto 1fr; padding: 16px; gap: 12px;
+}
+.cf-lightbox-bar { display: flex; align-items: center; justify-content: space-between; color: #fff; font-weight: 600; }
+.cf-lightbox img { width: 100%; height: 100%; min-height: 0; object-fit: contain; cursor: zoom-out; }

@@ -58,6 +58,17 @@ ORDER BY 1;" > "$FILE.counts"
 echo "   ขนาด $(( SIZE / 1024 )) KB · จำนวนแถว:"
 sed 's/^/     /' "$FILE.counts"
 
+# ── ไฟล์ในเครื่อง: ภาพสลิปลูกค้า + รูปสินค้า (data/) ──
+# ไม่อยู่ในฐานข้อมูล pg_dump จึงไม่ได้ไปด้วย · ชื่อไฟล์คือ sha256 ของเนื้อไฟล์ (ไม่มีวันถูกแก้ทับ)
+# จึงคัดลอกแบบ "เพิ่มเฉพาะไฟล์ใหม่" เข้า backup/data/ — เร็ว และไม่กินที่ซ้ำทุกชั่วโมง
+if [ -d "$ROOT/data" ]; then
+    mkdir -p "$OUT_DIR/data"
+    before=$(find "$OUT_DIR/data" -type f | wc -l)
+    cp -rn "$ROOT/data/." "$OUT_DIR/data/"
+    after=$(find "$OUT_DIR/data" -type f | wc -l)
+    echo "   ไฟล์ใน data/ (ภาพสลิป รูปสินค้า): สำรองแล้ว $after ไฟล์ · ใหม่รอบนี้ $((after - before))"
+fi
+
 # ── ลบไฟล์เก่า ──
 find "$OUT_DIR" -name 'cafeflow-*.dump' -mtime "+$KEEP_DAYS" -print -delete 2>/dev/null \
     | sed 's/^/   ลบไฟล์เก่า /' || true

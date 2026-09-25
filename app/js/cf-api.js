@@ -94,7 +94,23 @@
         return () => { disposed = true; stop(); };
     }
 
+    /**
+     * เฝ้าดูว่าเซิร์ฟเวอร์มีหน้าเว็บเวอร์ชันใหม่ไหม — เรียก onChange ครั้งเดียวเมื่อเปลี่ยน
+     * ตัวเลขแรกที่ได้คือเวอร์ชันของหน้านี้ (ไม่ใช่ตัวที่ติดมากับ HTML) จึงไม่ต้องแก้ไฟล์ทุกหน้า
+     */
+    function watchVersion(onChange, intervalMs) {
+        let mine = null, fired = false;
+        const check = () => request('GET', '/api/version').then((r) => {
+            if (!r || !r.version) return;
+            if (mine === null) { mine = r.version; return; }
+            if (r.version !== mine && !fired) { fired = true; onChange(r.version); }
+        }).catch(() => { /* เซิร์ฟเวอร์รีสตาร์ท/เน็ตหลุด — รอบหน้าลองใหม่ */ });
+        check();
+        return setInterval(check, intervalMs || 30000);
+    }
+
     window.CFApi = {
+        watchVersion,
         baseUrl,
 
         get:  (p, o)    => request('GET', p, undefined, o),

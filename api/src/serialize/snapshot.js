@@ -71,6 +71,7 @@ function toDevice(r, onlineCutoffMs) {
             conn: r.printer_conn || 'NETWORK',
             printerHost: r.printer_host, printerPort: r.printer_port, printerUsb: r.printer_usb,
             paperWidth: r.paper_width, printDots: r.print_dots, fallbackId: r.fallback_printer_id,
+            kioskId: r.serves_kiosk,
             active: r.active,
         });
     }

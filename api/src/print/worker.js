@@ -83,6 +83,7 @@ async function printerFor(c, branchId, station) {
     const r = await c.query(
         `SELECT * FROM device
           WHERE branch_id = $1 AND kind = 'PRINTER' AND active
+            AND serves_kiosk IS NULL          -- เครื่องที่ผูกคีออสก์ พิมพ์แค่ใบรับออเดอร์ของตู้นั้น
             AND ($2::text IS NULL OR assigned_station = $2 OR assigned_station IS NULL)
           ORDER BY CASE WHEN assigned_station IS NOT DISTINCT FROM $2 THEN 0
                         WHEN assigned_station IS NULL THEN 1 ELSE 2 END, id

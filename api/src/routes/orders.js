@@ -278,6 +278,7 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
             [orderId, ctx.actorUserId || null]);
         await settlePayment(c, branchId, o, opts, ctx);
         await sendToKitchen(c, branchId, o, ctx);
+        await queueAutoReceipt(c, branchId, orderId, ctx);
     }
 
     // ยกเลิก / คืนเงิน → เอารายการออกจากบอร์ดครัว
@@ -446,6 +447,37 @@ async function renderReceipt(c, branchId, o) {
         openDrawer: !!(pay && pay.method === 'CASH'),   // เงินสดเท่านั้นที่ต้องเปิดลิ้นชัก
     });
     return { doc, payload, printer, width };
+}
+
+/**
+ * ใบเสร็จอัตโนมัติเมื่อชำระแล้ว — ออกที่เครื่องเคาน์เตอร์ (เงินสดเปิดลิ้นชักให้ด้วย)
+ * ปิดได้ที่ หน้าภาพรวม › เครื่องพิมพ์ (autoPrintReceipt) · ไม่ได้ตั้งไว้ = เปิด
+ * ยังไม่มีเครื่องพิมพ์เคาน์เตอร์ → ข้าม ไม่สร้างงานที่รู้อยู่แล้วว่าจะพิมพ์ไม่ออก
+ * พิมพ์ไม่ได้ต้องไม่ทำให้รับเงินไม่ได้ — จับ error ไว้ทั้งหมด (เหมือนสลิปครัว)
+ */
+async function queueAutoReceipt(c, branchId, orderId, ctx) {
+    try {
+        const s = await settingsOf(c, branchId);
+        if (s.autoPrintReceipt === false) return null;
+        const { enqueue } = require('../print/worker');
+        // อ่านแถวใหม่ — cashier_id เพิ่งถูกตั้ง และการชำระเพิ่งบันทึกในทรานแซกชันนี้
+        const o = (await c.query('SELECT * FROM cf_order WHERE id = $1', [orderId])).rows[0];
+        const { payload, printer, width } = await renderReceipt(c, branchId, o);
+        if (!printer) return null;
+        const jobId = await enqueue(c, branchId, {
+            orderId, deviceId: printer.id, docType: 'RECEIPT', paperWidth: width, payload,
+        });
+        // ใบนี้คือต้นฉบับ — ใบที่กดพิมพ์ทีหลังจะขึ้น "พิมพ์ซ้ำครั้งที่ 1"
+        await c.query('UPDATE cf_order SET reprint_count = reprint_count + 1 WHERE id = $1', [orderId]);
+        await audit(c, branchId, {
+            eventType: 'PRINT', orderId, actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
+            deviceId: ctx.deviceId, ip: ctx.ip, payload: { docType: 'RECEIPT', auto: true, width, jobId },
+        });
+        return jobId;
+    } catch (err) {
+        console.error('[print] สร้างใบเสร็จอัตโนมัติไม่สำเร็จ:', err.message);
+        return null;
+    }
 }
 
 /**
@@ -751,6 +783,44 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         });
         publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
         return out;
+    }));
+
+    /**
+     * ใบรับออเดอร์ — คีออสก์เรียกตอนขึ้นหน้าเสร็จสิ้น ออกที่เครื่องพิมพ์ที่ผูกกับตู้นั้น
+     * ไม่ได้ผูกเครื่องพิมพ์ไว้ → ไม่พิมพ์ (ไม่ใช่ error — บางร้านไม่ใช้ใบรับออเดอร์)
+     * พิมพ์ครั้งเดียวต่อออเดอร์ — หน้าเสร็จสิ้นวาดซ้ำได้หลายรอบ (ข้อมูลเปลี่ยน) ห้ามพิมพ์ซ้ำ
+     */
+    app.post('/api/orders/:id/kiosk-ticket', handle(async (req) => {
+        const ctx = await context(req);
+        const kioskId = ctx.device && ctx.device.kind === 'KIOSK' ? ctx.device.id
+            : (ctx.user ? String((req.body || {}).kioskId || '') : null);
+        if (!kioskId) throw new ApiError(401, 'เครื่องนี้ยังไม่ได้จับคู่กับร้าน');
+        const kind = String((req.body || {}).kind || 'CASH');
+
+        return tx(async (c) => {
+            const o = await loadOrder(c, req.params.id);
+            const done = await c.query(
+                "SELECT 1 FROM print_job WHERE order_id = $1 AND doc_type = 'PAYMENT_TICKET' LIMIT 1", [o.id]);
+            if (done.rows.length) return { printed: false, reason: 'already' };
+
+            const printer = (await c.query(
+                `SELECT * FROM device WHERE branch_id = $1 AND kind = 'PRINTER' AND active
+                    AND serves_kiosk = $2 ORDER BY id LIMIT 1`, [branchId(), kioskId])).rows[0];
+            if (!printer) return { printed: false, reason: 'no-printer' };
+
+            const { kioskTicket } = require('../print/raster');
+            const escpos = require('../print/escpos');
+            const { enqueue } = require('../print/worker');
+            const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId()])).rows[0];
+            const items = await itemsForStation(c, o.id, null);
+            const width = printer.paper_width || '80mm';
+            const doc = kioskTicket({ order: o, items, branch, kind, width, dots: printer.print_dots });
+            const payload = escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height });
+            const jobId = await enqueue(c, branchId(), {
+                orderId: o.id, deviceId: printer.id, docType: 'PAYMENT_TICKET', paperWidth: width, payload,
+            });
+            return { printed: true, jobId, printer: printerInfo(printer) };
+        });
     }));
 
     /** สถานะงานพิมพ์ใบเดียว — หน้าจอถามซ้ำหลังสั่งพิมพ์ เพื่อบอกได้ว่าออกหรือพัง */

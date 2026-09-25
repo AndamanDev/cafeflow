@@ -92,6 +92,8 @@
         // ⚠️ kioskDiningMode ไม่อยู่ในนี้โดยตั้งใจ — ดูเหตุผลที่ CF_DINING_MODE()
         kioskUpsell: true,
         kioskImages: true,
+        // ภาพกล้องสแกนสลิปแบบกระจก — ปิดไว้: กลับด้านแล้วตัวหนังสือบนสลิปกลับด้าน ลูกค้าอ่านแล้วงง
+        kioskCamMirror: false,
         kioskIdleSec: 90,
         kioskDoneSec: 12,
     };

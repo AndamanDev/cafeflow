@@ -68,6 +68,8 @@ if [[ "$DEST" == rclone:* ]]; then
 
     echo "คัดลอกขึ้น $REMOTE"
     rclone copy "$SRC_DIR" "$REMOTE" --include 'cafeflow-*.dump*' --progress
+    # ภาพสลิป/รูปสินค้า — copy ไม่ลบของปลายทาง (ภาพเก่าคือหลักฐาน)
+    [ -d "$SRC_DIR/data" ] && rclone copy "$SRC_DIR/data" "$REMOTE/data"
     rclone check "$SRC_DIR" "$REMOTE" --include 'cafeflow-*.dump*' --one-way
     echo "   ✓ ตรวจแล้วตรงกับต้นทาง"
     rclone delete "$REMOTE" --include 'cafeflow-*.dump*' --min-age "${KEEP}d" || true
@@ -128,6 +130,15 @@ while IFS= read -r f; do
 done <<< "$(files)"
 
 echo "   คัดลอกใหม่ $copied ไฟล์ · มีอยู่แล้ว $skipped ไฟล์"
+
+# ภาพสลิป/รูปสินค้า (backup/data/) — คัดลอกเฉพาะไฟล์ที่ปลายทางยังไม่มี
+if [ -d "$SRC_DIR/data" ]; then
+    mkdir -p "$DEST/data"
+    n0=$(find "$DEST/data" -type f | wc -l)
+    cp -rn "$SRC_DIR/data/." "$DEST/data/"
+    n1=$(find "$DEST/data" -type f | wc -l)
+    echo "   ไฟล์ data/ ที่ปลายทาง: $n1 ไฟล์ · ใหม่รอบนี้ $((n1 - n0))"
+fi
 
 # ลบของเก่าที่ปลายทาง
 old=$(find "$DEST" -name 'cafeflow-*.dump' -mtime "+$KEEP" -print -delete 2>/dev/null | wc -l || echo 0)
