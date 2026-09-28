@@ -256,6 +256,85 @@ const CFPrint = {
         setTimeout(tick, 1200);
     },
 
+    /* ══════════════════════════════════════════════════════
+       งานที่พิมพ์ไม่ออก — ดู · พิมพ์ซ้ำ (เครื่องเดิมหรือเครื่องอื่น) · ไม่ต้องพิมพ์
+       ══════════════════════════════════════════════════════ */
+    DOC_LABEL: { KITCHEN_SLIP: 'สลิปครัว', RECEIPT: 'ใบเสร็จ', PAYMENT_TICKET: 'ใบรับออเดอร์', CLOSING: 'ใบปิดรอบ' },
+
+    async failedJobs() {
+        try { return (await CFApi.get('/api/print/queue')).failed || []; }
+        catch (err) { return []; }
+    },
+
+    failedHtml(jobs) {
+        const e = CFApp.esc;
+        if (!jobs.length) return '<div class="ds-empty-sm">ไม่มีงานที่พิมพ์ไม่ออก</div>';
+        const printers = CFStore.all('devices').filter((d) => d.type === 'PRINTER' && d.active !== false);
+        return jobs.map((j) => `
+            <div class="cf-failjob" id="fj-${e(j.id)}">
+                <div class="cf-failjob-head">
+                    <strong>${e(this.DOC_LABEL[j.doc_type] || j.doc_type)}${j.order_no ? ' · ' + e(j.order_no) : ''}</strong>
+                    <span class="text-muted">${CFApp.time(j.created_at)}</span>
+                </div>
+                <div class="td-sub">เครื่อง ${e(j.printer || 'ไม่ได้ระบุ')} — ${e(j.last_error || 'พิมพ์ไม่ออก')}</div>
+                <div class="cf-failjob-actions">
+                    <select class="sip-select" id="fjTo-${e(j.id)}" aria-label="พิมพ์ที่เครื่อง">
+                        ${printers.map((p) => `<option value="${e(p.id)}" ${p.id === j.device_id ? 'selected' : ''}>
+                            ${e(p.name)}${p.id === j.device_id ? ' (เครื่องเดิม)' : ''}</option>`).join('')}
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="CFPrint.retryJob('${e(j.id)}')">
+                        <i data-lucide="printer" class="icon-sm"></i> พิมพ์ซ้ำ</button>
+                    <button class="btn btn-outline btn-sm" onclick="CFPrint.dismissJob('${e(j.id)}')">ไม่ต้องพิมพ์</button>
+                </div>
+            </div>`).join('');
+    },
+
+    async openFailed() {
+        const jobs = await this.failedJobs();
+        Drawer.open({
+            title: 'งานที่พิมพ์ไม่ออก (' + jobs.length + ')',
+            width: '560px',
+            contentHtml: `
+                <div class="ds-note" style="margin-bottom:12px">
+                    เช็กเครื่องพิมพ์ก่อน: กระดาษหมด · ฝาเปิด · สายหลุด · ไฟไม่เข้า แล้วกด "พิมพ์ซ้ำ"
+                    · เครื่องเดิมยังใช้ไม่ได้ เลือกเครื่องอื่นในช่องด้านซ้ายก่อนกด
+                </div>
+                <div id="failedList">${this.failedHtml(jobs)}</div>`,
+            footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
+            onOpen: () => refreshIcons(),
+        });
+    },
+
+    async refreshFailed() {
+        const el = document.getElementById('failedList');
+        if (el) { el.innerHTML = this.failedHtml(await this.failedJobs()); refreshIcons(); }
+        if (window.CashierPage && CashierPage.refreshPrintAlert) CashierPage.refreshPrintAlert();
+    },
+
+    async retryJob(id) {
+        const sel = document.getElementById('fjTo-' + id);
+        const deviceId = sel ? sel.value : null;
+        try {
+            const r = await CFApi.post('/api/print/jobs/' + encodeURIComponent(id) + '/retry', { deviceId });
+            const name = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.replace(' (เครื่องเดิม)', '').trim() : 'เครื่องพิมพ์';
+            showToast('ส่งไปพิมพ์ใหม่ที่ ' + name + ' แล้ว', 'success');
+            this._watchJob(r.jobId, name);
+        } catch (err) {
+            showToast(err.message || 'สั่งพิมพ์ซ้ำไม่สำเร็จ', 'error', 4000);
+        }
+        this.refreshFailed();
+    },
+
+    async dismissJob(id) {
+        try {
+            await CFApi.post('/api/print/jobs/' + encodeURIComponent(id) + '/dismiss', {});
+            showToast('นำออกจากรายการแล้ว', 'success');
+        } catch (err) {
+            showToast(err.message || 'ทำรายการไม่สำเร็จ', 'error', 4000);
+        }
+        this.refreshFailed();
+    },
+
     _logPrint(ref, size) {
         try {
             CFOrders.logPrint(ref.orderId || null, ref.type, size, ref.station || null);

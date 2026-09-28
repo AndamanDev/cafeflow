@@ -33,6 +33,21 @@ async function callOcr(url, file) {
     }
 }
 
+/**
+ * บัญชีของร้านที่ใช้เทียบผู้รับเงินบนสลิป — ตั้งที่ หน้าภาพรวม › ข้อมูลร้าน
+ * พร้อมเพย์ของร้านนับเป็นบัญชีร้านเสมอ (คือเลขที่ QR ของคีออสก์ส่งเงินเข้า)
+ */
+async function shopAccount(pool, branchId) {
+    const kv = {};
+    for (const r of (await pool.query(
+        "SELECT key, value FROM app_setting WHERE branch_id = $1 AND key IN ('shopAccountName','shopAccountNos')",
+        [branchId])).rows) kv[r.key] = r.value;
+    const br = (await pool.query('SELECT promptpay_id FROM branch WHERE id = $1', [branchId])).rows[0] || {};
+    const accounts = String(kv.shopAccountNos || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+    if (br.promptpay_id) accounts.push(br.promptpay_id);
+    return { name: kv.shopAccountName || '', accounts };
+}
+
 /** อ่านหนึ่งใบ — คืน true ถ้ามีงานทำ */
 async function processOne(pool, url, onDone) {
     // จองงานแบบกันสองตัวหยิบใบเดียวกัน (เผื่อวันหน้ารันหลาย process)
@@ -49,8 +64,16 @@ async function processOne(pool, url, onDone) {
         [slip.order_id])).rows[0];
     try {
         const out = await callOcr(url, path.join(SLIP_DIR, slip.image_path));
+        // QR ที่ร้านออกให้ออเดอร์นี้ — เวลาออกใบแรก (สลิปก่อนหน้านั้นคือสลิปเก่า)
+        // และเลขพร้อมเพย์ที่ใช้ตอนนั้น (ร้านเปลี่ยนเลขทีหลังก็ยังเทียบถูก)
+        const qr = (await pool.query(
+            'SELECT min(created_at) AS first_at, array_agg(DISTINCT target) AS targets FROM payment_qr WHERE order_id = $1',
+            [o.id])).rows[0] || {};
+        const shop = await shopAccount(pool, o.branch_id);
+        for (const t of qr.targets || []) if (t) shop.accounts.push(t);
         const res = CFSlipRules.evaluate(out.lines || [], {
             total: Number(o.total), orderAt: o.created_at, scannedAt: slip.created_at,
+            qrAt: qr.first_at || null, shop, ref: slip.parsed_ref, bankCode: slip.parsed_bank,
         });
         await pool.query(
             `UPDATE payment_slip SET ocr_status = 'DONE', ocr_engine = 'paddleocr', ocr_ms = $2,
@@ -58,7 +81,8 @@ async function processOne(pool, url, onDone) {
                     checks = COALESCE(checks, '{}'::jsonb) || jsonb_build_object('ocr', $7::jsonb)
               WHERE id = $1`,
             [slip.id, out.ms || null, JSON.stringify(out.lines || []), res.amount, res.txAt,
-             res.verdict, JSON.stringify({ checks: res.checks, notes: res.notes, dateText: res.dateText })]);
+             res.verdict, JSON.stringify({ checks: res.checks, notes: res.notes, dateText: res.dateText,
+                                           sender: res.sender, receiver: res.receiver })]);
     } catch (err) {
         if (!err.bad) {
             // ต่อ ocr-svc ไม่ได้ — คืนเข้าคิว รอมันกลับมา

@@ -161,7 +161,8 @@ const CFAlerts = {
                 fails.filter((s) => !seenFail.has(s.id)).forEach((s) => {
                     const o = CFStore.byId('orders', s.orderId);
                     const why = ((s.ocr && s.ocr.notes) || []).filter((n, i) =>
-                        (i === 0 && s.ocr.checks.amount === 'FAIL') || (i === 1 && s.ocr.checks.date === 'FAIL'));
+                        (i === 0 && s.ocr.checks.amount === 'FAIL') || (i === 1 && s.ocr.checks.date === 'FAIL') ||
+                        (i === 2 && s.ocr.checks.receiver === 'FAIL'));
                     this.notify('urgent', 'สลิปไม่ตรง · ' + (o ? o.orderNo : '') + (why.length ? ' — ' + why.join(' · ') : ''));
                 });
             }

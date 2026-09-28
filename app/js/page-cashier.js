@@ -223,6 +223,22 @@ const CashierPage = {
     },
 
     /* ── §16 ตรวจสอบ / ยืนยันการชำระแทน ────────────────── */
+    /** แถบแดงบนหน้าแคชเชียร์ — มีงานที่พิมพ์ไม่ออกค้างอยู่ กดเพื่อพิมพ์ซ้ำ */
+    async refreshPrintAlert() {
+        const el = document.getElementById('printAlert');
+        if (!el) return;
+        const n = (await CFPrint.failedJobs()).length;
+        el.hidden = !n;
+        if (n) {
+            el.innerHTML = `<div class="sip-banner sip-banner-danger cf-print-alert" style="display:flex;align-items:center;gap:10px">
+                <i data-lucide="printer" class="icon-sm"></i>
+                <span>เครื่องพิมพ์พิมพ์ไม่ออก <strong>${n}</strong> ใบ</span>
+                <button class="btn btn-outline btn-sm" onclick="CFPrint.openFailed()">ดูและพิมพ์ซ้ำ</button>
+            </div>`;
+            refreshIcons();
+        }
+    },
+
     /** ผล OCR มาถึงหลังเปิด drawer ไปแล้ว ~6 วิ — เติมเฉพาะกล่องผลตรวจ */
     refreshSlipOcr() {
         const el = document.getElementById('slipOcrBox');
@@ -401,6 +417,8 @@ const CashierPage = {
     boot() {
         CFApp.boot({ page: 'cashier' });
         CFAlerts.start('cashier');
+        this.refreshPrintAlert();
+        setInterval(() => this.refreshPrintAlert(), 15000);
 
         // เติมตัวเลือกสถานะในช่องค้นหา
         document.getElementById('searchStatus').innerHTML +=

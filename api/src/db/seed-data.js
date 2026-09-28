@@ -253,7 +253,7 @@ function seedData() {
         address: '99/1 ถ.ศรีสุนทร ต.เชิงทะเล อ.ถลาง จ.ภูเก็ต 83110',
         taxId: '0835566001234',
         vatPercent: 7,
-        qrTimeoutSec: 60,
+        qrTimeoutSec: 150,
         cashMode: 'A',
         kdsWarnMin: 3,
         kdsDangerMin: 6,

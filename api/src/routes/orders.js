@@ -273,6 +273,15 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
     /* ── ผลพลอยได้ที่ต้องอยู่ในทรานแซกชันเดียวกัน ── */
 
     // ชำระแล้ว → บันทึกการชำระ + ส่งเข้าครัวทันที (§44 "Verify Before Forward")
+    // ออกจากขั้นรอตรวจ = แคชเชียร์ตัดสินแล้ว — บันทึกคู่กับผลที่ระบบอ่านจากสลิป ใช้วัดความแม่นจริง
+    // (บันทึกเฉพาะสลิปใบล่าสุด: ใบก่อนหน้าที่ไม่ผ่านแล้วลูกค้าสแกนใบใหม่ ไม่ใช่ใบที่ถูกตัดสิน)
+    if (o.status === 'PAYMENT_REVIEW' && ['PAID', 'PAYMENT_FAILED', 'CANCELLED'].includes(newStatus)) {
+        await c.query(
+            `UPDATE payment_slip SET review_outcome = $2, reviewed_by = $3, reviewed_at = now()
+              WHERE id = (SELECT max(id) FROM payment_slip WHERE order_id = $1)`,
+            [orderId, newStatus === 'PAID' ? 'CONFIRMED' : 'REJECTED', ctx.actorUserId || null]);
+    }
+
     if (newStatus === 'PAID') {
         await c.query('UPDATE cf_order SET cashier_id = $2 WHERE id = $1',
             [orderId, ctx.actorUserId || null]);
@@ -843,10 +852,15 @@ function registerOrders(app, { pool, tx, query, branchId }) {
             `SELECT status, count(*)::int AS n FROM print_job
               WHERE branch_id = $1 AND created_at > now() - interval '1 day'
               GROUP BY status`, [branchId()]);
+        // ชื่อเครื่องกับเลขออเดอร์ติดมาด้วย — แคชเชียร์ต้องรู้ว่าใบไหน ออกเครื่องไหน โดยไม่ต้องเดา
         const failed = await query(
-            `SELECT id, order_id, doc_type, attempts, last_error, created_at
-               FROM print_job WHERE branch_id = $1 AND status = 'FAILED'
-               ORDER BY id DESC LIMIT 20`, [branchId()]);
+            `SELECT j.id, j.order_id, o.order_no, j.doc_type, j.attempts, j.last_error, j.created_at,
+                    j.device_id, d.name_th AS printer
+               FROM print_job j
+               LEFT JOIN cf_order o ON o.id = j.order_id
+               LEFT JOIN device d ON d.id = j.device_id
+              WHERE j.branch_id = $1 AND j.status = 'FAILED'
+              ORDER BY j.id DESC LIMIT 50`, [branchId()]);
         const by = {};
         r.rows.forEach((x) => { by[x.status] = x.n; });
         return { counts: by, failed: failed.rows };
@@ -856,11 +870,43 @@ function registerOrders(app, { pool, tx, query, branchId }) {
     app.post('/api/print/jobs/:id/retry', handle(async (req) => {
         const ctx = await context(req);
         requirePerm(ctx, 'PAY_RECEIVE');
+        // เลือกเครื่องอื่นได้ — เครื่องเดิมกระดาษหมด/เสีย ส่งไปออกเครื่องที่ใช้ได้แทน
+        const to = (req.body || {}).deviceId || null;
+        if (to) {
+            const d = await query(
+                `SELECT id FROM device WHERE id = $1 AND branch_id = $2 AND kind = 'PRINTER' AND active`,
+                [to, branchId()]);
+            if (!d.rows.length) throw new ApiError(400, 'ไม่พบเครื่องพิมพ์ที่เลือก');
+        }
         const r = await query(
-            `UPDATE print_job SET status = 'QUEUED', attempts = 0, last_error = NULL
-              WHERE id = $1 AND branch_id = $2 AND status = 'FAILED' RETURNING id`,
+            `UPDATE print_job SET status = 'QUEUED', attempts = 0, last_error = NULL,
+                    device_id = COALESCE($3, device_id)
+              WHERE id = $1 AND branch_id = $2 AND status = 'FAILED' RETURNING id, order_id`,
+            [req.params.id, branchId(), to]);
+        if (!r.rows.length) throw new ApiError(404, 'ไม่พบงานพิมพ์ที่ล้มเหลว');
+        await audit({ query }, branchId(), {
+            eventType: 'PRINT', orderId: r.rows[0].order_id, actorKind: ctx.actorKind,
+            actorUserId: ctx.actorUserId, deviceId: ctx.deviceId, ip: ctx.ip,
+            reason: 'สั่งพิมพ์ซ้ำงานที่พิมพ์ไม่ออก', payload: { jobId: req.params.id, to },
+        });
+        require('../print/worker');                 // คิวเดินเองทุก 2 วิ ไม่ต้องปลุก
+        return { ok: true, jobId: String(r.rows[0].id) };
+    }));
+
+    /** ไม่ต้องพิมพ์ใบนี้แล้ว (เช่น ครัวทำไปแล้วจากจอ KDS) — เก็บเป็นประวัติ ไม่เตือนอีก */
+    app.post('/api/print/jobs/:id/dismiss', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'PAY_RECEIVE');
+        const r = await query(
+            `UPDATE print_job SET status = 'CANCELLED'
+              WHERE id = $1 AND branch_id = $2 AND status = 'FAILED' RETURNING id, order_id, doc_type`,
             [req.params.id, branchId()]);
         if (!r.rows.length) throw new ApiError(404, 'ไม่พบงานพิมพ์ที่ล้มเหลว');
+        await audit({ query }, branchId(), {
+            eventType: 'PRINT', orderId: r.rows[0].order_id, actorKind: ctx.actorKind,
+            actorUserId: ctx.actorUserId, deviceId: ctx.deviceId, ip: ctx.ip,
+            reason: 'ไม่พิมพ์งานที่พิมพ์ไม่ออก', payload: { jobId: req.params.id, docType: r.rows[0].doc_type },
+        });
         return { ok: true };
     }));
 

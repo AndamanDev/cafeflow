@@ -24,7 +24,8 @@ const { CFSlip } = require(path.join(SHARED, 'cf-slip.js'));
 const { publish } = require('./stream');
 const { audit, touch, ApiError, settingsOf } = require('./orders');
 
-const DEFAULT_TIMEOUT_SEC = 60;
+// ลูกค้าต้องเปิดแอปธนาคาร สแกน สแกนนิ้ว/ใส่ PIN — 60 วิสั้นไปสำหรับหลายคน
+const DEFAULT_TIMEOUT_SEC = 150;
 
 /**
  * ออก QR ใบใหม่ให้ออเดอร์
@@ -80,6 +81,11 @@ async function issueQr(c, branchId, orderId, ctx) {
     await c.query(
         `UPDATE cf_order SET payment_method = 'QR', rev = nextval('global_rev'),
                 updated_at = now() WHERE id = $1`, [orderId]);
+    // ออก QR ใหม่หลังหมดเวลา → กลับไปรอชำระ ให้ตัวเก็บกวาดปิด QR ใบนี้เมื่อหมดเวลาได้อีกรอบ
+    if (o.status === 'PAYMENT_TIMEOUT' || o.status === 'PAYMENT_FAILED') {
+        const { transition } = require('./orders');
+        await transition(c, branchId, orderId, 'WAITING_PAYMENT', { reason: 'ลูกค้าขอ QR ใหม่ที่คีออสก์' }, ctx);
+    }
 
     await audit(c, branchId, {
         eventType: 'QR_ISSUED', orderId,
@@ -317,6 +323,51 @@ function registerPayments(app, deps) {
             verdict: ocr ? s.verdict : null,
             checks: ocr ? ocr.checks : null,
             notes: ocr ? ocr.notes : [],
+        };
+    }));
+
+    /**
+     * ความแม่นของการตรวจสลิป — เทียบผลที่ระบบอ่านได้กับที่แคชเชียร์ตัดสินจริง
+     *   จับถูก   ระบบว่าไม่ผ่าน + แคชเชียร์ปฏิเสธ        · ผ่านถูก  ระบบว่าผ่าน + แคชเชียร์ยืนยัน
+     *   เตือนผิด ระบบว่าไม่ผ่าน + แคชเชียร์ยืนยัน (แดงหลอก) · หลุด     ระบบว่าผ่าน + แคชเชียร์ปฏิเสธ
+     */
+    app.get('/api/reports/slip-accuracy', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
+        if (!CFPerms.can(ctx.user.role, 'REPORT')) throw new ApiError(403, 'บัญชีนี้ไม่มีสิทธิ์ดูรายงาน');
+        const days = Math.min(Math.max(parseInt(req.query.days, 10) || 7, 1), 90);
+        const rows = (await deps.query(
+            `SELECT s.id, o.order_no, s.parsed_bank, s.verdict, s.review_outcome, s.ocr_status,
+                    s.checks->'ocr'->'checks' AS c, s.created_at
+               FROM payment_slip s JOIN cf_order o ON o.id = s.order_id
+              WHERE o.branch_id = $1 AND s.created_at > now() - ($2 || ' days')::interval
+              ORDER BY s.id DESC`, [branchId(), String(days)])).rows;
+        const read = rows.filter((r) => r.c);
+        const known = (k) => read.filter((r) => r.c[k] && r.c[k] !== 'UNKNOWN' && r.c[k] !== 'SKIP').length;
+        const judged = read.filter((r) => r.review_outcome);
+        const pair = (v, o) => judged.filter((r) => r.verdict === v && r.review_outcome === o).length;
+        const byBank = {};
+        for (const r of read) {
+            const b = CFSlip.BANKS[r.parsed_bank] || r.parsed_bank || '?';
+            byBank[b] = byBank[b] || { n: 0, amount: 0 };
+            byBank[b].n++;
+            if (r.c.amount && r.c.amount !== 'UNKNOWN') byBank[b].amount++;
+        }
+        return {
+            days, scanned: rows.length, read: read.length,
+            fields: { amount: known('amount'), date: known('date'), receiver: known('receiver') },
+            judged: judged.length,
+            outcome: {
+                truePass: pair('PASS', 'CONFIRMED'), trueCatch: pair('FAIL', 'REJECTED'),
+                falseAlarm: pair('FAIL', 'CONFIRMED'), missed: pair('PASS', 'REJECTED'),
+                unsureConfirmed: pair('WARN', 'CONFIRMED'), unsureRejected: pair('WARN', 'REJECTED'),
+            },
+            // ใบที่ระบบกับคนเห็นต่างกัน — เอาไปปรับกฎ/เพิ่มเทสต์
+            disagree: judged.filter((r) => (r.verdict === 'FAIL' && r.review_outcome === 'CONFIRMED') ||
+                                           (r.verdict === 'PASS' && r.review_outcome === 'REJECTED'))
+                .map((r) => ({ slipId: String(r.id), orderNo: r.order_no, verdict: r.verdict, outcome: r.review_outcome })),
+            byBank,
         };
     }));
 

@@ -96,3 +96,131 @@ test('อ่านอะไรไม่ออกเลย → WARN', () => {
     const r = CFSlipRules.evaluate(['???', 'K+'], { total: 100, scannedAt: AT(24, '15:32') });
     assert.strictEqual(r.verdict, 'WARN');
 });
+
+/* ── คนโอน / ผู้รับ — ข้อความจริงจาก OCR ของสลิปที่ลูกค้าสแกนที่คีออสก์ ─────────── */
+const REAL = {
+    // make: คู่ ชื่อ→เลขบัญชี · มียอด -50.00 ของแอปที่เปิดค้างด้านหลังปนมา
+    MAKE: ['โอนเง็น', '-50.00', 'อื่นๆ', 'ศ.25 ก.ย.2569', 'โอนเงินสำเร็จ', 'Make', '25 ก.ย. 2569 08:51', 'by KBank',
+        'อนุวัฒน์ จ', 'xxx-X-x8204-x', 'นายอนวัฒน์ จันทร์รัศมี', 'XXX-XXx-8987', 'จำนวน', '80.00 บาท', 'ค่าธรรมเนียม', '0.00 บาท'],
+    // K PLUS → พร้อมเพย์ · "สมหวัง" คือข้อความที่อ่านได้จากโลโก้ ต้องไม่ถูกนับเป็นชื่อ
+    KPLUS: ['ทำรายการสำเร็จ', 'โอนเงินสำเร็จ', 'น.ส. รัชฎา น', 'มสข', 'ธ.กสึกรไทย', 'สมหวัง', 'O', 'XXX-X-X2811-x',
+        'นางสาว รัชฎา นาไชยธง', 'Prompt', 'รหัสพร้อมเพย์', 'Pay', 'xxx-Xxx-5706', 'จำนวน:', '80.00 บาท'],
+    // SCB จ่ายบิล: ป้าย จาก/ไปยัง · ชื่อผู้รับอยู่ "หลัง" เลขบัญชี · วันที่มีขีดติดเวลา
+    SCB: ['SCB', 'จ่ายเงินสำเร็จ', '25 ก.ย. 2569 -10:48', 'จาก', 'น.ส. รัชฎา น.', 'ไปยัง', 'Xxx-xxx896-1',
+        'ก้อยคาเฟ ดอนเมือง', 'Biller ID : 010753600031508', 'จำนวนเงิน', 'บันทึกช่วยจำ', '85.00', 'น้ำ'],
+};
+
+test('แยกคนโอน/ผู้รับ: make (ชื่อ→เลขบัญชี) · ยอดของแอปอื่นด้านหลังไม่ถูกนับ', () => {
+    const p = CFSlipRules.findParties(REAL.MAKE);
+    assert.strictEqual(p.sender.name, 'อนุวัฒน์ จ');
+    assert.strictEqual(p.sender.tail, '8204');
+    assert.strictEqual(p.receiver.name, 'นายอนวัฒน์ จันทร์รัศมี');
+    assert.strictEqual(p.receiver.tail, '8987');
+    assert.strictEqual(CFSlipRules.findAmount(REAL.MAKE), 80);
+});
+
+test('แยกคนโอน/ผู้รับ: K PLUS → พร้อมเพย์ · ข้อความจากโลโก้ไม่ใช่ชื่อ · ธนาคารสะกดเพี้ยนยังรู้จัก', () => {
+    const p = CFSlipRules.findParties(REAL.KPLUS);
+    assert.deepStrictEqual(p.sender, { name: 'น.ส. รัชฎา น', tail: '2811', bank: 'กสิกรไทย' });
+    assert.deepStrictEqual(p.receiver, { name: 'นางสาว รัชฎา นาไชยธง', tail: '5706', bank: 'พร้อมเพย์' });
+});
+
+test('แยกคนโอน/ผู้รับ: SCB มีป้ายจาก/ไปยัง และชื่อผู้รับอยู่หลังเลขบัญชี', () => {
+    const p = CFSlipRules.findParties(REAL.SCB);
+    assert.strictEqual(p.sender.name, 'น.ส. รัชฎา น.');
+    assert.deepStrictEqual(p.receiver, { name: 'ก้อยคาเฟ ดอนเมือง', tail: '8961', bank: null });
+    assert.deepStrictEqual(CFSlipRules.findDate(REAL.SCB), { y: 2026, m: 9, d: 25, hh: 10, mm: 48 });
+});
+
+test('แยกคนโอน/ผู้รับ: กรุงไทย · ตัด *** ท้ายชื่อ · ธนาคารทั้งสองฝั่ง', () => {
+    const p = CFSlipRules.findParties(KTB);
+    assert.deepStrictEqual(p.sender, { name: 'นายอนุวัฒน์ จ', tail: '3539', bank: 'กรุงไทย' });
+    assert.deepStrictEqual(p.receiver, { name: 'นาย อนุวัฒน์ จันทร์รัศมี', tail: '1181', bank: 'กสิกรไทย' });
+});
+
+test('เห็นแค่ผู้รับ (คนโอนหลุดกรอบ) → ถือเป็นผู้รับ ไม่ใช่คนโอน', () => {
+    const p = CFSlipRules.findParties(NODEC);
+    assert.strictEqual(p.sender, null);
+    assert.strictEqual(p.receiver.tail, '5706');
+});
+
+test('ตรวจบัญชีร้าน: เลขท้ายตรง = ผ่าน · เลขไม่ตรง = ไม่ผ่าน · ไม่ได้ตั้ง = ข้าม', () => {
+    const rx = CFSlipRules.findParties(REAL.KPLUS).receiver;
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, { accounts: ['080-186-5706'] }), 'PASS');
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, { accounts: ['0891234567'] }), 'FAIL');
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, {}), 'SKIP');
+    assert.strictEqual(CFSlipRules.receiverCheck(null, { accounts: ['0801865706'] }), 'UNKNOWN');
+});
+
+test('ตรวจบัญชีร้านด้วยชื่อ — ยอมให้ OCR สะกดเพี้ยน (อนวัฒน์ / อนุวัฒน์)', () => {
+    const rx = CFSlipRules.findParties(REAL.MAKE).receiver;       // "นายอนวัฒน์ จันทร์รัศมี" ไม่มีเลขร้านให้เทียบ
+    assert.strictEqual(CFSlipRules.receiverCheck({ name: rx.name }, { name: 'อนุวัฒน์ จันทร์รัศมี' }), 'PASS');
+    assert.strictEqual(CFSlipRules.receiverCheck({ name: 'ร้านถุงเงิน (ลานครัววิลันต์)' }, { name: 'ก้อยคาเฟ' }), 'FAIL');
+});
+
+test('โอนให้คนอื่น → FAIL ทั้งใบ แม้ยอดและวันที่ตรง', () => {
+    const r = CFSlipRules.evaluate(REAL.MAKE, { total: 80, orderAt: AT(25, '08:49'), scannedAt: AT(25, '08:52'),
+        shop: { name: 'ก้อยคาเฟ', accounts: ['0801865706'] } });
+    assert.strictEqual(r.checks.amount, 'PASS');
+    assert.strictEqual(r.checks.date, 'PASS');
+    assert.strictEqual(r.checks.receiver, 'FAIL');
+    assert.strictEqual(r.verdict, 'FAIL');
+    assert.match(r.notes[2], /ไม่ใช่บัญชีร้าน/);
+});
+
+test('ยอดถูก OCR ตัดเป็นสองบรรทัด "80" | ".00 นาท" → 80 · ไม่เอา 0.00 ค่าธรรมเนียม', () => {
+    const t = ['นางสาว รัชฏา นาไชยธง', 'Xxx-Xxx-5706', 'จำนวน:', '80', '.00 บาท', 'คำธรรมเนียม:', '0.00 นาท'];
+    assert.strictEqual(CFSlipRules.findAmount(t), 80);
+});
+
+test('วันที่ที่ "ก" ถูกอ่านเป็นเลข 0: "250ย. 69 11:54 น." → 25 ก.ย.', () => {
+    assert.deepStrictEqual(CFSlipRules.findDate(['250ย. 69 11:54 น.']), { y: 2026, m: 9, d: 25, hh: 11, mm: 54 });
+});
+
+/* ── วันที่จากเลขอ้างอิง (สลิปกสิกร) — ยืนยันกับสลิปจริง ─────────────────── */
+test('เลขอ้างอิง K PLUS บอกวันและเวลา · make บอกแค่วัน · ธนาคารอื่นไม่ใช้', () => {
+    assert.deepStrictEqual(CFSlipRules.refDate('016268115425CPP10873', '004'), { doy: 268, hh: 11, mm: 54 });  // 25 ก.ย. 11:54
+    assert.deepStrictEqual(CFSlipRules.refDate('016260192624BPM06689', '004'), { doy: 260, hh: 19, mm: 26 });  // 17 ก.ย. 19:26
+    assert.deepStrictEqual(CFSlipRules.refDate('0462575o95uipuaeQpp8', '004'), { doy: 257 });                 // 14 ก.ย.
+    assert.strictEqual(CFSlipRules.refDate('A7711d901765c4fa6', '006'), null);
+    assert.strictEqual(CFSlipRules.refDate('016268115425CPP10873', '014'), null);
+});
+
+test('OCR หาวันที่ไม่เจอ → ใช้วันที่จากเลขอ้างอิง · สลิปเก่าก็ยังจับได้', () => {
+    const lines = ['จำนวน:', '80.00 บาท'];                                        // วันที่หลุดกรอบ
+    const ok = CFSlipRules.evaluate(lines, { total: 80, ref: '016268115425CPP10873', bankCode: '004',
+        qrAt: AT(25, '11:53'), scannedAt: AT(25, '11:55') });
+    assert.strictEqual(ok.checks.date, 'PASS');
+    assert.match(ok.dateText, /จากเลขอ้างอิง/);
+    const old = CFSlipRules.evaluate(lines, { total: 80, ref: '016260192624BPM06689', bankCode: '004',
+        scannedAt: AT(25, '11:55') });
+    assert.strictEqual(old.checks.date, 'FAIL');                                  // 17 ก.ย. ไม่ใช่วันนี้
+});
+
+/* ── ช่วงเวลาเทียบกับตอนร้านออก QR ─────────────────────────────────────── */
+test('สลิปที่โอนก่อนร้านออก QR → FAIL (สลิปของการจ่ายอื่น)', () => {
+    const r = CFSlipRules.evaluate(['25 ก.ย. 2569 11:40', 'จำนวน', '80.00 บาท'],
+        { total: 80, orderAt: AT(25, '11:48'), qrAt: AT(25, '11:50'), scannedAt: AT(25, '11:52') });
+    assert.strictEqual(r.checks.date, 'FAIL');
+    assert.match(r.notes[1], /ก่อนร้านออก QR/);
+});
+
+test('ลูกค้าโอนช้าหลัง QR หมดเวลา (นับถอยหลังจบ 11:52:30 แต่โอน 11:55) → ยังผ่าน', () => {
+    const r = CFSlipRules.evaluate(['25 ก.ย. 2569 11:55', 'จำนวน', '80.00 บาท'],
+        { total: 80, orderAt: AT(25, '11:49'), qrAt: AT(25, '11:50'), scannedAt: AT(25, '11:56') });
+    assert.strictEqual(r.checks.date, 'PASS');
+});
+
+/* ── กรุงไทย ถ่ายจอมือถือ (ภาพเอียง มีแสง) ─────────────────────────────── */
+test('กรุงไทยถ่ายจากจอ: "22 n.8. 2565 - 2359" (ย เป็น 8, เวลาไม่มี :) → 22 ก.ย. 23:59', () => {
+    assert.deepStrictEqual(CFSlipRules.findDate(['22 n.8. 2565 - 2359']), { y: 2022, m: 9, d: 22, hh: 23, mm: 59 });
+    // เวลาไม่มี ":" ยอมเฉพาะหลังขีด — เลขที่ต่อท้ายด้วยเว้นวรรคธรรมดาไม่นับเป็นเวลา
+    assert.strictEqual(CFSlipRules.findDate(['22 ก.ย. 2565 2359']), null);
+});
+
+test('โอน 23:59 แล้วสแกนตอน 00:00 วันถัดไป → ยังผ่าน (ข้ามเที่ยงคืน)', () => {
+    const lines = ['22 ก.ย. 2565 - 23:59', 'จำนวนเงิน', '3,199.47 บาท'];
+    const r = CFSlipRules.evaluate(lines, { total: 3199.47, qrAt: new Date('2022-09-22T16:58:00Z'),
+        scannedAt: new Date('2022-09-22T17:00:30Z') });                        // 23:58 ออก QR · 00:00:30 สแกน
+    assert.strictEqual(r.checks.date, 'PASS');
+});

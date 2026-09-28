@@ -96,11 +96,18 @@ const CFApp = {
         const notes = slip.ocr.notes || [];
         const lines = [
             `<strong>${slip.verdict === 'FAIL' ? 'สลิปนี้มีจุดที่ไม่ตรง — ห้ามยืนยันจนกว่าจะตรวจกับลูกค้า'
-                     : slip.verdict === 'PASS' ? 'ยอดและเวลาในสลิปตรงกับออเดอร์'
+                     : slip.verdict === 'PASS' ? 'ยอด เวลา และผู้รับในสลิปตรงกับออเดอร์'
                      : 'อ่านสลิปได้ไม่ครบ — ดูจากภาพประกอบ'}</strong>`,
             mark('amount') + ' ' + e(notes[0] || ''),
             mark('date') + ' ' + e(notes[1] || ''),
         ];
+        if (notes[2]) lines.push(mark('receiver') + ' ' + e(notes[2]));
+        // ข้อมูลที่อ่านได้จากภาพ — แคชเชียร์เทียบกับแจ้งเตือนเงินเข้าได้ทันที
+        const party = (p) => p ? [p.name, p.bank, p.tail ? 'xx' + p.tail : null].filter(Boolean).map(e).join(' · ') : '—';
+        if (slip.ocr.sender || slip.ocr.receiver) {
+            lines.push(`<table class="cf-slip-parties"><tr><th>คนโอน</th><td>${party(slip.ocr.sender)}</td></tr>
+                <tr><th>ผู้รับ</th><td>${party(slip.ocr.receiver)}</td></tr></table>`);
+        }
         const cls = slip.verdict === 'FAIL' ? 'sip-banner-danger' : slip.verdict === 'PASS' ? 'sip-banner-success' : 'sip-banner-info';
         return box(cls, slip.verdict === 'FAIL' ? 'alert-octagon' : 'scan-text', lines) +
             '<div class="ds-note" style="margin-top:4px">ผลจากการอ่านภาพ (OCR) ช่วยเตือนเท่านั้น — ยังต้องดูเงินเข้าบัญชีร้านจริงทุกครั้ง</div>';

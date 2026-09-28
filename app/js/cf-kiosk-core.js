@@ -147,7 +147,7 @@ const CFKiosk = {
        ══════════════════════════════════════════════════════ */
     resetIdle() {
         clearTimeout(this._idle);
-        if (['attract', 'pay', 'qr', 'slip', 'done'].includes(this.state.screen)) return;
+        if (['attract', 'pay', 'qr', 'qrexpired', 'slip', 'done'].includes(this.state.screen)) return;
         const sec = this.cfg().kioskIdleSec || 90;
         this._idle = setTimeout(() => this.reset(), sec * 1000);
     },
@@ -778,7 +778,10 @@ const CFKiosk = {
                 el.className = 'cfk-busy';
                 this.stage.appendChild(el);
             }
-            el.textContent = text || 'กำลังทำงาน…';
+            if (typeof text === 'object' && text && text.html) el.innerHTML = text.html;
+            else el.textContent = text || 'กำลังทำงาน…';
+            // solid = ปิดพื้นหลังทั้งจอ (ตอนตรวจสลิป — ไม่ให้ภาพกล้อง/ปุ่มด้านหลังแย่งสายตา)
+            el.classList.toggle('is-solid', !!(text && text.solid));
         } else if (el) {
             el.remove();
         }
@@ -848,7 +851,7 @@ const CFKiosk = {
             left--;
             const el = document.getElementById('cfkLeft');
             if (el) el.textContent = Math.max(0, left);
-            if (left <= 0) { clearInterval(this._qr); this.qrTimeout(); }
+            if (left <= 0) { clearInterval(this._qr); this.go('qrexpired'); }
         }, 1000);
     },
 
@@ -1005,6 +1008,11 @@ const CFKiosk = {
             if (caps.focusMode && caps.focusMode.includes('continuous')) {
                 track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
             }
+            // จอมือถือมีแสงในตัว กล้องมักรับแสงเกินจนพื้นขาวของสลิปกลืนตัวหนังสือ — ลดลงราว 1 สต็อป
+            if (caps.exposureCompensation && caps.exposureCompensation.min < 0) {
+                const ev = Math.max(caps.exposureCompensation.min, -1);
+                track.applyConstraints({ advanced: [{ exposureCompensation: ev }] }).catch(() => {});
+            }
         } catch (err) {
             console.warn('[kiosk] เปิดกล้องไม่ได้', err);
             this.camMsg('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', true);
@@ -1032,7 +1040,7 @@ const CFKiosk = {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-            if (!code || !code.data) return;
+            if (!code || !code.data) { this.liveHint(canvas); return; }
 
             const slip = CFSlip.parse(code.data);
             if (!slip.ok) {
@@ -1075,7 +1083,15 @@ const CFKiosk = {
      * ภาพเบลอขอบตัวอักษรจะนุ่ม ค่าต่ำ · ภาพคมขอบชัด ค่าสูง
      * (ย่อก่อนคำนวณ ไม่งั้นช้าเกินสำหรับหลายเฟรมบนเครื่องคีออสก์)
      */
-    sharpness(canvas) {
+    sharpness(canvas) { return this.frameStats(canvas).sharp; },
+
+    /**
+     * คุณภาพภาพหนึ่งเฟรม (ย่อเหลือ 400 px ก่อน)
+     *   sharp   ความคม — ความแปรปรวนของ Laplacian
+     *   glare   สัดส่วนจุดขาวจ้าจนเต็มสเกล (แสงสะท้อน/รับแสงเกิน) ในครึ่งกลางของภาพ
+     *   screen  สัดส่วนพื้นสว่างกลางภาพ — มีจอมือถือยกมาอยู่หน้ากล้องไหม
+     */
+    frameStats(canvas) {
         const w = 400, h = Math.round(400 * canvas.height / canvas.width);
         const s = document.createElement('canvas');
         s.width = w; s.height = h;
@@ -1093,7 +1109,39 @@ const CFKiosk = {
             }
         }
         const mean = sum / n;
-        return sq / n - mean * mean;
+        // นับเฉพาะครึ่งกลางของภาพ — ขอบภาพมักเป็นผนัง/เพดานที่สว่างอยู่แล้ว ไม่เกี่ยวกับสลิป
+        let clip = 0, bright = 0, c = 0;
+        for (let y = Math.floor(h / 4); y < Math.floor(h * 3 / 4); y++) {
+            for (let xx = Math.floor(w / 4); xx < Math.floor(w * 3 / 4); xx++) {
+                const v = g[y * w + xx];
+                if (v >= 250) clip++;
+                if (v >= 170) bright++;
+                c++;
+            }
+        }
+        return { sharp: sq / n - mean * mean, glare: clip / c, screen: bright / c };
+    },
+
+    /**
+     * บอกลูกค้าทันทีว่าทำไมยังอ่านไม่ได้ — ตรวจราววินาทีละครั้ง ต้องเป็นแบบเดิมติดกัน 2 ครั้งถึงขึ้น
+     * ขึ้นเฉพาะตอนมีจอมือถืออยู่หน้ากล้องแล้ว (ยังไม่ยกมือถือมา ไม่ต้องเตือนอะไร)
+     * ไม่ทับกล่องแดง/เหลือง (สลิปไม่ผ่าน / ขอถ่ายใหม่) ที่ลูกค้ากำลังอ่านอยู่
+     */
+    liveHint(canvas) {
+        this._hintTick = (this._hintTick || 0) + 1;
+        if (this._hintTick % 5) return;
+        const el = document.getElementById('cfkCamMsg');
+        if (!el || !el.classList.contains('cfk-note')) return;
+        const st = this.frameStats(canvas);
+        const kind = st.screen < 0.15 ? null
+            : st.glare > 0.12 ? 'glare'
+            : st.sharp < 40 ? 'blur' : null;
+        if (kind !== this._hintPrev) { this._hintPrev = kind; return; }       // รอให้เห็นซ้ำก่อน กันข้อความกะพริบ
+        const text = {
+            glare: 'มีแสงสะท้อนบนจอมือถือ — เอียงมือถือเล็กน้อยให้พ้นแสงไฟ',
+            blur: 'ภาพยังไม่ชัด — ถือมือถือนิ่ง ๆ ห่างกล้องราว 25 ซม.',
+        }[kind] || 'เปิดสลิปในแอปธนาคาร แล้วหันจอมือถือเข้าหากล้อง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR';
+        if (el.textContent.trim() !== text) this.camMsg(text, !!kind);
     },
 
     /**
@@ -1106,7 +1154,9 @@ const CFKiosk = {
             const until = Date.now() + ms;
             do {
                 const c = this.snapSlip(video);
-                const score = this.sharpness(c);
+                // ภาพคมแต่มีแสงสะท้อนเป็นแผ่น อ่านไม่ออกเท่าภาพที่คมน้อยกว่าแต่ไม่มีแสงสะท้อน
+                const st = this.frameStats(c);
+                const score = st.sharp * (1 - Math.min(0.8, st.glare * 3));
                 if (score > bestScore) { best = c; bestScore = score; }
                 await new Promise((r) => setTimeout(r, 70));
             } while (Date.now() < until);
@@ -1119,17 +1169,18 @@ const CFKiosk = {
     async submitSlip(payload, video) {
         if (this._submitting) return;
         this._submitting = true;
-        this.setBusy(true, 'ถือนิ่ง ๆ กำลังถ่ายภาพสลิป…');
+        this.slipSteps('capture');
         try {
             const image = video ? await this.captureBest(video) : null;
-            this.setBusy(true, 'กำลังตรวจสลิป…');
+            this.slipSteps('send');
             const r = await CFApi.post('/api/orders/' + encodeURIComponent(this.state.orderId) + '/slip', { payload, image });
-            const res = r.slipId ? await this.waitSlipCheck(r.slipId) : null;
+            const res = r.slipId ? await this.waitSlipCheck(r.slipId, r.bank) : null;
             if (res && res.verdict === 'FAIL') {
                 // ยอด/วันที่ไม่ตรง — บอกลูกค้าตรงนี้ ให้สแกนใบที่ถูกต้องหรือแจ้งพนักงาน (กล้องยังเปิดอยู่)
                 this._rejectedRef = r.ref;
                 const why = (res.notes || []).filter((n, i) =>
-                    (i === 0 && res.checks.amount === 'FAIL') || (i === 1 && res.checks.date === 'FAIL'));
+                    (i === 0 && res.checks.amount === 'FAIL') || (i === 1 && res.checks.date === 'FAIL') ||
+                    (i === 2 && res.checks.receiver === 'FAIL'));
                 this.camReject(why);
                 return;
             }
@@ -1138,10 +1189,13 @@ const CFKiosk = {
             //   ลูกค้าเลือก "ส่งให้พนักงานตรวจ" ได้ทุกเมื่อ — ไม่มีใครติดวนอยู่หน้าเครื่อง
             const noAmount = res && (res.status === 'ERROR' || (res.checks && res.checks.amount === 'UNKNOWN'));
             const noDate = res && res.checks && res.checks.date === 'UNKNOWN';
-            if (noAmount || noDate) {
+            // ร้านตั้งบัญชีไว้ (ไม่ใช่ SKIP) แต่หาผู้รับไม่เจอ — มักเป็นนิ้วหรือแสงสะท้อนบังกลางสลิป
+            const noReceiver = res && res.checks && res.checks.receiver === 'UNKNOWN';
+            if (noAmount || noDate || noReceiver) {
                 this.camPreview(image, noAmount
                     ? ['ภาพสลิปไม่ชัด อ่านยอดเงินไม่ออก', 'ถือมือถือนิ่ง ๆ ห่างกล้องราว 25 ซม. และเพิ่มความสว่างจอ']
-                    : ['ไม่เห็นวันที่บนสลิป', 'เลื่อนมือถือให้เห็นหัวสลิปที่มีวันที่และเวลาด้วย']);
+                    : noDate ? ['ไม่เห็นวันที่บนสลิป', 'เลื่อนมือถือให้เห็นหัวสลิปที่มีวันที่และเวลาด้วย']
+                    : ['ไม่เห็นชื่อผู้รับเงิน', 'ระวังนิ้วหรือแสงสะท้อนบังกลางสลิป — เอียงมือถือเล็กน้อย']);
                 return;
             }
             // ผ่าน / อ่านไม่ออก / ตัวอ่านสลิปไม่ตอบ → ให้แคชเชียร์ตรวจตามปกติ ไม่ให้ลูกค้าติดอยู่หน้าเครื่อง
@@ -1160,12 +1214,54 @@ const CFKiosk = {
     },
 
     /**
-     * รอผลอ่านสลิป (OCR) — นานสุด 15 วินาที ไม่งั้นคืน null แล้วปล่อยให้แคชเชียร์ตรวจแทน
-     * ใบแรกหลังเปิดเครื่องอาจช้ากว่าปกติ (ตัวอ่านสลิปยังโหลดโมเดล)
+     * รอผลอ่านสลิป (OCR) — นานสุด 25 วินาที ไม่งั้นคืน null แล้วปล่อยให้แคชเชียร์ตรวจแทน
+     * วัดจริงบนเครื่อง 8 คอร์: 5–10 วิต่อใบ (สลิปที่มีตัวหนังสือเยอะช้ากว่า) — 15 วิเดิมเฉียดเส้นเกินไป
+     * บอกลูกค้าว่าอีกนานแค่ไหน ไม่งั้นยืนรอ 10 วิแล้วนึกว่าเครื่องค้าง
      */
-    async waitSlipCheck(slipId) {
-        const until = Date.now() + 15000;
-        this.setBusy(true, 'กำลังตรวจยอดเงินในสลิป…');
+    async waitSlipCheck(slipId, bank) {
+        const t0 = Date.now(), until = t0 + 25000;
+        const tick = () => this.slipSteps('check', { bank, elapsed: (Date.now() - t0) / 1000 });
+        tick();
+        const timer = setInterval(tick, 1000);
+        try {
+            return await this._pollSlip(slipId, until);
+        } finally {
+            clearInterval(timer);
+        }
+    },
+
+    /**
+     * การ์ดขั้นตอนระหว่างรอ — ลูกค้าเห็นว่าผ่านอะไรไปแล้ว และกำลังทำอะไรอยู่
+     *   capture  ถ่ายภาพสลิป (~0.6 วิ) · send ส่งให้ร้านตรวจ · check ตรวจยอด/วันที่ (OCR 5–10 วิ)
+     * ★ ไม่โชว์ตัวเลขวินาที — เวลาจริงขึ้นกับเครื่อง เลขหมดแล้วยังไม่เสร็จ ลูกค้าจะนึกว่าค้าง
+     *   ใช้แถบ loading วิ่งไม่รู้จบแทน · รอนานเกิน 12 วิ เปลี่ยนข้อความเป็น "อีกสักครู่"
+     */
+    slipSteps(phase, o = {}) {
+        const e = CFApp.esc;
+        const order = ['capture', 'send', 'check'];
+        const at = order.indexOf(phase);
+        const step = (i, doneText, activeText) => {
+            const st = i < at ? 'done' : i === at ? 'active' : 'todo';
+            const mark = st === 'done' ? '✓' : st === 'active' ? '<span class="cfk-spin"></span>' : '';
+            return `<li class="cfk-step is-${st}"><span class="cfk-step-mark">${mark}</span>
+                    <span>${st === 'done' ? doneText : activeText}</span></li>`;
+        };
+        this.setBusy(true, { solid: true, html: `
+            <div class="cfk-slipwait" role="status" aria-live="polite">
+                <div class="cfk-slipwait-title">${at < 2 ? 'กำลังรับสลิป' : 'กำลังตรวจสลิป'}</div>
+                <ol class="cfk-steps">
+                    ${step(0, 'ถ่ายภาพสลิปแล้ว', 'ถือมือถือนิ่ง ๆ กำลังถ่ายภาพสลิป')}
+                    ${step(1, 'อ่านสลิปแล้ว' + (o.bank ? ' · ' + e(o.bank) : '') + ' · ยังไม่เคยใช้', 'กำลังอ่านสลิป')}
+                    ${step(2, '', 'กำลังตรวจยอดเงินและวันที่')}
+                </ol>
+                ${at === 2 ? `
+                <div class="cfk-slipwait-bar is-loading"><span></span></div>
+                <div class="cfk-slipwait-left">${(o.elapsed || 0) < 12 ? 'กรุณารอสักครู่' : 'อีกสักครู่ ใกล้เสร็จแล้ว'}</div>
+                <div class="cfk-slipwait-note">เก็บมือถือได้เลย ไม่ต้องถือค้างไว้</div>` : ''}
+            </div>` });
+    },
+
+    async _pollSlip(slipId, until) {
         while (Date.now() < until) {
             try {
                 const r = await CFApi.get('/api/slips/' + encodeURIComponent(slipId) + '/check');
@@ -1176,6 +1272,40 @@ const CFKiosk = {
             await new Promise((ok) => setTimeout(ok, 700));
         }
         return null;
+    },
+
+    /**
+     * นับถอยหลังจบ — ถามลูกค้าก่อน ไม่ส่งไปหาพนักงานเอง
+     * QR พร้อมเพย์ไม่มีวันหมดอายุในระบบธนาคาร ลูกค้าที่เพิ่งโอนเสร็จตอนเลขหมดยังเป็นการจ่ายจริง
+     * ต้องสแกนสลิปได้ ไม่ใช่โดนไล่ไปเคาน์เตอร์ · ไม่มีใครกด 30 วิ = เดินไปแล้ว ส่งให้พนักงาน
+     */
+    screen_qrexpired() {
+        const o = CFStore.byId('orders', this.state.orderId);
+        clearTimeout(this._expT);
+        this._expT = setTimeout(() => { if (this.state.screen === 'qrexpired') this.qrTimeout(); }, 30000);
+        return `
+        ${this.topHtml({ title: 'หมดเวลาชำระเงิน', sub: 'ออเดอร์ ' + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
+        <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
+            <div class="cfk-center">
+                <div class="cfk-done-ico warn">${CFKioskArt.icon('timer')}</div>
+                <div class="cfk-slipwait-title">โอนเงินไปแล้วหรือยัง?</div>
+                <div class="cfk-note cfk-note-ok">${CFKioskArt.icon('qr')}
+                    <span>ถ้าโอนแล้ว กดสแกนสลิปได้เลย แม้เวลาจะหมด · ถ้ายังไม่ได้โอน ขอ QR ใหม่ได้</span></div>
+            </div>
+            <div class="cfk-actionbar cfk-actionbar-stack">
+                <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.expiredChoice('scan')">
+                    ${CFKioskArt.icon('check')} โอนแล้ว · สแกนสลิป</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('newqr')">ขอ QR ใหม่</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('staff')">แจ้งพนักงาน</button>
+            </div>
+        </div>`;
+    },
+
+    expiredChoice(kind) {
+        clearTimeout(this._expT);
+        if (kind === 'scan') return this.qrPaid();
+        if (kind === 'newqr') return this.go('qr');                 // screen_qr ขอ QR ใบใหม่จากเซิร์ฟเวอร์เอง
+        return this.qrTimeout();
     },
 
     async qrTimeout() {

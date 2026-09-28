@@ -272,6 +272,11 @@ const DashPage = {
                     </div>
                 </div>
 
+                <button type="button" class="btn btn-outline btn-sm" style="margin-bottom:12px"
+                        onclick="CFPrint.openFailed()">
+                    <i data-lucide="alert-triangle" class="icon-sm"></i> งานที่พิมพ์ไม่ออก / พิมพ์ซ้ำ
+                </button>
+
                 <div class="ds-section-label">แต่ละส่วนพิมพ์ที่ไหน</div>
                 <div class="table-responsive">
                     <table class="data-table compact">
@@ -799,6 +804,54 @@ const DashPage = {
     },
 
     /* ══════════════════════════════════════════════════════
+       ความแม่นของการตรวจสลิป — ระบบเดา vs แคชเชียร์ตัดสินจริง
+       ══════════════════════════════════════════════════════ */
+    async openSlipAccuracy(days) {
+        days = days || 7;
+        let r;
+        try { r = await CFApi.get('/api/reports/slip-accuracy?days=' + days); }
+        catch (err) { showToast(err.message || 'ดึงรายงานไม่สำเร็จ', 'error', 4000); return; }
+        const e = CFApp.esc;
+        const pct = (n, d) => (d ? Math.round((n / d) * 100) + '%' : '—');
+        const o = r.outcome;
+        const row = (label, n, note, cls) => `<tr><th class="l">${label}</th>
+            <td class="r ${cls || ''}"><strong>${n}</strong></td><td class="l text-muted">${note}</td></tr>`;
+        Drawer.open({
+            title: 'ความแม่นของการตรวจสลิป',
+            width: '600px',
+            contentHtml: `
+                <div class="ds-segbar" style="margin-bottom:12px">
+                    ${[7, 30, 90].map((d) => `<button type="button" class="ds-seg ${d === r.days ? 'active' : ''}"
+                        onclick="DashPage.openSlipAccuracy(${d})">${d} วัน</button>`).join('')}
+                </div>
+                <div class="ds-section-label">อ่านข้อมูลจากภาพได้ (${r.read} จาก ${r.scanned} ใบที่สแกน)</div>
+                <table class="ds-table-grid">
+                    ${row('ยอดเงิน', pct(r.fields.amount, r.read), r.fields.amount + ' ใบ')}
+                    ${row('วันที่', pct(r.fields.date, r.read), r.fields.date + ' ใบ · รวมที่ได้จากเลขอ้างอิง')}
+                    ${row('ผู้รับเงิน', pct(r.fields.receiver, r.read), r.fields.receiver + ' ใบ · นับเฉพาะเมื่อตั้งบัญชีร้านไว้')}
+                </table>
+                <div class="ds-section-label" style="margin-top:14px">เทียบกับที่แคชเชียร์ตัดสิน (${r.judged} ใบ)</div>
+                <table class="ds-table-grid">
+                    ${row('ผ่าน และแคชเชียร์ยืนยัน', o.truePass, 'ระบบถูก')}
+                    ${row('ไม่ผ่าน และแคชเชียร์ปฏิเสธ', o.trueCatch, 'ระบบจับได้ถูก')}
+                    ${row('เตือนแดง แต่แคชเชียร์ยืนยัน', o.falseAlarm, 'เตือนผิด — ถ้าเยอะ คนจะเลิกเชื่อคำเตือน', o.falseAlarm ? 'text-danger' : '')}
+                    ${row('ผ่าน แต่แคชเชียร์ปฏิเสธ', o.missed, 'ระบบปล่อยหลุด', o.missed ? 'text-danger' : '')}
+                    ${row('อ่านไม่ครบ (เทา)', o.unsureConfirmed + o.unsureRejected, 'ยืนยัน ' + o.unsureConfirmed + ' · ปฏิเสธ ' + o.unsureRejected)}
+                </table>
+                ${r.disagree.length ? `<div class="ds-note" style="margin-top:10px">
+                    ใบที่ระบบกับแคชเชียร์เห็นต่างกัน (ใช้ปรับกฎ): ${r.disagree.map((x) => e(x.orderNo)).join(', ')}
+                </div>` : ''}
+                <div class="ds-section-label" style="margin-top:14px">แยกตามธนาคารคนโอน</div>
+                <table class="ds-table-grid">
+                    ${Object.entries(r.byBank).map(([b, x]) => row(e(b), x.n + ' ใบ', 'อ่านยอดได้ ' + pct(x.amount, x.n))).join('') ||
+                      '<tr><td class="l text-muted">ยังไม่มีข้อมูล</td></tr>'}
+                </table>`,
+            footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
+            onOpen: () => refreshIcons(),
+        });
+    },
+
+    /* ══════════════════════════════════════════════════════
        ข้อมูลร้าน — พิมพ์บนใบเสร็จและจอคิวลูกค้า
        ══════════════════════════════════════════════════════ */
     openShop() {
@@ -820,6 +873,12 @@ const DashPage = {
                 </div>
                 ${field('shTax', 'เลขประจำตัวผู้เสียภาษี (13 หลัก · ไม่มีเว้นว่างได้)', s.taxId, 'inputmode="numeric"')}
                 ${field('shPp', 'พร้อมเพย์ของร้าน (เบอร์โทร 10 หลัก หรือเลข 13 หลัก)', s.promptpayId, 'inputmode="numeric"')}
+                <div class="ds-section-label" style="margin-top:8px">บัญชีที่รับเงิน — ใช้ตรวจว่าสลิปโอนเข้าร้านจริง</div>
+                ${field('shAccName', 'ชื่อบัญชีผู้รับเงิน (ตามที่ขึ้นบนสลิป เช่น ชื่อร้าน หรือชื่อเจ้าของบัญชี)', s.shopAccountName)}
+                ${field('shAccNos', 'เลขบัญชีธนาคารอื่นที่รับเงิน (ถ้ามี คั่นด้วยจุลภาค)', s.shopAccountNos, 'inputmode="numeric"')}
+                <div class="ds-note" style="margin-bottom:10px">
+                    พร้อมเพย์ด้านบนนับเป็นบัญชีร้านอยู่แล้ว · สลิปที่ผู้รับไม่ตรงชื่อหรือเลขเหล่านี้จะขึ้นแดง "ไม่ใช่บัญชีร้าน"
+                </div>
                 <div class="ds-note">
                     ชื่อร้าน ที่อยู่ และเลขผู้เสียภาษีพิมพ์บนใบเสร็จ · พร้อมเพย์ใช้สร้าง QR ที่คีออสก์
                     — ตรวจเลขพร้อมเพย์ให้ดี ผิดหนึ่งตัวเงินลูกค้าจะเข้าบัญชีคนอื่น
@@ -834,7 +893,9 @@ const DashPage = {
         const v = (id) => (document.getElementById(id).value || '').trim();
         const digits = (x) => x.replace(/[^0-9]/g, '');
         const body = { shopName: v('shName'), address: v('shAddr'),
-                       taxId: digits(v('shTax')), promptpayId: digits(v('shPp')) };
+                       taxId: digits(v('shTax')), promptpayId: digits(v('shPp')),
+                       shopAccountName: v('shAccName'),
+                       shopAccountNos: v('shAccNos').split(',').map(digits).filter(Boolean).join(', ') };
         if (!body.shopName) { showToast('ต้องใส่ชื่อร้าน', 'error'); return; }
         if (body.taxId && body.taxId.length !== 13) { showToast('เลขผู้เสียภาษีต้องมี 13 หลัก', 'error'); return; }
         if (body.promptpayId && ![10, 13].includes(body.promptpayId.length)) {

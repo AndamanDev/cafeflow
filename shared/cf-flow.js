@@ -19,7 +19,8 @@
         ORDER_CONFIRMED: ['WAITING_CASH', 'WAITING_PAYMENT', 'CANCELLED'],
         WAITING_CASH:    ['PAID', 'CANCELLED'],
         WAITING_PAYMENT: ['PAID', 'PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'CANCELLED'],
-        PAYMENT_TIMEOUT: ['PAYMENT_REVIEW', 'CANCELLED'],
+        // หมดเวลาแล้วลูกค้าขอ QR ใหม่ที่คีออสก์ → กลับไปรอชำระ (ไม่ค้างในแท็บรอตรวจของแคชเชียร์)
+        PAYMENT_TIMEOUT: ['WAITING_PAYMENT', 'PAYMENT_REVIEW', 'CANCELLED'],
         PAYMENT_REVIEW:  ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
         PAYMENT_FAILED:  ['WAITING_PAYMENT', 'CANCELLED'],
         PAID:            ['SENT_TO_KITCHEN', 'VOIDED', 'REFUNDED'],
