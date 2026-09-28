@@ -1,0 +1,14 @@
+{
+  "name": "cafeflow",
+  "private": true,
+  "description": "CafeFlow — ตัวช่วยรันคำสั่งจาก root (ส่งต่อไปที่ api/)",
+  "scripts": {
+    "postinstall": "npm --prefix api install",
+    "start": "npm --prefix api start",
+    "dev": "npm --prefix api run dev",
+    "migrate": "npm --prefix api run migrate",
+    "seed": "npm --prefix api run seed",
+    "reset": "npm --prefix api run reset",
+    "test": "npm --prefix api test"
+  }
+}

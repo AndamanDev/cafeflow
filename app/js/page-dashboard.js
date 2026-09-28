@@ -105,7 +105,8 @@ const DashPage = {
         const rows = CFStore.all('devices').map((d) => {
             const online = d.status === 'ONLINE';
             // จับคู่ได้เฉพาะเครื่องที่รับออเดอร์/แสดงผล — เครื่องพิมพ์ไม่ได้เปิดเบราว์เซอร์
-            const pairable = ['KIOSK', 'KDS', 'DISPLAY'].includes(d.type);
+            const page = this.devicePage(d.type);
+            const pairable = !!page;
             return `<tr>
                 <td>
                     <div class="td-name">${e(d.name)}</div>
@@ -117,7 +118,11 @@ const DashPage = {
                 <td class="cf-nowrap">${pairable ? `
                     <button class="btn btn-outline btn-sm" onclick="DashPage.pairDevice('${d.id}')">
                         <i data-lucide="link" class="icon-sm"></i> จับคู่
-                    </button>` : '<span class="text-muted">—</span>'}</td>
+                    </button>
+                    <a class="btn btn-outline btn-sm" href="${page}" target="_blank" rel="noopener"
+                       title="เปิดหน้า ${page} ในแท็บใหม่">
+                        <i data-lucide="external-link" class="icon-sm"></i> เปิดหน้า
+                    </a>` : '<span class="text-muted">—</span>'}</td>
             </tr>`;
         }).join('');
 
@@ -140,6 +145,11 @@ const DashPage = {
         });
     },
 
+    /** หน้าที่อุปกรณ์แต่ละชนิดต้องเปิด — null = ไม่ต้องจับคู่ (เช่นเครื่องพิมพ์) */
+    devicePage(type) {
+        return { KIOSK: 'kiosk.html', KDS: 'kds.html', DISPLAY: 'display.html' }[type] || null;
+    },
+
     /**
      * ขอรหัสจับคู่ให้อุปกรณ์หนึ่งเครื่อง (§30)
      * รหัสแสดงครั้งเดียว — ในฐานเก็บแต่ hash ย้อนดูไม่ได้ ถ้าปิดไปก่อนต้องขอใหม่
@@ -147,11 +157,14 @@ const DashPage = {
     async pairDevice(id) {
         try {
             const r = await CFApi.post('/api/devices/' + encodeURIComponent(id) + '/pair-code', {});
+            const dev = CFStore.all('devices').find((d) => d.id === id);
+            const page = dev && this.devicePage(dev.type);
             await Drawer.confirm({
                 title: 'รหัสจับคู่ — ' + CFApp.esc(r.name),
                 message: r.code,
                 lines: [
                     'ไปที่เครื่อง ' + r.deviceId + ' แล้วกรอกรหัสนี้',
+                    page ? 'เปิดหน้า ' + new URL(page, location.href).href : '',
                     'รหัสใช้ได้ ' + r.expiresInMin + ' นาที และใช้ได้ครั้งเดียว',
                 ],
                 note: 'รหัสนี้แสดงครั้งเดียว — ปิดหน้าต่างนี้แล้วต้องขอใหม่',

@@ -150,7 +150,7 @@ body.cfd-offline .cfd-offline-bar { display: block; }
 /* ── หน้าจอก่อนพร้อมใช้งาน / จับคู่ ───────────────────── */
 .cfd-boot { flex: 1; display: grid; place-items: center; padding: 4vmin; cursor: auto; }
 .cfd-boot-card {
-    max-width: 62vmin; text-align: center;
+    width: 100%; max-width: 62vmin; box-sizing: border-box; text-align: center;
     background: #fff; border: 0.8px solid var(--brand-border);
     border-radius: 2vmin; padding: 5vmin;
 }
@@ -161,6 +161,9 @@ body.cfd-offline .cfd-offline-bar { display: block; }
 .cfd-pair input {
     font-family: inherit; font-size: 5vmin; font-weight: 800;
     letter-spacing: .28em; text-align: center; text-transform: uppercase;
+    /* ช่อง input มีความกว้างตั้งต้นราว 20 ตัวอักษร × ฟอนต์ 5vmin → ล้นการ์ด ต้องบีบให้เท่าการ์ด
+       text-indent ชดเชย letter-spacing ที่ต่อท้ายตัวสุดท้าย ให้รหัสอยู่กลางจริง */
+    width: 100%; min-width: 0; box-sizing: border-box; text-indent: .28em;
     padding: 2vmin; border-radius: 1.4vmin;
     border: 0.8px solid var(--brand-border); background: #fff; color: #111;
 }
