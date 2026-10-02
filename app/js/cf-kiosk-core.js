@@ -26,6 +26,7 @@ const CFKiosk = {
         screen: 'attract', stack: [],
         dining: null, cat: null, cart: [], line: null,
         upsellShown: false, deviceId: 'KIOSK-01', dirty: false,
+        lang: 'th',                     // th | en — กลับเป็นไทยทุกครั้งที่เริ่มลูกค้าคนใหม่
     },
 
     opts: {},
@@ -73,9 +74,24 @@ const CFKiosk = {
         b.classList.toggle('cfk-frame', c.kioskFrame !== false);
         b.classList.toggle('cfk-noart', c.kioskImages === false);
         b.classList.toggle('cfk-cam-mirror', c.kioskCamMirror === true);
+        b.classList.toggle('cfk-cam-flip', c.kioskCamFlip === true);
 
         const st = document.getElementById('cfkStage');
         if (st) st.style.setProperty('--scale', c.kioskScale || 1);
+    },
+
+    /**
+     * กล้องของเครื่องนี้กลับภาพแบบกระจกมาเอง (ไดรเวอร์/ตั้งค่าในตัวกล้อง) — ตั้งที่ ตั้งค่าคีออสก์ (kioskCamFlip)
+     * ต้องพลิกคืนทั้งภาพบนจอและภาพหลักฐาน ไม่งั้น OCR อ่านตัวหนังสือกลับด้านไม่ออก
+     * (ตรวจเองจาก QR ไม่ได้ — jsQR อ่าน QR กลับด้านได้และคืนมุมแบบจัดเรียงแล้ว จึงไม่รู้ว่ากลับ)
+     */
+    camFlip() { return this.cfg().kioskCamFlip === true; },
+
+    /** วาดเฟรมจากกล้องลง canvas — พลิกคืนเมื่อ flip เป็นจริง */
+    drawFrame(ctx, video, w, h, flip) {
+        ctx.setTransform(flip ? -1 : 1, 0, 0, 1, flip ? w : 0, 0);
+        ctx.drawImage(video, 0, 0, w, h);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
     },
 
     /**
@@ -119,6 +135,7 @@ const CFKiosk = {
         this.state.dining = null;
         this.state.cat = null;
         this.state.upsellShown = false;
+        this.state.lang = 'th';
         this.state.screen = 'attract';
         this.render();
     },
@@ -163,6 +180,65 @@ const CFKiosk = {
     },
 
     /* ══════════════════════════════════════════════════════
+       ภาษา — ไทย / English (ลูกค้าต่างชาติ)
+       ข้อความจากเซิร์ฟเวอร์ (เหตุผลสลิปไม่ผ่าน, error) ยังเป็นไทย
+       ══════════════════════════════════════════════════════ */
+    t(th, en) { return this.state.lang === 'en' ? en : th; },
+
+    /** ชื่อของ สินค้า / หมวด / ตัวเลือก — ไม่มีชื่ออังกฤษก็ใช้ชื่อไทย */
+    nm(x) { return x ? ((this.state.lang === 'en' && x.nameEn) || x.nameTh || '') : ''; },
+
+    serveLabel(k) {
+        return this.t(CF_SERVE[k].label, { HOT: 'Hot', ICED: 'Iced', FRAPPE: 'Frappé', STD: 'Regular' }[k]);
+    },
+    serveShort(k) { return k === 'STD' ? '' : this.t(CF_SERVE[k].short, this.serveLabel(k)); },
+    serveSuffix(k) { return this.t(CFApp.serveSuffix(k), k === 'STD' ? '' : ' (' + this.serveLabel(k) + ')'); },
+
+    /** หัวข้อกลุ่มบนป้ายหน้าร้าน — ส่วนใหญ่เป็นอังกฤษอยู่แล้ว แปลเฉพาะที่เป็นไทย */
+    groupName(name) {
+        if (this.state.lang !== 'en') return name;
+        return ({ 'ประหยัดสุดคุ้ม': 'Value picks', 'อาหาร': 'Food', 'ของหวาน': 'Desserts',
+                  'เบเกอรี่': 'Bakery', 'LEMON (สด)': 'LEMON (fresh)' })[name] || name;
+    },
+
+    /** ตัวเลือกที่เก็บในตะกร้าเป็นชื่อไทย — โหมดอังกฤษดึงชื่อจากตัวเลือกจริง */
+    modLabel(m) { return this.nm(CFStore.byId('modifierOptions', m.optionId)) || m.label; },
+
+    langBtn(cls) {
+        return `<button class="cfk-lang ${cls || ''}" onclick="event.stopPropagation();CFKiosk.toggleLang()"
+                        aria-label="${this.t('Change language to English', 'เปลี่ยนเป็นภาษาไทย')}">
+            ${this.t('English', 'ภาษาไทย')}</button>`;
+    },
+
+    toggleLang() {
+        this.state.lang = this.state.lang === 'en' ? 'th' : 'en';
+        this.render();
+    },
+
+    /**
+     * หน้าถามยืนยันแบบแผ่นล่าง — ปุ่มที่กดแล้วย้อนไม่ได้ (ล้างตะกร้า · เรียกพนักงาน · เปลี่ยนเป็นเงินสด)
+     * onOk เป็นชื่อเมธอดของ CFKiosk (ใส่ใน onclick ได้)
+     */
+    confirmSheet({ title, text, ok, onOk }) {
+        this.closeSheet();
+        const e = CFApp.esc;
+        this.stage.insertAdjacentHTML('beforeend', `
+        <div class="cfk-sheet" id="cfkSheet">
+            <div class="cfk-sheet-box">
+                <div class="cfk-sheet-body">
+                    <b>${e(title)}</b>
+                    <p>${e(text)}</p>
+                </div>
+                <div class="cfk-actionbar">
+                    <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.closeSheet()">${this.t('ยกเลิก', 'Cancel')}</button>
+                    <button class="cfk-btn cfk-btn-primary cfk-btn-grow"
+                            onclick="CFKiosk.closeSheet();CFKiosk.${onOk}()">${e(ok)}</button>
+                </div>
+            </div>
+        </div>`);
+    },
+
+    /* ══════════════════════════════════════════════════════
        ตะกร้า
        ══════════════════════════════════════════════════════ */
     lineTotal(L) {
@@ -185,6 +261,7 @@ const CFKiosk = {
             .join('');
 
         return `
+        ${this.langBtn('cfk-lang-float')}
         <button class="cfk-attract" onclick="CFKiosk.start()">
             <div class="cfk-attract-mid">
                 <span class="cfk-attract-strip" style="position:absolute;top:0;left:0;right:0"></span>
@@ -198,8 +275,8 @@ const CFKiosk = {
                     </svg>
                 </div>
                 <div class="cfk-attract-shop">${e(s.shopName)}</div>
-                <div class="cfk-attract-sub">สั่งด้วยตนเอง · Self Order</div>
-                <div class="cfk-attract-cta">แตะเพื่อเริ่มสั่ง</div>
+                <div class="cfk-attract-sub">${this.t('สั่งด้วยตนเอง · Self Order', 'Self Order')}</div>
+                <div class="cfk-attract-cta">${this.t('แตะเพื่อเริ่มสั่ง', 'Tap to start ordering')}</div>
             </div>
             <div class="cfk-attract-band"><div class="cfk-attract-row">${tiles}</div></div>
         </button>`;
@@ -225,29 +302,31 @@ const CFKiosk = {
             <button class="cfk-bigchoice" onclick="CFKiosk.setDining('${key}')">
                 <span class="cfk-media" style="--t1:${t[0]};--t2:${t[1]};--art-a:${t[2]}">
                     <svg class="cfk-art" viewBox="0 0 120 120"><use href="#cfa-${d.art}"/></svg></span>
-                <b>${e(d.label)}</b><small>${e(d.en)}</small>
+                <b>${e(this.t(d.label, d.en))}</b><small>${e(this.t(d.en, d.label))}</small>
             </button>`;
         };
         return `
-        ${this.topHtml({ title: 'เลือกรูปแบบการรับ', sub: 'เลือกก่อนเริ่มสั่งอาหาร', back: 'attract' })}
+        ${this.topHtml({ title: this.t('เลือกรูปแบบการรับ', 'Dine in or take away?'),
+                         sub: this.t('เลือกก่อนเริ่มสั่งอาหาร', 'Choose before you order'), back: 'attract' })}
         <div class="cfk-choices">${choice('DINE_IN')}${choice('TAKE_AWAY')}</div>`;
     },
 
     setDining(v) { this.state.dining = v; this.go('menu'); },
-    diningLabel() { return (CF_DINING[this.state.dining] || CF_DINING.DINE_IN).label; },
+    diningLabel() { const d = CF_DINING[this.state.dining] || CF_DINING.DINE_IN; return this.t(d.label, d.en); },
 
     /* ── แถบหัวร่วม ── */
     topHtml(o) {
         const e = CFApp.esc;
         return `
         <div class="cfk-top">
-            ${o.back ? `<button class="cfk-back" onclick="CFKiosk.back()" aria-label="ย้อนกลับ">
+            ${o.back ? `<button class="cfk-back" onclick="CFKiosk.back()" aria-label="${this.t('ย้อนกลับ', 'Back')}">
                 ${CFKioskArt.icon('back')}</button>` : ''}
             <div class="cfk-top-title">
                 <b>${e(o.title)}</b>
                 ${o.sub ? `<span>${e(o.sub)}</span>` : ''}
             </div>
             ${o.mode && this.state.dining ? this.modeChipHtml() : ''}
+            ${o.noLang ? '' : this.langBtn()}
         </div>`;
     },
 
@@ -258,7 +337,7 @@ const CFKiosk = {
      */
     modeChipHtml() {
         const d = CF_DINING[this.state.dining] || CF_DINING.DINE_IN;
-        const inner = `${CFKioskArt.icon(d.icon)} ${CFApp.esc(d.label)}`;
+        const inner = `${CFKioskArt.icon(d.icon)} ${CFApp.esc(this.t(d.label, d.en))}`;
         return this.diningMode() === 'ASK'
             ? `<button class="cfk-mode" onclick="CFKiosk.go('dining')">${inner}</button>`
             : `<span class="cfk-mode cfk-mode-static">${inner}</span>`;
@@ -277,7 +356,7 @@ const CFKiosk = {
         const catsHtml = cats.map((c) => this.catHtml(c)).join('');
 
         return `
-        ${this.topHtml({ title: CFStore.settings().shopName, sub: 'เลือกเมนูที่ต้องการ', back: 'dining', mode: true })}
+        ${this.topHtml({ title: CFStore.settings().shopName, sub: this.t('เลือกเมนูที่ต้องการ', 'Choose your items'), back: 'dining', mode: true })}
         <div class="cfk-menu">
             ${land ? `<div class="cfk-rail">${catsHtml}</div>`
                    : `<div class="cfk-catstrip">${catsHtml}</div>`}
@@ -290,7 +369,7 @@ const CFKiosk = {
         const e = CFApp.esc;
         return `<button class="cfk-cat ${c.id === this.state.cat ? 'active' : ''}"
                         onclick="CFKiosk.setCat('${c.id}')">
-            <b>${e(c.nameTh)}</b><small>${e(c.nameEn || '')}</small></button>`;
+            <b>${e(this.nm(c))}</b><small>${e(this.t(c.nameEn || '', c.nameTh))}</small></button>`;
     },
 
     setCat(id) {
@@ -315,10 +394,10 @@ const CFKiosk = {
             if (!g) { g = { name: p.groupTh || '', items: [] }; groups.push(g); }
             g.items.push(p);
         });
-        if (!groups.length) return '<div class="cfk-empty">ยังไม่มีสินค้าในหมวดนี้</div>';
+        if (!groups.length) return `<div class="cfk-empty">${this.t('ยังไม่มีสินค้าในหมวดนี้', 'No items in this category yet')}</div>`;
 
         return groups.map((g) => `
-            ${g.name ? `<div class="cfk-groupbar">${e(g.name)}</div>` : ''}
+            ${g.name ? `<div class="cfk-groupbar">${e(this.groupName(g.name))}</div>` : ''}
             <div class="cfk-grid">${g.items.map((p) => this.cardHtml(p)).join('')}</div>
         `).join('');
     },
@@ -328,18 +407,18 @@ const CFKiosk = {
         const serves = CFApp.serveTypesOf(p);
         const multi = serves.filter((k) => k !== 'STD').length > 1;
         const pills = serves.filter((k) => k !== 'STD')
-            .map((k) => `<span class="cfk-serve-pill">${e(CF_SERVE[k].short)}</span>`).join('');
+            .map((k) => `<span class="cfk-serve-pill">${e(this.serveShort(k))}</span>`).join('');
 
         return `<button class="cfk-card" ${p.soldOut ? 'disabled' : `onclick="CFKiosk.openItem('${p.id}')"`}>
-            ${p.recommended && !p.soldOut ? '<span class="cfk-badge cfk-badge-reco">แนะนำ</span>' : ''}
-            ${p.soldOut ? '<span class="cfk-badge cfk-badge-out">สินค้าหมด</span>' : ''}
+            ${p.recommended && !p.soldOut ? `<span class="cfk-badge cfk-badge-reco">${this.t('แนะนำ', 'Popular')}</span>` : ''}
+            ${p.soldOut ? `<span class="cfk-badge cfk-badge-out">${this.t('สินค้าหมด', 'Sold out')}</span>` : ''}
             ${CFKioskArt.tile(p, serves[0])}
             <span class="cfk-card-body">
-                <span class="cfk-card-name">${e(p.nameTh)}</span>
-                <span class="cfk-card-en">${e(p.nameEn || '')}</span>
+                <span class="cfk-card-name">${e(this.nm(p))}</span>
+                <span class="cfk-card-en">${e(this.t(p.nameEn || '', p.nameTh))}</span>
                 <span class="cfk-card-foot">
                     <span class="cfk-serves">${pills}</span>
-                    <span class="cfk-price">${multi ? '<small>เริ่ม </small>' : ''}฿${CFApp.money(CFApp.minPriceOf(p))}</span>
+                    <span class="cfk-price">${multi ? `<small>${this.t('เริ่ม ', 'from ')}</small>` : ''}฿${CFApp.money(CFApp.minPriceOf(p))}</span>
                 </span>
             </span>
         </button>`;
@@ -350,14 +429,15 @@ const CFKiosk = {
         const n = this.cartCount(), t = this.cartTotal();
         return `<div class="cfk-cartbar ${n ? '' : 'is-empty'}">
             <div class="cfk-cartbar-info">
-                <span>${n ? n + ' รายการ' : 'ตะกร้าว่าง · เลือกเมนูเพื่อเริ่ม'}</span>
+                <span>${n ? this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item'))
+                          : this.t('ตะกร้าว่าง · เลือกเมนูเพื่อเริ่ม', 'Your cart is empty')}</span>
                 <strong>฿${CFApp.money(t)}</strong>
             </div>
             <button class="cfk-btn cfk-btn-ghost" ${n ? '' : 'disabled'} onclick="CFKiosk.go('cart')">
-                ${CFKioskArt.icon('cart')} ดูตะกร้า
+                ${CFKioskArt.icon('cart')} ${this.t('ดูตะกร้า', 'View cart')}
             </button>
             <button class="cfk-btn cfk-btn-primary" ${n ? '' : 'disabled'} onclick="CFKiosk.toCheckout()">
-                ชำระเงิน
+                ${this.t('ชำระเงิน', 'Pay')}
             </button>
         </div>`;
     },
@@ -365,17 +445,17 @@ const CFKiosk = {
     cartPanelHtml() {
         const n = this.cartCount();
         return `<div class="cfk-cartpanel">
-            <div class="cfk-cartpanel-head">ตะกร้าของคุณ${n ? ' · ' + n + ' รายการ' : ''}</div>
+            <div class="cfk-cartpanel-head">${this.t('ตะกร้าของคุณ', 'Your cart')}${n ? ' · ' + this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item')) : ''}</div>
             <div class="cfk-cartpanel-list">
                 ${n ? this.state.cart.map((l) => this.cartLineHtml(l, true)).join('')
-                    : '<div class="cfk-empty">ตะกร้าว่าง<br>เลือกเมนูเพื่อเริ่ม</div>'}
+                    : `<div class="cfk-empty">${this.t('ตะกร้าว่าง<br>เลือกเมนูเพื่อเริ่ม', 'Your cart is empty<br>Choose an item to start')}</div>`}
             </div>
             <div class="cfk-cartpanel-foot">
-                <div class="cfk-total" style="padding:0"><span>ยอดรวม</span><strong>฿${CFApp.money(this.cartTotal())}</strong></div>
+                <div class="cfk-total" style="padding:0"><span>${this.t('ยอดรวม', 'Total')}</span><strong>฿${CFApp.money(this.cartTotal())}</strong></div>
                 <button class="cfk-btn cfk-btn-primary" ${n ? '' : 'disabled'} onclick="CFKiosk.toCheckout()">
-                    ชำระเงิน ฿${CFApp.money(this.cartTotal())}
+                    ${this.t('ชำระเงิน', 'Pay')} ฿${CFApp.money(this.cartTotal())}
                 </button>
-                ${n ? `<button class="cfk-mini" onclick="CFKiosk.askClear()">${CFKioskArt.icon('trash')} ล้างตะกร้า</button>` : ''}
+                ${n ? `<button class="cfk-mini" onclick="CFKiosk.askClear()">${CFKioskArt.icon('trash')} ${this.t('ล้างตะกร้า', 'Clear cart')}</button>` : ''}
             </div>
         </div>`;
     },
@@ -385,7 +465,7 @@ const CFKiosk = {
        ══════════════════════════════════════════════════════ */
     openItem(productId, editLineId) {
         const p = CFStore.byId('products', productId);
-        if (!p || p.soldOut) { this.toast('สินค้านี้หมดแล้ว'); return; }
+        if (!p || p.soldOut) { this.toast(this.t('สินค้านี้หมดแล้ว', 'Sorry, this item is sold out')); return; }
 
         if (editLineId) {
             const l = this.state.cart.find((x) => x.lineId === editLineId);
@@ -408,11 +488,11 @@ const CFKiosk = {
 
         const serveBlock = showServe ? `
             <div class="cfk-optgroup">
-                <div class="cfk-optgroup-head"><b>เลือกแบบ</b><span class="cfk-tag cfk-tag-req">ต้องเลือก</span></div>
+                <div class="cfk-optgroup-head"><b>${this.t('เลือกแบบ', 'Choose style')}</b><span class="cfk-tag cfk-tag-req">${this.t('ต้องเลือก', 'Required')}</span></div>
                 <div class="cfk-serves-pick">
                     ${serves.map((k) => `<button class="cfk-serve ${k === L.serveType ? 'active' : ''}"
                         onclick="CFKiosk.setServe('${k}')">
-                        <b>${e(CF_SERVE[k].label)}</b><small>฿${CFApp.money(p.prices[k])}</small></button>`).join('')}
+                        <b>${e(this.serveLabel(k))}</b><small>฿${CFApp.money(p.prices[k])}</small></button>`).join('')}
                 </div>
             </div>` : '';
 
@@ -422,16 +502,16 @@ const CFKiosk = {
             return `
             <div class="cfk-optgroup ${missing ? 'is-missing' : ''}">
                 <div class="cfk-optgroup-head">
-                    <b>${e(g.nameTh)}</b>
-                    ${g.required ? '<span class="cfk-tag cfk-tag-req">ต้องเลือก</span>' : ''}
-                    ${g.type === 'MULTI' ? '<span class="cfk-tag">เลือกได้หลายอย่าง</span>' : ''}
+                    <b>${e(this.nm(g))}</b>
+                    ${g.required ? `<span class="cfk-tag cfk-tag-req">${this.t('ต้องเลือก', 'Required')}</span>` : ''}
+                    ${g.type === 'MULTI' ? `<span class="cfk-tag">${this.t('เลือกได้หลายอย่าง', 'Choose any')}</span>` : ''}
                 </div>
                 <div class="cfk-opts">
                     ${CFRules.optionsOf(g.id).map((o) => {
                         const on = L.mods.some((m) => m.optionId === o.id);
                         return `<button class="cfk-opt ${on ? 'active' : ''}"
                             onclick="CFKiosk.toggleOpt('${g.id}','${o.id}',${g.type === 'MULTI'})">
-                            <span>${e(o.nameTh)}</span>${o.priceDelta ? `<b>+฿${o.priceDelta}</b>` : ''}</button>`;
+                            <span>${e(this.nm(o))}</span>${o.priceDelta ? `<b>+฿${o.priceDelta}</b>` : ''}</button>`;
                     }).join('')}
                 </div>
             </div>`;
@@ -441,35 +521,35 @@ const CFKiosk = {
         const hiddenNote = (hidden.length && groups.length) ? `
             <div class="cfk-note" style="margin-top:calc(var(--u)*1.6)">
                 ${CFKioskArt.icon('alert')}
-                <span>แบบ "${e(CF_SERVE[L.serveType].label)}" ไม่มี: ${hidden.map((g) => e(g.nameTh)).join(' · ')}</span>
+                <span>${this.t(`แบบ "${e(this.serveLabel(L.serveType))}" ไม่มี: `, `"${e(this.serveLabel(L.serveType))}" has no: `)}${hidden.map((g) => e(this.nm(g))).join(' · ')}</span>
             </div>` : '';
 
         return `
-        ${this.topHtml({ title: p.nameTh, sub: p.groupTh || '', back: 'menu' })}
+        ${this.topHtml({ title: this.nm(p), sub: this.groupName(p.groupTh || ''), back: 'menu' })}
         <div class="cfk-item">
             <div class="cfk-item-left">
                 <div class="cfk-hero">${CFKioskArt.tile(p, L.serveType)}</div>
             </div>
             <div class="cfk-item-scroll">
-                <div class="cfk-item-name">${e(p.nameTh)}</div>
-                <div class="cfk-item-en">${e(p.nameEn || '')}</div>
+                <div class="cfk-item-name">${e(this.nm(p))}</div>
+                <div class="cfk-item-en">${e(this.t(p.nameEn || '', p.nameTh))}</div>
                 ${serveBlock}
-                ${optBlock || '<div class="cfk-note">เมนูนี้ไม่มีตัวเลือกเพิ่มเติม</div>'}
+                ${optBlock || `<div class="cfk-note">${this.t('เมนูนี้ไม่มีตัวเลือกเพิ่มเติม', 'No options for this item')}</div>`}
                 ${hiddenNote}
                 <div class="cfk-optgroup">
-                    <div class="cfk-optgroup-head"><b>จำนวน</b></div>
+                    <div class="cfk-optgroup-head"><b>${this.t('จำนวน', 'Quantity')}</b></div>
                     <div class="cfk-qty">
                         <button onclick="CFKiosk.addQty(-1)" ${L.qty <= 1 ? 'disabled' : ''}
-                                aria-label="ลด">${CFKioskArt.icon('minus')}</button>
+                                aria-label="${this.t('ลด', 'Less')}">${CFKioskArt.icon('minus')}</button>
                         <output>${L.qty}</output>
-                        <button onclick="CFKiosk.addQty(1)" aria-label="เพิ่ม">${CFKioskArt.icon('plus')}</button>
+                        <button onclick="CFKiosk.addQty(1)" aria-label="${this.t('เพิ่ม', 'More')}">${CFKioskArt.icon('plus')}</button>
                     </div>
                 </div>
             </div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.back()">ยกเลิก</button>
+                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.back()">${this.t('ยกเลิก', 'Cancel')}</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.addToCart()">
-                    ${CFKioskArt.icon('check')} ${L.lineId ? 'บันทึก' : 'เพิ่มลงตะกร้า'} · ฿${CFApp.money(this.lineTotal(L))}
+                    ${CFKioskArt.icon('check')} ${L.lineId ? this.t('บันทึก', 'Save') : this.t('เพิ่มลงตะกร้า', 'Add to cart')} · ฿${CFApp.money(this.lineTotal(L))}
                 </button>
             </div>
         </div>`;
@@ -517,7 +597,7 @@ const CFKiosk = {
         const p = CFStore.byId('products', L.productId);
 
         // ผู้จัดการอาจปิดขายกลางคัน แล้ว sync เข้ามาระหว่างลูกค้าเลือกอยู่
-        if (!p || p.soldOut) { this.toast('สินค้านี้เพิ่งหมด'); this.go('menu'); return; }
+        if (!p || p.soldOut) { this.toast(this.t('สินค้านี้เพิ่งหมด', 'This item just sold out')); this.go('menu'); return; }
 
         const missing = CFRules.groupsFor(L.serveType, p.categoryId)
             .filter((g) => g.required && !L.mods.some((m) => m.groupId === g.id));
@@ -526,7 +606,7 @@ const CFKiosk = {
             this.render();
             const el = this.stage.querySelector('.cfk-optgroup.is-missing');
             if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            this.toast('กรุณาเลือก ' + missing.map((g) => g.nameTh).join(' และ '), 2400);
+            this.toast(this.t('กรุณาเลือก ', 'Please choose ') + missing.map((g) => this.nm(g)).join(this.t(' และ ', ' and ')), 2400);
             return;
         }
 
@@ -538,7 +618,7 @@ const CFKiosk = {
         }
         this._missing = null;
         this.go('menu');
-        this.toast('เพิ่ม ' + p.nameTh + ' แล้ว');
+        this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)));
     },
 
     /* ══════════════════════════════════════════════════════
@@ -549,19 +629,19 @@ const CFKiosk = {
         if (!n) return this.screen_menu();
 
         return `
-        ${this.topHtml({ title: 'ตะกร้าของคุณ', sub: n + ' รายการ', back: 'menu', mode: true })}
+        ${this.topHtml({ title: this.t('ตะกร้าของคุณ', 'Your cart'), sub: this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item')), back: 'menu', mode: true })}
         <div style="display:grid;grid-template-rows:1fr auto auto;min-height:0">
             <div style="overflow-y:auto;min-height:0;padding:0 var(--pad)">
                 ${this.state.cart.map((l) => this.cartLineHtml(l)).join('')}
                 <button class="cfk-mini" style="margin:calc(var(--u)*1.6) 0"
-                        onclick="CFKiosk.askClear()">${CFKioskArt.icon('trash')} ล้างตะกร้าทั้งหมด</button>
+                        onclick="CFKiosk.askClear()">${CFKioskArt.icon('trash')} ${this.t('ล้างตะกร้าทั้งหมด', 'Clear cart')}</button>
             </div>
-            <div class="cfk-total"><span>ยอดรวม (รวมภาษีมูลค่าเพิ่มแล้ว)</span>
+            <div class="cfk-total"><span>${this.t('ยอดรวม (รวมภาษีมูลค่าเพิ่มแล้ว)', 'Total (VAT included)')}</span>
                  <strong>฿${CFApp.money(this.cartTotal())}</strong></div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.go('menu')">สั่งเพิ่ม</button>
+                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.go('menu')">${this.t('สั่งเพิ่ม', 'Add more')}</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.toCheckout()">
-                    ชำระเงิน ฿${CFApp.money(this.cartTotal())}
+                    ${this.t('ชำระเงิน', 'Pay')} ฿${CFApp.money(this.cartTotal())}
                 </button>
             </div>
         </div>`;
@@ -570,17 +650,17 @@ const CFKiosk = {
     cartLineHtml(l, compact) {
         const e = CFApp.esc;
         const p = CFStore.byId('products', l.productId);
-        const mods = l.mods.map((m) => e(m.label)).join(' · ');
+        const mods = l.mods.map((m) => e(this.modLabel(m))).join(' · ');
         return `<div class="cfk-cartline">
             ${CFKioskArt.tile(p, l.serveType)}
             <div class="cfk-cartline-mid">
-                <div class="cfk-cartline-name">${e(p.nameTh)}${e(CFApp.serveSuffix(l.serveType))}</div>
+                <div class="cfk-cartline-name">${e(this.nm(p))}${e(this.serveSuffix(l.serveType))}</div>
                 ${mods ? `<div class="cfk-cartline-mods">${mods}</div>` : ''}
                 ${compact ? '' : `<div class="cfk-cartline-act">
                     <button class="cfk-mini" onclick="CFKiosk.lineQty('${l.lineId}',-1)">${CFKioskArt.icon('minus')}</button>
                     <button class="cfk-mini" onclick="CFKiosk.lineQty('${l.lineId}',1)">${CFKioskArt.icon('plus')}</button>
                     <button class="cfk-mini" onclick="CFKiosk.openItem('${l.productId}','${l.lineId}')">
-                        ${CFKioskArt.icon('pencil')} แก้ไข</button>
+                        ${CFKioskArt.icon('pencil')} ${this.t('แก้ไข', 'Edit')}</button>
                     <button class="cfk-mini" onclick="CFKiosk.removeLine('${l.lineId}')">${CFKioskArt.icon('trash')}</button>
                 </div>`}
             </div>
@@ -602,24 +682,16 @@ const CFKiosk = {
 
     removeLine(lineId) {
         this.state.cart = this.state.cart.filter((x) => x.lineId !== lineId);
-        if (!this.state.cart.length) { this.go('menu'); this.toast('ตะกร้าว่างแล้ว'); return; }
+        if (!this.state.cart.length) { this.go('menu'); this.toast(this.t('ตะกร้าว่างแล้ว', 'Your cart is empty')); return; }
         this.render();
     },
 
     askClear() {
-        this.stage.insertAdjacentHTML('beforeend', `
-        <div class="cfk-sheet" id="cfkSheet">
-            <div class="cfk-sheet-box">
-                <div class="cfk-sheet-body">
-                    <b>ล้างตะกร้าทั้งหมด?</b>
-                    <p>รายการที่เลือกไว้ทั้งหมดจะถูกลบ</p>
-                </div>
-                <div class="cfk-actionbar">
-                    <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.closeSheet()">ยกเลิก</button>
-                    <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.doClear()">ล้างตะกร้า</button>
-                </div>
-            </div>
-        </div>`);
+        this.confirmSheet({
+            title: this.t('ล้างตะกร้าทั้งหมด?', 'Clear your cart?'),
+            text: this.t('รายการที่เลือกไว้ทั้งหมดจะถูกลบ', 'All the items you chose will be removed'),
+            ok: this.t('ล้างตะกร้า', 'Clear cart'), onOk: 'doClear',
+        });
     },
     closeSheet() { const s = document.getElementById('cfkSheet'); if (s) s.remove(); },
     doClear() {
@@ -627,7 +699,7 @@ const CFKiosk = {
         this.state.upsellShown = false;
         this.closeSheet();
         this.go('menu');
-        this.toast('ล้างตะกร้าแล้ว');
+        this.toast(this.t('ล้างตะกร้าแล้ว', 'Cart cleared'));
     },
 
     /* ══════════════════════════════════════════════════════
@@ -660,7 +732,7 @@ const CFKiosk = {
         const inCart = new Set(this.state.cart.map((l) => l.productId));
 
         return `
-        ${this.topHtml({ title: 'เพิ่มอีกสักหน่อยไหม?', sub: 'แนะนำสำหรับคุณ', back: 'cart' })}
+        ${this.topHtml({ title: this.t('เพิ่มอีกสักหน่อยไหม?', 'Anything else?'), sub: this.t('แนะนำสำหรับคุณ', 'Recommended for you'), back: 'cart' })}
         <div class="cfk-upsell">
             <div class="cfk-upgrid">
                 ${picks.map((p) => {
@@ -669,19 +741,19 @@ const CFKiosk = {
                         onclick="CFKiosk.quickAdd('${p.id}')">
                         ${CFKioskArt.tile(p, CFApp.serveTypesOf(p)[0])}
                         <span class="cfk-card-body">
-                            <span class="cfk-card-name">${e(p.nameTh)}</span>
+                            <span class="cfk-card-name">${e(this.nm(p))}</span>
                             <span class="cfk-card-foot">
-                                <span class="cfk-serve-pill">${added ? 'เพิ่มแล้ว' : 'แตะเพื่อเพิ่ม'}</span>
+                                <span class="cfk-serve-pill">${added ? this.t('เพิ่มแล้ว', 'Added') : this.t('แตะเพื่อเพิ่ม', 'Tap to add')}</span>
                                 <span class="cfk-price">+฿${CFApp.money(CFApp.minPriceOf(p))}</span>
                             </span>
                         </span>
                     </button>`;
                 }).join('')}
             </div>
+            <!-- ปุ่มเดียว — เดิมมี "ไม่ ขอบคุณ" กับ "ชำระเงิน" ที่ไปหน้าเดียวกัน ลูกค้าลังเลว่าต้องกดอันไหน -->
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.go('pay')">ไม่ ขอบคุณ</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.go('pay')">
-                    ชำระเงิน ฿${CFApp.money(this.cartTotal())}
+                    ${this.t('ไปชำระเงิน', 'Continue to payment')} ฿${CFApp.money(this.cartTotal())}
                 </button>
             </div>
         </div>`;
@@ -697,7 +769,7 @@ const CFKiosk = {
             mods: CFRules.defaultsFor(sv, p.categoryId),
         });
         this.render();
-        this.toast('เพิ่ม ' + p.nameTh + ' แล้ว');
+        this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)));
     },
 
     /* ══════════════════════════════════════════════════════
@@ -708,19 +780,19 @@ const CFKiosk = {
             `<span class="cfk-media" style="--t1:${tint[0]};--t2:${tint[1]};--art-a:${tint[2]}">
                 <svg class="cfk-art" viewBox="0 0 120 120"><use href="#cfa-${key}"/></svg></span>`;
         return `
-        ${this.topHtml({ title: 'เลือกวิธีชำระเงิน', back: 'cart', mode: true })}
+        ${this.topHtml({ title: this.t('เลือกวิธีชำระเงิน', 'How would you like to pay?'), back: 'cart', mode: true })}
         <div style="display:grid;grid-template-rows:auto 1fr;min-height:0">
             <div class="cfk-paytotal">
-                <span>ยอดที่ต้องชำระ</span><strong>฿${CFApp.money(this.cartTotal())}</strong>
+                <span>${this.t('ยอดที่ต้องชำระ', 'Amount due')}</span><strong>฿${CFApp.money(this.cartTotal())}</strong>
             </div>
             <div class="cfk-choices">
                 <button class="cfk-bigchoice" onclick="CFKiosk.submit('CASH')">
                     ${CFKioskArt.icon('cash')}
-                    <b>เงินสด</b><small>ชำระที่เคาน์เตอร์</small>
+                    <b>${this.t('เงินสด', 'Cash')}</b><small>${this.t('ชำระที่เคาน์เตอร์', 'Pay at the counter')}</small>
                 </button>
                 <button class="cfk-bigchoice" onclick="CFKiosk.submit('QR')">
                     ${CFKioskArt.icon('qr')}
-                    <b>QR พร้อมเพย์</b><small>สแกนจ่ายด้วยมือถือ</small>
+                    <b>${this.t('QR พร้อมเพย์', 'PromptPay QR')}</b><small>${this.t('สแกนจ่ายด้วยมือถือ', 'Scan with your banking app')}</small>
                 </button>
             </div>
         </div>`;
@@ -737,7 +809,7 @@ const CFKiosk = {
     async submit(method) {
         if (this._submitting) return;
         this._submitting = true;
-        this.setBusy(true, 'กำลังส่งออเดอร์…');
+        this.setBusy(true, this.t('กำลังส่งออเดอร์…', 'Sending your order…'));
         try {
             // clientUuid ผูกกับ "การกดชำระครั้งนี้" — retry ตอนเน็ตสะดุดจึงได้ใบเดิม
             this._clientUuid = this._clientUuid || (window.crypto && crypto.randomUUID
@@ -750,12 +822,12 @@ const CFKiosk = {
                 clientUuid: this._clientUuid,
                 expectTotal: this.cartTotal(),
             });
-            if (!orderId) { this.toast('สร้างออเดอร์ไม่สำเร็จ'); return; }
+            if (!orderId) { this.toast(this.t('สร้างออเดอร์ไม่สำเร็จ', 'Could not place your order')); return; }
 
             const ok = await CFOrders.transition(orderId,
                 method === 'CASH' ? 'WAITING_CASH' : 'WAITING_PAYMENT',
                 { byId: 'KIOSK', device: this.state.deviceId });
-            if (ok === false) { this.toast('ส่งออเดอร์ไม่สำเร็จ'); return; }
+            if (ok === false) { this.toast(this.t('ส่งออเดอร์ไม่สำเร็จ', 'Could not send your order')); return; }
 
             this.state.cart = [];
             this.state.orderId = orderId;
@@ -779,7 +851,7 @@ const CFKiosk = {
                 this.stage.appendChild(el);
             }
             if (typeof text === 'object' && text && text.html) el.innerHTML = text.html;
-            else el.textContent = text || 'กำลังทำงาน…';
+            else el.textContent = text || this.t('กำลังทำงาน…', 'Working…');
             // solid = ปิดพื้นหลังทั้งจอ (ตอนตรวจสลิป — ไม่ให้ภาพกล้อง/ปุ่มด้านหลังแย่งสายตา)
             el.classList.toggle('is-solid', !!(text && text.solid));
         } else if (el) {
@@ -794,23 +866,24 @@ const CFKiosk = {
         // ขอ QR ที่ผูกยอดไว้แล้วจากเซิร์ฟเวอร์ — นับถอยหลังเริ่มเมื่อได้เวลาหมดอายุจริง
         setTimeout(() => this.loadQr(), 0);
         return `
-        ${this.topHtml({ title: 'สแกนเพื่อชำระเงิน', sub: 'ออเดอร์ ' + o.orderNo })}
+        ${this.topHtml({ title: this.t('สแกนเพื่อชำระเงิน', 'Scan to pay'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center">
                 <div class="cfk-qr" id="cfkQrBox">
                     ${CFKioskArt.icon('qr')}
-                    <span>กำลังสร้าง QR…</span>
+                    <span>${this.t('กำลังสร้าง QR…', 'Creating QR…')}</span>
                 </div>
                 <div class="cfk-done-no" style="font-size:calc(var(--u)*5)">฿${CFApp.money(o.total)}</div>
                 <div class="cfk-note cfk-note-ok">
                     ${CFKioskArt.icon('timer')}
-                    <span>เหลือเวลา <b class="cfk-countdown" id="cfkLeft">${sec}</b> วินาที</span>
+                    <span>${this.t('เหลือเวลา', 'Time left')} <b class="cfk-countdown" id="cfkLeft">${sec}</b> ${this.t('วินาที', 'sec')}</span>
                 </div>
             </div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.qrTimeout()">แจ้งพนักงาน</button>
+                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.askPayCash()">${this.t('จ่ายเงินสดแทน', 'Pay cash instead')}</button>
+                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.askStaff()">${this.t('แจ้งพนักงาน', 'Call staff')}</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.qrPaid()">
-                    ${CFKioskArt.icon('check')} โอนแล้ว · สแกนสลิป
+                    ${CFKioskArt.icon('check')} ${this.t('โอนแล้ว · สแกนสลิป', 'Paid · scan slip')}
                 </button>
             </div>
         </div>`;
@@ -828,14 +901,14 @@ const CFKiosk = {
             if (!box) return;
             box.classList.add('has-qr');
             box.innerHTML = '<div class="cfk-qr-img">' + r.svg + '</div>' +
-                '<span>สแกนด้วยแอปธนาคาร · ยอดขึ้นให้อัตโนมัติ</span>';
+                '<span>' + this.t('สแกนด้วยแอปธนาคาร · ยอดขึ้นให้อัตโนมัติ', 'Scan with your banking app · the amount fills in automatically') + '</span>';
             // นับถอยหลังจากเวลาหมดอายุจริงของเซิร์ฟเวอร์ ไม่ใช่ค่าคงที่ฝั่งเบราว์เซอร์
             this.startQr(Math.max(1, Math.round((new Date(r.expiresAt) - Date.now()) / 1000)));
         } catch (err) {
             if (box) {
                 box.innerHTML = CFKioskArt.icon('alert') +
-                    '<span>' + CFApp.esc(err.message || 'สร้าง QR ไม่สำเร็จ') +
-                    '<br>กรุณาชำระที่เคาน์เตอร์</span>';
+                    '<span>' + CFApp.esc(err.message || this.t('สร้าง QR ไม่สำเร็จ', 'Could not create the QR')) +
+                    '<br>' + this.t('กรุณาชำระที่เคาน์เตอร์', 'Please pay at the counter') + '</span>';
             }
             // ออก QR ไม่ได้ก็ต้องขายต่อได้ — ส่งให้แคชเชียร์จัดการแทน ไม่ใช่ค้างคาหน้าจอ
             clearInterval(this._qr);
@@ -876,28 +949,36 @@ const CFKiosk = {
         const o = CFStore.byId('orders', this.state.orderId);
         setTimeout(() => this.startCam(), 0);
         return `
-        ${this.topHtml({ title: 'สแกนสลิปโอนเงิน', sub: 'ออเดอร์ ' + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
+        ${this.topHtml({ title: this.t('สแกนสลิปโอนเงิน', 'Scan your transfer slip'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <!-- ภาพกล้องชิดบนสุด — กล้องจริงติดอยู่ขอบบนของเครื่อง ลูกค้ายกมือถือขึ้นระดับสายตา
                  แล้วเห็นภาพตัวเองตรงนั้นพอดี ไม่ต้องก้มมองกลางจอขณะเล็งขึ้นข้างบน -->
             <div class="cfk-center cfk-slip">
-                <div class="cfk-slip-hint">${CFKioskArt.icon('up')} ยกมือถือขึ้นหากล้องด้านบนเครื่อง</div>
+                <div class="cfk-slip-hint">${CFKioskArt.icon('up')} ${this.t('ยกมือถือขึ้นหากล้องด้านบนเครื่อง', 'Hold your phone up to the camera at the top')}</div>
                 <div class="cfk-cam" id="cfkCam">
                     <video id="cfkVideo" playsinline muted></video>
                     <div class="cfk-cam-frame"></div>
-                    <div class="cfk-cam-label">ให้เห็นทั้งใบ ตั้งแต่วันที่ด้านบน จนถึง QR</div>
+                    <div class="cfk-cam-label">${this.t('ให้เห็นทั้งใบ ตั้งแต่วันที่ด้านบน จนถึง QR', 'Show the whole slip, from the date at the top to the QR')}</div>
                 </div>
                 <div class="cfk-note cfk-note-ok" id="cfkCamMsg">
                     ${CFKioskArt.icon('qr')}
-                    <span>เปิดสลิปในแอปธนาคาร แล้วหันจอมือถือเข้าหากล้อง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR</span>
+                    <span>${this.SLIP_HOW()}</span>
                 </div>
+                <!-- หมดเวลาแล้วส่งให้พนักงานเอง — ต้องเห็นตัวนับ ไม่งั้นลูกค้างงว่าทำไมหน้าเปลี่ยน -->
+                <div class="cfk-done-timer" id="cfkSlipTimer">${this.t('เหลือเวลา', 'Time left')}
+                    <b id="cfkSlipLeft">${this.cfg().kioskSlipScanSec || 90}</b> ${this.t('วินาที', 'sec')}</div>
             </div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.qrTimeout()">
-                    สแกนไม่ได้ · แจ้งพนักงาน
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.askStaff()">
+                    ${this.t('สแกนไม่ได้ · แจ้งพนักงาน', 'Can\'t scan · call staff')}
                 </button>
             </div>
         </div>`;
+    },
+
+    SLIP_HOW() {
+        return this.t('เปิดสลิปในแอปธนาคาร แล้วหันจอมือถือเข้าหากล้อง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR',
+                      'Open the slip in your banking app and turn your phone screen to the camera — show the whole slip from the date to the QR');
     },
 
     camMsg(text, warn) {
@@ -926,7 +1007,7 @@ const CFKiosk = {
                 pv = document.createElement('img');
                 pv.id = 'cfkPreview';
                 pv.className = 'cfk-cam-preview';
-                pv.alt = 'ภาพสลิปที่ถ่ายได้';
+                pv.alt = this.t('ภาพสลิปที่ถ่ายได้', 'Photo of your slip');
                 cam.appendChild(pv);
             }
             pv.src = image;
@@ -934,12 +1015,13 @@ const CFKiosk = {
         this.camRetake([title, how]);
         const el = document.getElementById('cfkCamMsg');
         if (el) {
-            el.querySelector('.cfk-slip-reject-next').textContent = 'นี่คือภาพที่กล้องถ่ายได้ — ถ่ายใหม่ได้เรื่อย ๆ จนกว่าจะชัด';
+            el.querySelector('.cfk-slip-reject-next').textContent = this.t('นี่คือภาพที่กล้องถ่ายได้ — ถ่ายใหม่ได้เรื่อย ๆ จนกว่าจะชัด',
+                'This is the photo the camera took — you can retake it until it is clear');
             el.insertAdjacentHTML('beforeend', `
                 <div class="cfk-preview-actions">
-                    <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.previewSend()">ส่งให้พนักงานตรวจ</button>
+                    <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.previewSend()">${this.t('ส่งให้พนักงานตรวจ', 'Send to staff')}</button>
                     <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.previewRetake()">
-                        ${CFKioskArt.icon('qr')} ถ่ายใหม่</button>
+                        ${CFKioskArt.icon('qr')} ${this.t('ถ่ายใหม่', 'Retake')}</button>
                 </div>`);
         }
         // ลูกค้าเดินหนีไประหว่างดูภาพ → ส่งให้พนักงานเองหลัง 60 วิ (สลิปบันทึกไว้แล้ว)
@@ -951,7 +1033,8 @@ const CFKiosk = {
         clearTimeout(this._previewT);
         const pv = document.getElementById('cfkPreview');
         if (pv) pv.remove();
-        this.camMsg('หันจอมือถือเข้าหากล้องอีกครั้ง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR');
+        this.camMsg(this.t('หันจอมือถือเข้าหากล้องอีกครั้ง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR',
+                           'Turn your phone to the camera again — show the whole slip from the date to the QR'));
         this.resetScanDeadline();
         this._paused = false;
     },
@@ -972,7 +1055,7 @@ const CFKiosk = {
         el.innerHTML = `
             <div class="cfk-slip-reject-head">${CFKioskArt.icon('alert')} ${e(title)}</div>
             <div class="cfk-slip-reject-why">${e(how)}</div>
-            <div class="cfk-slip-reject-next">แล้วสแกนอีกครั้ง — กล้องยังเปิดอยู่</div>`;
+            <div class="cfk-slip-reject-next">${this.t('แล้วสแกนอีกครั้ง — กล้องยังเปิดอยู่', 'Then scan again — the camera is still on')}</div>`;
     },
 
     /** สลิปไม่ผ่าน — ต้องเด่นพอให้ลูกค้าที่กำลังมองมือถือตัวเองเห็น ไม่ใช่แค่แถบเล็ก ๆ */
@@ -982,9 +1065,10 @@ const CFKiosk = {
         const e = CFApp.esc;
         el.className = 'cfk-slip-reject';
         el.innerHTML = `
-            <div class="cfk-slip-reject-head">${CFKioskArt.icon('alert')} สลิปนี้ไม่ตรงกับออเดอร์</div>
+            <div class="cfk-slip-reject-head">${CFKioskArt.icon('alert')} ${this.t('สลิปนี้ไม่ตรงกับออเดอร์', 'This slip does not match your order')}</div>
             ${reasons.map((r) => `<div class="cfk-slip-reject-why">${e(r)}</div>`).join('')}
-            <div class="cfk-slip-reject-next">เปิดสลิปที่ถูกต้องแล้วสแกนใหม่ หรือกด "แจ้งพนักงาน" ด้านล่าง</div>`;
+            <div class="cfk-slip-reject-next">${this.t('เปิดสลิปที่ถูกต้องแล้วสแกนใหม่ หรือกด "แจ้งพนักงาน" ด้านล่าง',
+                'Open the correct slip and scan again, or tap "Call staff" below')}</div>`;
     },
 
     async startCam() {
@@ -994,7 +1078,7 @@ const CFKiosk = {
         // กล้องเปิดได้เฉพาะหน้าเว็บที่เบราว์เซอร์ถือว่าปลอดภัย (https หรือเปิดด้วยค่าพิเศษ)
         // วิธีตั้งเครื่องคีออสก์อยู่ใน ops/README.md หัวข้อ "กล้องสแกนสลิป"
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.jsQR) {
-            this.camMsg('กล้องของเครื่องนี้ยังใช้ไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', true);
+            this.camMsg(this.t('กล้องของเครื่องนี้ยังใช้ไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', 'The camera is not available — please ask our staff at the counter'), true);
             return;
         }
         try {
@@ -1015,7 +1099,7 @@ const CFKiosk = {
             }
         } catch (err) {
             console.warn('[kiosk] เปิดกล้องไม่ได้', err);
-            this.camMsg('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', true);
+            this.camMsg(this.t('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', 'Could not open the camera — please ask our staff at the counter'), true);
             return;
         }
         if (this.state.screen !== 'slip') { this.stopCam(); return; }   // ลูกค้ากดออกไประหว่างรอ
@@ -1028,6 +1112,11 @@ const CFKiosk = {
         // หมดเวลาแล้วส่งให้พนักงานดูแทน — ไม่ปล่อยให้ลูกค้ายืนงงหน้าเครื่อง
         this._paused = false;
         this.resetScanDeadline();
+        // ตัวนับบนจอ — ตอนดูภาพที่ถ่าย (paused) เส้นตายไม่เดิน จึงไม่นับลง
+        this._slipT = setInterval(() => {
+            const el = document.getElementById('cfkSlipLeft');
+            if (el && !this._paused) el.textContent = Math.max(0, Math.ceil((this._deadline - Date.now()) / 1000));
+        }, 1000);
 
         this._scan = setInterval(async () => {
             if (this._submitting || !video.videoWidth) return;
@@ -1046,7 +1135,7 @@ const CFKiosk = {
             if (!slip.ok) {
                 if (Date.now() - lastHint > 3000) {
                     lastHint = Date.now();
-                    this.camMsg('QR นี้ไม่ใช่สลิป — กรุณาเปิดหน้าสลิปหลังโอนเงินสำเร็จ', true);
+                    this.camMsg(this.t('QR นี้ไม่ใช่สลิป — กรุณาเปิดหน้าสลิปหลังโอนเงินสำเร็จ', 'This QR is not a slip — open the slip shown after your transfer'), true);
                 }
                 return;
             }
@@ -1058,6 +1147,7 @@ const CFKiosk = {
 
     stopCam() {
         clearInterval(this._scan);
+        clearInterval(this._slipT);
         this._scan = null;
         if (this._cam) {
             this._cam.getTracks().forEach((t) => t.stop());
@@ -1067,14 +1157,14 @@ const CFKiosk = {
 
     /**
      * ถ่ายภาพเฟรมนี้เก็บเป็นหลักฐาน — เต็มความละเอียดของกล้อง (ไม่ใช่ภาพย่อที่ใช้ถอดรหัส)
-     * และไม่กลับด้านแบบกระจก ตัวหนังสือบนสลิปจะได้อ่านออก
+     * และไม่กลับด้านแบบกระจก ตัวหนังสือบนสลิปจะได้อ่านออก (กล้องที่กลับภาพมาเองก็พลิกคืนให้)
      */
     snapSlip(video) {
         const c = document.createElement('canvas');
         const scale = Math.min(1, 1600 / video.videoWidth);
         c.width = Math.round(video.videoWidth * scale);
         c.height = Math.round(video.videoHeight * scale);
-        c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+        this.drawFrame(c.getContext('2d'), video, c.width, c.height, this.camFlip());
         return c;
     },
 
@@ -1138,9 +1228,9 @@ const CFKiosk = {
             : st.sharp < 40 ? 'blur' : null;
         if (kind !== this._hintPrev) { this._hintPrev = kind; return; }       // รอให้เห็นซ้ำก่อน กันข้อความกะพริบ
         const text = {
-            glare: 'มีแสงสะท้อนบนจอมือถือ — เอียงมือถือเล็กน้อยให้พ้นแสงไฟ',
-            blur: 'ภาพยังไม่ชัด — ถือมือถือนิ่ง ๆ ห่างกล้องราว 25 ซม.',
-        }[kind] || 'เปิดสลิปในแอปธนาคาร แล้วหันจอมือถือเข้าหากล้อง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR';
+            glare: this.t('มีแสงสะท้อนบนจอมือถือ — เอียงมือถือเล็กน้อยให้พ้นแสงไฟ', 'There is glare on your screen — tilt your phone a little away from the light'),
+            blur: this.t('ภาพยังไม่ชัด — ถือมือถือนิ่ง ๆ ห่างกล้องราว 25 ซม.', 'The image is blurry — hold your phone still, about 25 cm from the camera'),
+        }[kind] || this.SLIP_HOW();
         if (el.textContent.trim() !== text) this.camMsg(text, !!kind);
     },
 
@@ -1193,9 +1283,12 @@ const CFKiosk = {
             const noReceiver = res && res.checks && res.checks.receiver === 'UNKNOWN';
             if (noAmount || noDate || noReceiver) {
                 this.camPreview(image, noAmount
-                    ? ['ภาพสลิปไม่ชัด อ่านยอดเงินไม่ออก', 'ถือมือถือนิ่ง ๆ ห่างกล้องราว 25 ซม. และเพิ่มความสว่างจอ']
-                    : noDate ? ['ไม่เห็นวันที่บนสลิป', 'เลื่อนมือถือให้เห็นหัวสลิปที่มีวันที่และเวลาด้วย']
-                    : ['ไม่เห็นชื่อผู้รับเงิน', 'ระวังนิ้วหรือแสงสะท้อนบังกลางสลิป — เอียงมือถือเล็กน้อย']);
+                    ? [this.t('ภาพสลิปไม่ชัด อ่านยอดเงินไม่ออก', 'The slip is not clear — we could not read the amount'),
+                       this.t('ถือมือถือนิ่ง ๆ ห่างกล้องราว 25 ซม. และเพิ่มความสว่างจอ', 'Hold your phone still about 25 cm away and turn up the screen brightness')]
+                    : noDate ? [this.t('ไม่เห็นวันที่บนสลิป', 'We cannot see the date on the slip'),
+                                this.t('เลื่อนมือถือให้เห็นหัวสลิปที่มีวันที่และเวลาด้วย', 'Move your phone so the top of the slip with the date and time shows too')]
+                    : [this.t('ไม่เห็นชื่อผู้รับเงิน', 'We cannot see the receiver name'),
+                       this.t('ระวังนิ้วหรือแสงสะท้อนบังกลางสลิป — เอียงมือถือเล็กน้อย', 'Keep fingers and glare off the middle of the slip — tilt your phone a little')]);
                 return;
             }
             // ผ่าน / อ่านไม่ออก / ตัวอ่านสลิปไม่ตอบ → ให้แคชเชียร์ตรวจตามปกติ ไม่ให้ลูกค้าติดอยู่หน้าเครื่อง
@@ -1203,8 +1296,8 @@ const CFKiosk = {
             this.go('done', { kind: 'REVIEW' });
         } catch (err) {
             // สลิปซ้ำ/ไม่ใช่สลิป → บอกเหตุผลแล้วสแกนต่อได้ ไม่ปิดกล้อง
-            this.camMsg(err.offline ? 'ติดต่อเซิร์ฟเวอร์ไม่ได้ กรุณาแจ้งพนักงาน'
-                                    : (err.message || 'ตรวจสลิปไม่สำเร็จ'), true);
+            this.camMsg(err.offline ? this.t('ติดต่อเซิร์ฟเวอร์ไม่ได้ กรุณาแจ้งพนักงาน', 'Cannot reach the shop system — please ask our staff')
+                                    : (err.message || this.t('ตรวจสลิปไม่สำเร็จ', 'Could not check the slip')), true);
             // กันอ่าน QR เดิมซ้ำรัว ๆ ขณะที่ลูกค้ายังถือมือถือค้างไว้
             await new Promise((r) => setTimeout(r, 2500));
         } finally {
@@ -1248,16 +1341,16 @@ const CFKiosk = {
         };
         this.setBusy(true, { solid: true, html: `
             <div class="cfk-slipwait" role="status" aria-live="polite">
-                <div class="cfk-slipwait-title">${at < 2 ? 'กำลังรับสลิป' : 'กำลังตรวจสลิป'}</div>
+                <div class="cfk-slipwait-title">${at < 2 ? this.t('กำลังรับสลิป', 'Receiving your slip') : this.t('กำลังตรวจสลิป', 'Checking your slip')}</div>
                 <ol class="cfk-steps">
-                    ${step(0, 'ถ่ายภาพสลิปแล้ว', 'ถือมือถือนิ่ง ๆ กำลังถ่ายภาพสลิป')}
-                    ${step(1, 'อ่านสลิปแล้ว' + (o.bank ? ' · ' + e(o.bank) : '') + ' · ยังไม่เคยใช้', 'กำลังอ่านสลิป')}
-                    ${step(2, '', 'กำลังตรวจยอดเงินและวันที่')}
+                    ${step(0, this.t('ถ่ายภาพสลิปแล้ว', 'Photo taken'), this.t('ถือมือถือนิ่ง ๆ กำลังถ่ายภาพสลิป', 'Hold still — taking a photo of the slip'))}
+                    ${step(1, this.t('อ่านสลิปแล้ว', 'Slip read') + (o.bank ? ' · ' + e(o.bank) : '') + this.t(' · ยังไม่เคยใช้', ' · not used before'), this.t('กำลังอ่านสลิป', 'Reading the slip'))}
+                    ${step(2, '', this.t('กำลังตรวจยอดเงินและวันที่', 'Checking the amount and date'))}
                 </ol>
                 ${at === 2 ? `
                 <div class="cfk-slipwait-bar is-loading"><span></span></div>
-                <div class="cfk-slipwait-left">${(o.elapsed || 0) < 12 ? 'กรุณารอสักครู่' : 'อีกสักครู่ ใกล้เสร็จแล้ว'}</div>
-                <div class="cfk-slipwait-note">เก็บมือถือได้เลย ไม่ต้องถือค้างไว้</div>` : ''}
+                <div class="cfk-slipwait-left">${(o.elapsed || 0) < 12 ? this.t('กรุณารอสักครู่', 'Please wait a moment') : this.t('อีกสักครู่ ใกล้เสร็จแล้ว', 'Almost done')}</div>
+                <div class="cfk-slipwait-note">${this.t('เก็บมือถือได้เลย ไม่ต้องถือค้างไว้', 'You can put your phone away now')}</div>` : ''}
             </div>` });
     },
 
@@ -1284,19 +1377,21 @@ const CFKiosk = {
         clearTimeout(this._expT);
         this._expT = setTimeout(() => { if (this.state.screen === 'qrexpired') this.qrTimeout(); }, 30000);
         return `
-        ${this.topHtml({ title: 'หมดเวลาชำระเงิน', sub: 'ออเดอร์ ' + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
+        ${this.topHtml({ title: this.t('หมดเวลาชำระเงิน', 'Payment time is up'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center">
                 <div class="cfk-done-ico warn">${CFKioskArt.icon('timer')}</div>
-                <div class="cfk-slipwait-title">โอนเงินไปแล้วหรือยัง?</div>
+                <div class="cfk-slipwait-title">${this.t('โอนเงินไปแล้วหรือยัง?', 'Have you already paid?')}</div>
                 <div class="cfk-note cfk-note-ok">${CFKioskArt.icon('qr')}
-                    <span>ถ้าโอนแล้ว กดสแกนสลิปได้เลย แม้เวลาจะหมด · ถ้ายังไม่ได้โอน ขอ QR ใหม่ได้</span></div>
+                    <span>${this.t('ถ้าโอนแล้ว กดสแกนสลิปได้เลย แม้เวลาจะหมด · ถ้ายังไม่ได้โอน ขอ QR ใหม่หรือจ่ายเงินสดได้',
+                                   'If you paid, scan your slip even though time is up · If not, get a new QR or pay cash')}</span></div>
             </div>
             <div class="cfk-actionbar cfk-actionbar-stack">
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.expiredChoice('scan')">
-                    ${CFKioskArt.icon('check')} โอนแล้ว · สแกนสลิป</button>
-                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('newqr')">ขอ QR ใหม่</button>
-                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('staff')">แจ้งพนักงาน</button>
+                    ${CFKioskArt.icon('check')} ${this.t('โอนแล้ว · สแกนสลิป', 'Paid · scan slip')}</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('newqr')">${this.t('ขอ QR ใหม่', 'Get a new QR')}</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('cash')">${this.t('จ่ายเงินสดแทน', 'Pay cash instead')}</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('staff')">${this.t('แจ้งพนักงาน', 'Call staff')}</button>
             </div>
         </div>`;
     },
@@ -1305,7 +1400,49 @@ const CFKiosk = {
         clearTimeout(this._expT);
         if (kind === 'scan') return this.qrPaid();
         if (kind === 'newqr') return this.go('qr');                 // screen_qr ขอ QR ใบใหม่จากเซิร์ฟเวอร์เอง
-        return this.qrTimeout();
+        if (kind === 'cash') return this.askPayCash();
+        return this.askStaff();
+    },
+
+    /**
+     * ปุ่ม "แจ้งพนักงาน" ถามก่อน — เผลอแตะแล้วออเดอร์ไปค้างที่แคชเชียร์ ทั้งที่ลูกค้ากำลังจะโอน
+     * (ตัวจับเวลาที่ส่งให้พนักงานเองยังเรียก qrTimeout() ตรง ไม่ต้องถาม)
+     */
+    askStaff() {
+        this.confirmSheet({
+            title: this.t('เรียกพนักงานช่วย?', 'Call our staff?'),
+            text: this.t('พนักงานที่เคาน์เตอร์จะตรวจการชำระเงินให้ — ถ้ายังไม่ได้โอน กด "ยกเลิก" แล้วชำระต่อได้',
+                         'Our staff at the counter will check your payment — if you have not paid yet, tap "Cancel" to continue'),
+            ok: this.t('เรียกพนักงาน', 'Call staff'), onOk: 'qrTimeout',
+        });
+    },
+
+    /** ลูกค้าไม่มีแอปธนาคาร / เน็ตมือถือ — เปลี่ยนออเดอร์นี้ไปจ่ายเงินสด (เซิร์ฟเวอร์ปิด QR ให้) */
+    askPayCash() {
+        const o = CFStore.byId('orders', this.state.orderId);
+        this.confirmSheet({
+            title: this.t('เปลี่ยนเป็นจ่ายเงินสด?', 'Pay cash instead?'),
+            text: this.t('QR นี้จะใช้ไม่ได้ แล้วไปชำระ ฿' + CFApp.money(o.total) + ' ที่เคาน์เตอร์ — ถ้าโอนไปแล้ว อย่าเปลี่ยน ให้กด "โอนแล้ว · สแกนสลิป"',
+                         'This QR will stop working and you pay ฿' + CFApp.money(o.total) + ' at the counter — if you already transferred, tap "Paid · scan slip" instead'),
+            ok: this.t('จ่ายเงินสด', 'Pay cash'), onOk: 'switchToCash',
+        });
+    },
+
+    async switchToCash() {
+        if (this._submitting) return;
+        this._submitting = true;
+        clearInterval(this._qr);
+        clearTimeout(this._expT);
+        this.setBusy(true, this.t('กำลังเปลี่ยนเป็นเงินสด…', 'Switching to cash…'));
+        try {
+            const ok = await CFOrders.transition(this.state.orderId, 'WAITING_CASH',
+                { byId: 'KIOSK', device: this.state.deviceId, reason: 'ลูกค้าเปลี่ยนเป็นจ่ายเงินสดที่คีออสก์' });
+            if (ok === false) { this.toast(this.t('เปลี่ยนไม่สำเร็จ กรุณาแจ้งพนักงาน', 'Could not switch — please ask our staff'), 2400); return; }
+            this.go('done', { kind: 'CASH' });
+        } finally {
+            this._submitting = false;
+            this.setBusy(false);
+        }
     },
 
     async qrTimeout() {
@@ -1313,7 +1450,7 @@ const CFKiosk = {
         this._submitting = true;
         clearInterval(this._qr);
         this.stopCam();
-        this.setBusy(true, 'กำลังแจ้งพนักงาน…');
+        this.setBusy(true, this.t('กำลังแจ้งพนักงาน…', 'Calling staff…'));
         try {
             const id = this.state.orderId;
             // สถานะอาจเดินไปแล้วระหว่างที่ลูกค้ายืนสแกน (เซิร์ฟเวอร์ปิด QR ที่หมดเวลาเอง)
@@ -1347,28 +1484,37 @@ const CFKiosk = {
         setTimeout(() => this.startDone(sec), 0);
         this.printTicket(this.state.orderId, kind);
 
-        const banner = {
-            CASH: ['cash', 'cfk-note-warn', 'กรุณาชำระเงิน ฿' + CFApp.money(o.total) + ' ที่เคาน์เตอร์'],
-            PAID: ['chef', 'cfk-note-ok', 'ส่งเข้าครัวแล้ว กรุณารอเรียกหมายเลข'],
-            TIMEOUT: ['alert', 'cfk-note-warn', 'หากท่านชำระเงินแล้ว กรุณาแจ้งพนักงานที่เคาน์เตอร์'],
-            REVIEW: ['timer', 'cfk-note-ok', 'ได้รับสลิปแล้ว พนักงานกำลังตรวจยอดเงิน แล้วจะส่งเข้าครัวทันที'],
+        // หัวข้อบอกสิ่งที่ลูกค้าต้องทำต่อ ไม่ใช่ "เรียบร้อย" ทุกกรณี —
+        // ลูกค้าที่ยังไม่ได้จ่าย (เงินสด / QR หมดเวลา) ห้ามเข้าใจว่าเสร็จแล้วเดินไปรออาหาร
+        const money = '฿' + CFApp.money(o.total);
+        const v = {
+            CASH: { title: this.t('ไปชำระเงินที่เคาน์เตอร์', 'Please pay at the counter'), ico: 'cash', tone: 'warn',
+                    banner: ['cash', 'cfk-note-warn', this.t('แจ้งหมายเลขนี้และชำระ ' + money + ' ที่เคาน์เตอร์ แล้วออเดอร์จะเข้าครัว',
+                                                             'Show this number and pay ' + money + ' at the counter — then we start your order')] },
+            PAID: { title: this.t('รับออเดอร์เรียบร้อย', 'Order received'), ico: 'check', tone: 'ok',
+                    banner: ['chef', 'cfk-note-ok', this.t('ส่งเข้าครัวแล้ว กรุณารอเรียกหมายเลข', 'Sent to the kitchen — please wait for your number')] },
+            REVIEW: { title: this.t('ได้รับสลิปแล้ว', 'Slip received'), ico: 'check', tone: 'ok',
+                    banner: ['timer', 'cfk-note-ok', this.t('พนักงานกำลังตรวจยอดเงิน แล้วจะส่งเข้าครัวทันที', 'Our staff is checking your payment — your order goes to the kitchen right after')] },
+            TIMEOUT: { title: this.t('กรุณาติดต่อพนักงาน', 'Please see our staff'), ico: 'alert', tone: 'warn',
+                    banner: ['alert', 'cfk-note-warn', this.t('ออเดอร์นี้ยังไม่ได้ชำระ — ถ้าโอนแล้ว แสดงสลิปที่เคาน์เตอร์',
+                                                              'This order is not paid yet — if you already paid, show your slip at the counter')] },
         }[kind];
 
         return `
-        <div class="cfk-top"><div class="cfk-top-title"><b>รับออเดอร์เรียบร้อย</b>
+        <div class="cfk-top"><div class="cfk-top-title"><b>${e(v.title)}</b>
             <span>${e(this.diningLabel())}</span></div></div>
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center">
-                <div class="cfk-done-ico ${kind === 'TIMEOUT' ? 'warn' : 'ok'}">
-                    ${CFKioskArt.icon(kind === 'TIMEOUT' ? 'alert' : 'check')}
+                <div class="cfk-done-ico ${v.tone}">
+                    ${CFKioskArt.icon(v.ico)}
                 </div>
-                <div class="cfk-done-label">หมายเลขออเดอร์ของคุณ</div>
+                <div class="cfk-done-label">${this.t('หมายเลขออเดอร์ของคุณ', 'Your order number')}</div>
                 <div class="cfk-done-no">${e(o.orderNo)}</div>
-                <div class="cfk-note ${banner[1]}">${CFKioskArt.icon(banner[0])}<span>${banner[2]}</span></div>
-                <div class="cfk-done-timer">กลับหน้าแรกใน <b id="cfkDoneLeft">${sec}</b> วินาที</div>
+                <div class="cfk-note ${v.banner[1]}">${CFKioskArt.icon(v.banner[0])}<span>${e(v.banner[2])}</span></div>
+                <div class="cfk-done-timer">${this.t('กลับหน้าแรกใน', 'Back to start in')} <b id="cfkDoneLeft">${sec}</b> ${this.t('วินาที', 'sec')}</div>
             </div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.reset()">เสร็จสิ้น</button>
+                <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.reset()">${this.t('เสร็จสิ้น', 'Done')}</button>
             </div>
         </div>`;
     },

@@ -272,6 +272,14 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
 
     /* ── ผลพลอยได้ที่ต้องอยู่ในทรานแซกชันเดียวกัน ── */
 
+    // เปลี่ยนจาก QR เป็นเงินสด — ปิด QR ที่ยังค้าง (ไม่งั้นตัวเก็บกวาดดันออเดอร์ไป PAYMENT_TIMEOUT
+    // และลูกค้าอาจยังสแกนจ่ายได้) แล้วเปลี่ยนวิธีจ่าย ยอดเงินสดของรอบจึงนับถูก
+    if (newStatus === 'WAITING_CASH' && ['WAITING_PAYMENT', 'PAYMENT_TIMEOUT'].includes(o.status)) {
+        await c.query('UPDATE payment_qr SET cancelled_at = now() WHERE order_id = $1 AND cancelled_at IS NULL',
+            [orderId]);
+        await c.query("UPDATE cf_order SET payment_method = 'CASH' WHERE id = $1", [orderId]);
+    }
+
     // ชำระแล้ว → บันทึกการชำระ + ส่งเข้าครัวทันที (§44 "Verify Before Forward")
     // ออกจากขั้นรอตรวจ = แคชเชียร์ตัดสินแล้ว — บันทึกคู่กับผลที่ระบบอ่านจากสลิป ใช้วัดความแม่นจริง
     // (บันทึกเฉพาะสลิปใบล่าสุด: ใบก่อนหน้าที่ไม่ผ่านแล้วลูกค้าสแกนใบใหม่ ไม่ใช่ใบที่ถูกตัดสิน)

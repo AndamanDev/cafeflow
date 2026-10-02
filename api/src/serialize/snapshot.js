@@ -101,11 +101,11 @@ function toProduct(r) {
 }
 
 function toGroup(r) {
-    return { id: r.id, nameTh: r.name_th, type: r.type, required: r.required };
+    return { id: r.id, nameTh: r.name_th, nameEn: r.name_en, type: r.type, required: r.required };
 }
 function toOption(r) {
     return {
-        id: r.id, groupId: r.group_id, nameTh: r.name_th, shortLabel: r.short_label,
+        id: r.id, groupId: r.group_id, nameTh: r.name_th, nameEn: r.name_en, shortLabel: r.short_label,
         priceDelta: Number(r.price_delta), isDefault: r.is_default, sort: r.sort,
     };
 }

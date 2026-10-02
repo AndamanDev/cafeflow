@@ -263,6 +263,7 @@
     border-color: var(--primary-border); color: var(--primary-dark); background: var(--primary-bg);
 }
 .ds-chip-suggest:hover { background: #E2F6EB; }
+.ds-chip-suggest.is-active { background: var(--primary); border-color: var(--primary); color: #fff; }
 .status-badge { font-size: 12px; padding: 4px 12px; }
 .status-badge.active, .status-badge.completed, .status-badge.confirmed,
 .status-badge.in-progress { background: var(--primary-bg); color: var(--primary-dark); }

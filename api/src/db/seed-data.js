@@ -55,41 +55,41 @@ function seedData() {
     /* ── กลุ่มตัวเลือก + ตัวเลือก (§11) ──────────────────────
        ผูกกับ "แบบเสิร์ฟ" และ "หมวด" ด้วยกฎ ไม่ hard-code ต่อสินค้า */
     const modifierGroups = [
-        { id: 'MG-SWEET',  nameTh: 'ระดับความหวาน',  type: 'SINGLE', required: true },
-        { id: 'MG-ICE',    nameTh: 'น้ำแข็ง',         type: 'SINGLE', required: true },
-        { id: 'MG-ADDON',  nameTh: 'ท็อปปิ้งเพิ่ม',   type: 'MULTI',  required: false },
-        { id: 'MG-BEAN',   nameTh: 'เมล็ดกาแฟพิเศษ',  type: 'SINGLE', required: false },
-        { id: 'MG-MATCHA', nameTh: 'เกรดมัทฉะ',       type: 'SINGLE', required: false },
+        { id: 'MG-SWEET',  nameTh: 'ระดับความหวาน', nameEn: 'Sweetness',  type: 'SINGLE', required: true },
+        { id: 'MG-ICE',    nameTh: 'น้ำแข็ง', nameEn: 'Ice',         type: 'SINGLE', required: true },
+        { id: 'MG-ADDON',  nameTh: 'ท็อปปิ้งเพิ่ม', nameEn: 'Add-ons',   type: 'MULTI',  required: false },
+        { id: 'MG-BEAN',   nameTh: 'เมล็ดกาแฟพิเศษ', nameEn: 'Coffee beans',  type: 'SINGLE', required: false },
+        { id: 'MG-MATCHA', nameTh: 'เกรดมัทฉะ', nameEn: 'Matcha grade',       type: 'SINGLE', required: false },
     ];
 
     const modifierOptions = [
-        { id: 'MO-S0',   groupId: 'MG-SWEET', nameTh: 'หวาน 0%',   shortLabel: 'ห.0%',   priceDelta: 0, isDefault: false, sort: 1 },
-        { id: 'MO-S25',  groupId: 'MG-SWEET', nameTh: 'หวาน 25%',  shortLabel: 'ห.25%',  priceDelta: 0, isDefault: false, sort: 2 },
-        { id: 'MO-S50',  groupId: 'MG-SWEET', nameTh: 'หวาน 50%',  shortLabel: 'ห.50%',  priceDelta: 0, isDefault: false, sort: 3 },
-        { id: 'MO-S75',  groupId: 'MG-SWEET', nameTh: 'หวาน 75%',  shortLabel: 'ห.75%',  priceDelta: 0, isDefault: false, sort: 4 },
-        { id: 'MO-S100', groupId: 'MG-SWEET', nameTh: 'หวาน 100%', shortLabel: 'ห.100%', priceDelta: 0, isDefault: true,  sort: 5 },
+        { id: 'MO-S0',   groupId: 'MG-SWEET', nameTh: 'หวาน 0%', nameEn: '0% sweet',   shortLabel: 'ห.0%',   priceDelta: 0, isDefault: false, sort: 1 },
+        { id: 'MO-S25',  groupId: 'MG-SWEET', nameTh: 'หวาน 25%', nameEn: '25% sweet',  shortLabel: 'ห.25%',  priceDelta: 0, isDefault: false, sort: 2 },
+        { id: 'MO-S50',  groupId: 'MG-SWEET', nameTh: 'หวาน 50%', nameEn: '50% sweet',  shortLabel: 'ห.50%',  priceDelta: 0, isDefault: false, sort: 3 },
+        { id: 'MO-S75',  groupId: 'MG-SWEET', nameTh: 'หวาน 75%', nameEn: '75% sweet',  shortLabel: 'ห.75%',  priceDelta: 0, isDefault: false, sort: 4 },
+        { id: 'MO-S100', groupId: 'MG-SWEET', nameTh: 'หวาน 100%', nameEn: '100% sweet', shortLabel: 'ห.100%', priceDelta: 0, isDefault: true,  sort: 5 },
 
-        { id: 'MO-I-N',  groupId: 'MG-ICE',   nameTh: 'น้ำแข็งปกติ',      shortLabel: 'นข.ปกติ', priceDelta: 0, isDefault: true,  sort: 1 },
-        { id: 'MO-I-L',  groupId: 'MG-ICE',   nameTh: 'น้ำแข็งน้อย',      shortLabel: 'นข.น้อย', priceDelta: 0, isDefault: false, sort: 2 },
-        { id: 'MO-I-S',  groupId: 'MG-ICE',   nameTh: 'แยกน้ำ / น้ำแข็ง', shortLabel: 'แยกนข.',  priceDelta: 0, isDefault: false, sort: 3 },
+        { id: 'MO-I-N',  groupId: 'MG-ICE',   nameTh: 'น้ำแข็งปกติ', nameEn: 'Regular ice',      shortLabel: 'นข.ปกติ', priceDelta: 0, isDefault: true,  sort: 1 },
+        { id: 'MO-I-L',  groupId: 'MG-ICE',   nameTh: 'น้ำแข็งน้อย', nameEn: 'Less ice',      shortLabel: 'นข.น้อย', priceDelta: 0, isDefault: false, sort: 2 },
+        { id: 'MO-I-S',  groupId: 'MG-ICE',   nameTh: 'แยกน้ำ / น้ำแข็ง', nameEn: 'Ice on the side', shortLabel: 'แยกนข.',  priceDelta: 0, isDefault: false, sort: 3 },
 
         /* ADD ON — ตามป้ายจริง */
-        { id: 'MO-A-OAT',   groupId: 'MG-ADDON', nameTh: 'นมโอ๊ต',              shortLabel: 'โอ๊ต',   priceDelta: 10, isDefault: false, sort: 1 },
-        { id: 'MO-A-SODA',  groupId: 'MG-ADDON', nameTh: 'โซดา',                shortLabel: 'โซดา',   priceDelta: 10, isDefault: false, sort: 2 },
-        { id: 'MO-A-SYRUP', groupId: 'MG-ADDON', nameTh: 'ไซรัป (สตรอว์เบอร์รี / วานิลลา / คาราเมล / บราวน์ชูการ์)', shortLabel: 'ไซรัป', priceDelta: 20, isDefault: false, sort: 3 },
-        { id: 'MO-A-KONJ',  groupId: 'MG-ADDON', nameTh: 'บุกบราวน์ชูการ์ / บุกคาราเมล / เจลลี่',    shortLabel: 'บุก/เจลลี่', priceDelta: 20, isDefault: false, sort: 4 },
-        { id: 'MO-A-PALM',  groupId: 'MG-ADDON', nameTh: 'ตาลโตนด',             shortLabel: 'ตาลโตนด', priceDelta: 20, isDefault: false, sort: 5 },
-        { id: 'MO-A-SHOT',  groupId: 'MG-ADDON', nameTh: 'เพิ่มช็อตกาแฟ',       shortLabel: '+ช็อต',  priceDelta: 20, isDefault: false, sort: 6 },
+        { id: 'MO-A-OAT',   groupId: 'MG-ADDON', nameTh: 'นมโอ๊ต', nameEn: 'Oat milk',              shortLabel: 'โอ๊ต',   priceDelta: 10, isDefault: false, sort: 1 },
+        { id: 'MO-A-SODA',  groupId: 'MG-ADDON', nameTh: 'โซดา', nameEn: 'Soda',                shortLabel: 'โซดา',   priceDelta: 10, isDefault: false, sort: 2 },
+        { id: 'MO-A-SYRUP', groupId: 'MG-ADDON', nameTh: 'ไซรัป (สตรอว์เบอร์รี / วานิลลา / คาราเมล / บราวน์ชูการ์)', nameEn: 'Syrup (strawberry / vanilla / caramel / brown sugar)', shortLabel: 'ไซรัป', priceDelta: 20, isDefault: false, sort: 3 },
+        { id: 'MO-A-KONJ',  groupId: 'MG-ADDON', nameTh: 'บุกบราวน์ชูการ์ / บุกคาราเมล / เจลลี่', nameEn: 'Brown sugar konjac / caramel konjac / jelly',    shortLabel: 'บุก/เจลลี่', priceDelta: 20, isDefault: false, sort: 4 },
+        { id: 'MO-A-PALM',  groupId: 'MG-ADDON', nameTh: 'ตาลโตนด', nameEn: 'Toddy palm',             shortLabel: 'ตาลโตนด', priceDelta: 20, isDefault: false, sort: 5 },
+        { id: 'MO-A-SHOT',  groupId: 'MG-ADDON', nameTh: 'เพิ่มช็อตกาแฟ', nameEn: 'Extra espresso shot',       shortLabel: '+ช็อต',  priceDelta: 20, isDefault: false, sort: 6 },
 
         /* กาแฟพิเศษ SPECIAL COFFEE */
-        { id: 'MO-B-STD',  groupId: 'MG-BEAN', nameTh: 'กาแฟไทย / ลาวพรีเมี่ยม (คั่วกลาง-เข้ม)', shortLabel: 'ไทย/ลาว', priceDelta: 0,  isDefault: true,  sort: 1 },
-        { id: 'MO-B-BRA',  groupId: 'MG-BEAN', nameTh: 'กาแฟบราซิล (คั่วกลาง-เข้ม)',             shortLabel: 'บราซิล',  priceDelta: 20, isDefault: false, sort: 2 },
-        { id: 'MO-B-ETH',  groupId: 'MG-BEAN', nameTh: 'กาแฟเอธิโอเปีย (คั่วอ่อน-กลาง)',         shortLabel: 'เอธิโอเปีย', priceDelta: 20, isDefault: false, sort: 3 },
-        { id: 'MO-B-DOI',  groupId: 'MG-BEAN', nameTh: 'กาแฟดอยช้าง (คั่วกลาง-เข้ม)',            shortLabel: 'ดอยช้าง', priceDelta: 20, isDefault: false, sort: 4 },
+        { id: 'MO-B-STD',  groupId: 'MG-BEAN', nameTh: 'กาแฟไทย / ลาวพรีเมี่ยม (คั่วกลาง-เข้ม)', nameEn: 'Thai / Lao premium (medium-dark roast)', shortLabel: 'ไทย/ลาว', priceDelta: 0,  isDefault: true,  sort: 1 },
+        { id: 'MO-B-BRA',  groupId: 'MG-BEAN', nameTh: 'กาแฟบราซิล (คั่วกลาง-เข้ม)', nameEn: 'Brazil (medium-dark roast)',             shortLabel: 'บราซิล',  priceDelta: 20, isDefault: false, sort: 2 },
+        { id: 'MO-B-ETH',  groupId: 'MG-BEAN', nameTh: 'กาแฟเอธิโอเปีย (คั่วอ่อน-กลาง)', nameEn: 'Ethiopia (light-medium roast)',         shortLabel: 'เอธิโอเปีย', priceDelta: 20, isDefault: false, sort: 3 },
+        { id: 'MO-B-DOI',  groupId: 'MG-BEAN', nameTh: 'กาแฟดอยช้าง (คั่วกลาง-เข้ม)', nameEn: 'Doi Chang (medium-dark roast)',            shortLabel: 'ดอยช้าง', priceDelta: 20, isDefault: false, sort: 4 },
 
         /* ADD มัทฉะเกรดพิธีการ +20 */
-        { id: 'MO-M-STD',  groupId: 'MG-MATCHA', nameTh: 'มัทฉะปกติ',           shortLabel: 'ปกติ',    priceDelta: 0,  isDefault: true,  sort: 1 },
-        { id: 'MO-M-CER',  groupId: 'MG-MATCHA', nameTh: 'มัทฉะเกรดพิธีการ',    shortLabel: 'พิธีการ', priceDelta: 20, isDefault: false, sort: 2 },
+        { id: 'MO-M-STD',  groupId: 'MG-MATCHA', nameTh: 'มัทฉะปกติ', nameEn: 'Regular matcha',           shortLabel: 'ปกติ',    priceDelta: 0,  isDefault: true,  sort: 1 },
+        { id: 'MO-M-CER',  groupId: 'MG-MATCHA', nameTh: 'มัทฉะเกรดพิธีการ', nameEn: 'Ceremonial grade matcha',    shortLabel: 'พิธีการ', priceDelta: 20, isDefault: false, sort: 2 },
     ];
 
     /**

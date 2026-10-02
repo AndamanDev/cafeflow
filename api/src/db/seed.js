@@ -99,18 +99,21 @@ async function seed(c) {
     /* ── กลุ่มตัวเลือก / ตัวเลือก / กฎ ── */
     for (const g of db.modifierGroups) {
         await c.query(
-            `INSERT INTO modifier_group (id, branch_id, name_th, type, required)
-             VALUES ($1,$2,$3,$4,$5) ON CONFLICT (id) DO UPDATE
-             SET name_th = EXCLUDED.name_th, type = EXCLUDED.type, required = EXCLUDED.required`,
-            [g.id, branchId, g.nameTh, g.type, !!g.required]);
+            `INSERT INTO modifier_group (id, branch_id, name_th, name_en, type, required)
+             VALUES ($1,$2,$3,$6,$4,$5) ON CONFLICT (id) DO UPDATE
+             SET name_th = EXCLUDED.name_th, name_en = COALESCE(EXCLUDED.name_en, modifier_group.name_en),
+                 type = EXCLUDED.type, required = EXCLUDED.required`,
+            [g.id, branchId, g.nameTh, g.type, !!g.required, g.nameEn || null]);
     }
     for (const o of db.modifierOptions) {
         await c.query(
-            `INSERT INTO modifier_option (id, group_id, name_th, short_label, price_delta,
+            `INSERT INTO modifier_option (id, group_id, name_th, name_en, short_label, price_delta,
                                           is_default, sort)
-             VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO UPDATE
-             SET name_th = EXCLUDED.name_th, price_delta = EXCLUDED.price_delta`,
-            [o.id, o.groupId, o.nameTh, o.shortLabel, o.priceDelta || 0, !!o.isDefault, o.sort || 0]);
+             VALUES ($1,$2,$3,$8,$4,$5,$6,$7) ON CONFLICT (id) DO UPDATE
+             SET name_th = EXCLUDED.name_th, name_en = COALESCE(EXCLUDED.name_en, modifier_option.name_en),
+                 price_delta = EXCLUDED.price_delta`,
+            [o.id, o.groupId, o.nameTh, o.shortLabel, o.priceDelta || 0, !!o.isDefault, o.sort || 0,
+             o.nameEn || null]);
     }
     for (const r of db.modifierRules) {
         await c.query(

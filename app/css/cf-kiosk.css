@@ -100,6 +100,18 @@ body.cfk-frame.cfk-portrait #cfkStage {
 /* ร้านที่รับแบบเดียว — ป้ายบอกสถานะ ไม่ใช่ปุ่ม (ขนาดเท่าเดิม แถบหัวจะได้ไม่ขยับ) */
 .cfk-mode-static { cursor: default; }
 
+/* ปุ่มเปลี่ยนภาษา — ทุกหน้า (มุมขวาแถบหัว) และลอยมุมขวาบนของหน้าแรก */
+.cfk-lang {
+    flex-shrink: 0; display: inline-flex; align-items: center;
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.6);
+    min-height: calc(var(--u) * 5);
+    background: #fff; color: var(--text-primary);
+    border: 0.8px solid var(--brand-border, #d0d5dd); border-radius: 999px;
+    font: inherit; font-size: calc(var(--u) * 1.4); font-weight: 700; cursor: pointer;
+}
+.cfk-lang:active { background: var(--brand-bg); }
+.cfk-lang-float { position: absolute; top: calc(var(--u) * 2); right: calc(var(--u) * 2); z-index: 3; }
+
 /* ปุ่ม */
 .cfk-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -538,6 +550,10 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
    เปิดแบบกระจกได้ที่ ตั้งค่าคีออสก์ (kioskCamMirror) · การถอดรหัสใช้ภาพจริงเสมอ ไม่เกี่ยวกับตรงนี้ */
 .cfk-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cfk-cam-mirror .cfk-cam video { transform: scaleX(-1); }
+/* กล้องบางรุ่นกลับภาพมาเองจากไดรเวอร์ — พลิกคืนด้วย kioskCamFlip (cfk-cam-flip)
+   เปิดพร้อม kioskCamMirror จึงหักล้างกัน */
+.cfk-cam-flip .cfk-cam video { transform: scaleX(-1); }
+.cfk-cam-mirror.cfk-cam-flip .cfk-cam video { transform: none; }
 /* กรอบเล็งกว้างเกือบเต็มภาพ — ลูกค้าอาจยกมือถือหรือแท็บเล็ต/iPad มาก็ได้ ทั้งแนวตั้งและแนวนอน
    ห้ามเป็นสี่เหลี่ยมเล็ก ๆ: ลูกค้าจะเล็งแค่ QR มุมสลิป ภาพหลักฐานจะไม่เห็นยอดเงินกับชื่อ */
 .cfk-cam-frame {
