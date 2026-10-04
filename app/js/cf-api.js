@@ -29,25 +29,41 @@
         // หน้าของลูกค้าประกาศตัว → เซิร์ฟเวอร์ไม่ใช้ session พนักงานที่อาจค้างในเบราว์เซอร์นี้
         if (window.CF_CLIENT) headers['X-CF-Client'] = window.CF_CLIENT;
 
-        let res;
+        // ★ ต้องมีเพดานเวลา — สายที่ค้างครึ่งทาง (Wi-Fi หลุด / เซิร์ฟเวอร์เพิ่งรีสตาร์ท) fetch จะรอจน OS ตัดเอง
+        //   ซึ่งนานหลายนาที ระหว่างนั้นม่าน "กำลังส่งออเดอร์…" ของคีออสก์ค้างจนลูกค้าเดินหนี
+        //   ส่งซ้ำได้ปลอดภัย: สร้างออเดอร์ผูก clientUuid ไว้ กดใหม่ได้ใบเดิม
+        const ctl = new AbortController();
+        let timedOut = false;
+        const timer = setTimeout(() => { timedOut = true; ctl.abort(); }, opts.timeout || 20000);
+        if (opts.signal) {
+            if (opts.signal.aborted) ctl.abort();
+            else opts.signal.addEventListener('abort', () => ctl.abort(), { once: true });
+        }
+
+        let res, text;
         try {
             res = await fetch(baseUrl() + path, {
                 method,
                 headers,
                 credentials: 'same-origin',   // session อยู่ใน cookie httpOnly
                 body: body === undefined ? undefined : JSON.stringify(body),
-                signal: opts.signal,
+                signal: ctl.signal,
             });
+            text = await res.text();
         } catch (err) {
+            // ผู้เรียกยกเลิกเอง — ส่งต่อแบบเดิม ไม่ใช่ปัญหาการเชื่อมต่อ
+            if (!timedOut && opts.signal && opts.signal.aborted) throw err;
             // แยก "เซิร์ฟเวอร์ตอบว่าไม่ได้" ออกจาก "ต่อเซิร์ฟเวอร์ไม่ติด"
             // สองอย่างนี้ผู้ใช้ต้องเห็นข้อความคนละแบบ
-            const e = new Error('ติดต่อเซิร์ฟเวอร์ในร้านไม่ได้');
+            const e = new Error(timedOut ? 'เซิร์ฟเวอร์ในร้านตอบช้าเกินไป — ลองอีกครั้ง' : 'ติดต่อเซิร์ฟเวอร์ในร้านไม่ได้');
             e.offline = true;
+            e.timeout = timedOut;
             e.cause = err;
             throw e;
+        } finally {
+            clearTimeout(timer);
         }
 
-        const text = await res.text();
         let data = null;
         try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
 

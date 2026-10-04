@@ -131,6 +131,7 @@ const CFKiosk = {
         clearTimeout(this._idle); clearInterval(this._qr); clearInterval(this._doneT);
         this.state.stack = [];
         this.state.cart = [];
+        this._orderCart = null;
         this.state.line = null;
         this.state.dining = null;
         this.state.cat = null;
@@ -141,7 +142,7 @@ const CFKiosk = {
     },
 
     render() {
-        if (this.state.screen !== 'slip') this.stopCam();     // ไฟกล้องต้องดับเมื่อออกจากหน้าสแกน
+        if (!this.camScreen()) this.stopCam();     // ไฟกล้องต้องดับเมื่อออกจากหน้าสแกน
         const fn = this['screen_' + this.state.screen];
         this.stage.innerHTML = (fn ? fn.call(this, this.state.params) : '')
             + '<div class="cfk-toast" id="cfkToast"></div>';
@@ -156,6 +157,35 @@ const CFKiosk = {
         if (a && a.parentElement.classList.contains('cfk-catstrip')) {
             a.scrollIntoView({ inline: 'center', block: 'nearest' });
         }
+        this.fitItem();
+    },
+
+    /**
+     * หน้าเลือกตัวเลือกห้ามเลื่อน และไม่ปล่อยที่ว่างโล่งด้านล่าง —
+     * ขยายเนื้อหาทั้งก้อน (ปุ่ม · ตัวหนังสือ · ระยะห่าง) จนเต็มพื้นที่พอดี
+     * เมนูที่มีตัวเลือกน้อยได้ปุ่มใหญ่ขึ้น (สูงสุด 1.5 เท่า — ใหญ่กว่านั้นดูไม่เป็นหน้าจอสั่งอาหาร)
+     * ★ ย่อลงต่ำกว่า 100% เฉพาะกรณีเนื้อหาล้นจอจริง ๆ (ไม่งั้นตัวเลือกล่างสุดกดไม่ได้)
+     */
+    fitItem() {
+        const box = this.stage.querySelector('.cfk-item-scroll');
+        const fit = box && box.querySelector('.cfk-item-fit');
+        if (!fit) return;
+        const room = box.clientHeight;
+        const fits = (z) => { fit.style.zoom = z; return fit.getBoundingClientRect().height <= room; };
+
+        if (!fits(1)) {
+            let z = 1;
+            while (!fits(z) && z > 0.6) z = Math.round((z - 0.05) * 100) / 100;
+            return;
+        }
+        // หาค่าขยายที่ใหญ่ที่สุดที่ยังพอดี — ขยายแล้วข้อความหักบรรทัดใหม่ได้ ความสูงจึงไม่เป็นเส้นตรง ต้องวัดจริง
+        let lo = 1, hi = 1.5;
+        if (fits(hi)) return;
+        for (let i = 0; i < 8; i++) {
+            const mid = (lo + hi) / 2;
+            if (fits(mid)) lo = mid; else hi = mid;
+        }
+        fits(lo);
     },
 
     /* ══════════════════════════════════════════════════════
@@ -275,7 +305,7 @@ const CFKiosk = {
                     </svg>
                 </div>
                 <div class="cfk-attract-shop">${e(s.shopName)}</div>
-                <div class="cfk-attract-sub">${this.t('สั่งด้วยตนเอง · Self Order', 'Self Order')}</div>
+                <div class="cfk-attract-sub">${this.t('สั่งด้วยตนเอง', 'Self order')}</div>
                 <div class="cfk-attract-cta">${this.t('แตะเพื่อเริ่มสั่ง', 'Tap to start ordering')}</div>
             </div>
             <div class="cfk-attract-band"><div class="cfk-attract-row">${tiles}</div></div>
@@ -302,13 +332,17 @@ const CFKiosk = {
             <button class="cfk-bigchoice" onclick="CFKiosk.setDining('${key}')">
                 <span class="cfk-media" style="--t1:${t[0]};--t2:${t[1]};--art-a:${t[2]}">
                     <svg class="cfk-art" viewBox="0 0 120 120"><use href="#cfa-${d.art}"/></svg></span>
-                <b>${e(this.t(d.label, d.en))}</b><small>${e(this.t(d.en, d.label))}</small>
+                <b>${e(this.t(d.label, d.en))}</b>
             </button>`;
         };
         return `
         ${this.topHtml({ title: this.t('เลือกรูปแบบการรับ', 'Dine in or take away?'),
                          sub: this.t('เลือกก่อนเริ่มสั่งอาหาร', 'Choose before you order'), back: 'attract' })}
-        <div class="cfk-choices">${choice('DINE_IN')}${choice('TAKE_AWAY')}</div>`;
+        <div class="cfk-choices">
+            <div class="cfk-choices-q">${this.t('ทานที่ร้าน หรือ กลับบ้าน?', 'Eat here or take away?')}
+                <small>${this.t('แตะเลือกด้านล่าง', 'Tap one below')}</small></div>
+            ${choice('DINE_IN')}${choice('TAKE_AWAY')}
+        </div>`;
     },
 
     setDining(v) { this.state.dining = v; this.go('menu'); },
@@ -369,7 +403,7 @@ const CFKiosk = {
         const e = CFApp.esc;
         return `<button class="cfk-cat ${c.id === this.state.cat ? 'active' : ''}"
                         onclick="CFKiosk.setCat('${c.id}')">
-            <b>${e(this.nm(c))}</b><small>${e(this.t(c.nameEn || '', c.nameTh))}</small></button>`;
+            <b>${e(this.nm(c))}</b></button>`;
     },
 
     setCat(id) {
@@ -397,7 +431,7 @@ const CFKiosk = {
         if (!groups.length) return `<div class="cfk-empty">${this.t('ยังไม่มีสินค้าในหมวดนี้', 'No items in this category yet')}</div>`;
 
         return groups.map((g) => `
-            ${g.name ? `<div class="cfk-groupbar">${e(this.groupName(g.name))}</div>` : ''}
+            ${g.name ? `<div class="cfk-groupbar"><b>${e(this.groupName(g.name))}</b><span>${this.t(g.items.length + ' เมนู', g.items.length + ' items')}</span></div>` : ''}
             <div class="cfk-grid">${g.items.map((p) => this.cardHtml(p)).join('')}</div>
         `).join('');
     },
@@ -415,7 +449,6 @@ const CFKiosk = {
             ${CFKioskArt.tile(p, serves[0])}
             <span class="cfk-card-body">
                 <span class="cfk-card-name">${e(this.nm(p))}</span>
-                <span class="cfk-card-en">${e(this.t(p.nameEn || '', p.nameTh))}</span>
                 <span class="cfk-card-foot">
                     <span class="cfk-serves">${pills}</span>
                     <span class="cfk-price">${multi ? `<small>${this.t('เริ่ม ', 'from ')}</small>` : ''}฿${CFApp.money(CFApp.minPriceOf(p))}</span>
@@ -427,17 +460,19 @@ const CFKiosk = {
     /* ── แถบ/แผงตะกร้า — อยู่ที่เดิมเสมอ ไม่เคยหาย ── */
     cartBarHtml() {
         const n = this.cartCount(), t = this.cartTotal();
-        return `<div class="cfk-cartbar ${n ? '' : 'is-empty'}">
-            <div class="cfk-cartbar-info">
-                <span>${n ? this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item'))
-                          : this.t('ตะกร้าว่าง · เลือกเมนูเพื่อเริ่ม', 'Your cart is empty')}</span>
-                <strong>฿${CFApp.money(t)}</strong>
-            </div>
-            <button class="cfk-btn cfk-btn-ghost" ${n ? '' : 'disabled'} onclick="CFKiosk.go('cart')">
-                ${CFKioskArt.icon('cart')} ${this.t('ดูตะกร้า', 'View cart')}
-            </button>
-            <button class="cfk-btn cfk-btn-primary" ${n ? '' : 'disabled'} onclick="CFKiosk.toCheckout()">
-                ${this.t('ชำระเงิน', 'Pay')}
+        if (!n) {
+            return `<div class="cfk-cartbar is-empty">
+                ${CFKioskArt.icon('cart')}
+                <span>${this.t('แตะเมนูที่ชอบเพื่อเพิ่มลงตะกร้า', 'Tap an item to add it to your cart')}</span>
+            </div>`;
+        }
+        // ไปหน้าตะกร้าก่อนเสมอ — ลูกค้าได้ทวนรายการ/แก้ตัวเลือกก่อนจ่าย (ปุ่มชำระเงินอยู่ที่นั่น)
+        return `<div class="cfk-cartbar">
+            <button class="cfk-cartbtn" onclick="CFKiosk.go('cart')">
+                <span class="cfk-cartbtn-n">${CFKioskArt.icon('cart')}<i>${n}</i></span>
+                <span class="cfk-cartbtn-label">${this.t('ดูตะกร้า · ชำระเงิน', 'View cart · Pay')}</span>
+                <span class="cfk-cartbtn-amt">฿${CFApp.money(t)}</span>
+                ${CFKioskArt.icon('next')}
             </button>
         </div>`;
     },
@@ -484,70 +519,79 @@ const CFKiosk = {
         const L = this.state.line;
         const p = CFStore.byId('products', L.productId);
         const serves = CFApp.serveTypesOf(p);
-        const showServe = serves.length > 1 || serves[0] !== 'STD';
+        const showServe = serves.length > 1;
+
+        // เลขขั้นตอนหน้าหัวข้อแต่ละกลุ่ม (1 2 3 …) — ลูกค้าเห็นว่ามีกี่ขั้น และไล่ทำจากบนลงล่าง
+        let step = 0;
+        const head = (title, tags) => `
+                <div class="cfk-optgroup-head"><span class="cfk-step-no">${++step}</span><b>${e(title)}</b>${tags}</div>`;
+        const req = `<span class="cfk-tag cfk-tag-miss">${this.t('ยังไม่ได้เลือก', 'Please choose')}</span>`;
+        const SERVE_ICON = { HOT: 'hot', ICED: 'iced', FRAPPE: 'frappe', STD: 'check' };
 
         const serveBlock = showServe ? `
             <div class="cfk-optgroup">
-                <div class="cfk-optgroup-head"><b>${this.t('เลือกแบบ', 'Choose style')}</b><span class="cfk-tag cfk-tag-req">${this.t('ต้องเลือก', 'Required')}</span></div>
+                ${head(this.t('เลือกแบบ', 'Choose style'), '')}
                 <div class="cfk-serves-pick">
                     ${serves.map((k) => `<button class="cfk-serve ${k === L.serveType ? 'active' : ''}"
                         onclick="CFKiosk.setServe('${k}')">
-                        <b>${e(this.serveLabel(k))}</b><small>฿${CFApp.money(p.prices[k])}</small></button>`).join('')}
+                        <b>${CFKioskArt.icon(SERVE_ICON[k])} ${e(this.serveLabel(k))}</b><small>฿${CFApp.money(p.prices[k])}</small></button>`).join('')}
                 </div>
             </div>` : '';
 
         const groups = CFRules.groupsFor(L.serveType, p.categoryId);
         const optBlock = groups.map((g) => {
             const missing = this._missing && this._missing.includes(g.id);
+            const opts = CFRules.optionsOf(g.id);
+            const longest = Math.max(0, ...opts.map((o) => this.nm(o).length));
+            const cols = longest <= 10 ? 5 : longest <= 18 ? 3 : 2;
+            // กลุ่มที่เป็นระดับ (หวาน 0% … 100%) — มีแถบบอกระดับเหนือข้อความ เห็นต่างกันโดยไม่ต้องอ่าน
+            const level = opts.length > 2 && opts.every((o) => /\d+\s*%/.test(o.nameTh));
+            const bars = (i) => `<span class="cfk-level" aria-hidden="true">${opts.slice(1)
+                .map((_, j) => `<i class="${j < i ? 'on' : ''}" style="height:${40 + 60 * (j + 1) / (opts.length - 1)}%"></i>`).join('')}</span>`;
             return `
             <div class="cfk-optgroup ${missing ? 'is-missing' : ''}">
-                <div class="cfk-optgroup-head">
-                    <b>${e(this.nm(g))}</b>
-                    ${g.required ? `<span class="cfk-tag cfk-tag-req">${this.t('ต้องเลือก', 'Required')}</span>` : ''}
-                    ${g.type === 'MULTI' ? `<span class="cfk-tag">${this.t('เลือกได้หลายอย่าง', 'Choose any')}</span>` : ''}
-                </div>
-                <div class="cfk-opts">
-                    ${CFRules.optionsOf(g.id).map((o) => {
+                ${head(this.nm(g), (g.required && missing ? req : '') +
+                    (g.type === 'MULTI' ? `<span class="cfk-optgroup-hint">${this.t('เลือกได้หลายอย่าง', 'Choose any')}</span>` : ''))}
+                <div class="cfk-opts ${cols >= 3 ? 'cfk-opts-short' : ''}" style="--cols:${cols}">
+                    ${opts.map((o, i) => {
                         const on = L.mods.some((m) => m.optionId === o.id);
-                        return `<button class="cfk-opt ${on ? 'active' : ''}"
+                        return `<button class="cfk-opt ${on ? 'active' : ''}" aria-pressed="${on}"
                             onclick="CFKiosk.toggleOpt('${g.id}','${o.id}',${g.type === 'MULTI'})">
-                            <span>${e(this.nm(o))}</span>${o.priceDelta ? `<b>+฿${o.priceDelta}</b>` : ''}</button>`;
+                            ${level ? bars(i) : ''}<span>${e(this.nm(o))}</span>${o.priceDelta ? `<b>+฿${o.priceDelta}</b>` : ''}</button>`;
                     }).join('')}
                 </div>
             </div>`;
         }).join('');
 
-        const hidden = CFRules.hiddenFor(L.serveType, p.categoryId);
-        const hiddenNote = (hidden.length && groups.length) ? `
-            <div class="cfk-note" style="margin-top:calc(var(--u)*1.6)">
-                ${CFKioskArt.icon('alert')}
-                <span>${this.t(`แบบ "${e(this.serveLabel(L.serveType))}" ไม่มี: `, `"${e(this.serveLabel(L.serveType))}" has no: `)}${hidden.map((g) => e(this.nm(g))).join(' · ')}</span>
-            </div>` : '';
-
         return `
-        ${this.topHtml({ title: this.nm(p), sub: this.groupName(p.groupTh || ''), back: 'menu' })}
+        ${this.topHtml({ title: this.t('เลือกตัวเลือก', 'Choose options'), sub: this.groupName(p.groupTh || ''), back: 'menu' })}
         <div class="cfk-item">
             <div class="cfk-item-left">
                 <div class="cfk-hero">${CFKioskArt.tile(p, L.serveType)}</div>
             </div>
+            <!-- หน้านี้ห้ามเลื่อน — ลูกค้าต้องเห็นทุกตัวเลือกพร้อมกัน (fitItem ย่อเนื้อหาให้พอดีจอเอง) -->
             <div class="cfk-item-scroll">
-                <div class="cfk-item-name">${e(this.nm(p))}</div>
-                <div class="cfk-item-en">${e(this.t(p.nameEn || '', p.nameTh))}</div>
-                ${serveBlock}
-                ${optBlock || `<div class="cfk-note">${this.t('เมนูนี้ไม่มีตัวเลือกเพิ่มเติม', 'No options for this item')}</div>`}
-                ${hiddenNote}
-                <div class="cfk-optgroup">
-                    <div class="cfk-optgroup-head"><b>${this.t('จำนวน', 'Quantity')}</b></div>
-                    <div class="cfk-qty">
-                        <button onclick="CFKiosk.addQty(-1)" ${L.qty <= 1 ? 'disabled' : ''}
-                                aria-label="${this.t('ลด', 'Less')}">${CFKioskArt.icon('minus')}</button>
-                        <output>${L.qty}</output>
-                        <button onclick="CFKiosk.addQty(1)" aria-label="${this.t('เพิ่ม', 'More')}">${CFKioskArt.icon('plus')}</button>
+                <div class="cfk-item-fit">
+                    <!-- รูปเล็ก + ชื่อ แถวเดียว (จอแนวนอนมีรูปใหญ่ด้านซ้ายแทน) -->
+                    <div class="cfk-item-head">
+                        <div class="cfk-item-thumb">${CFKioskArt.tile(p, L.serveType)}</div>
+                        <div class="cfk-item-head-text">
+                            <div class="cfk-item-name">${e(this.nm(p))}</div>
+                        </div>
+                        <div class="cfk-item-price">฿${CFApp.money(CFApp.priceOf(p, L.serveType) || 0)}</div>
                     </div>
+                    ${serveBlock}
+                    ${optBlock || `<div class="cfk-note">${this.t('เมนูนี้ไม่มีตัวเลือกเพิ่มเติม', 'No options for this item')}</div>`}
                 </div>
             </div>
             <div class="cfk-actionbar">
                 <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.back()">${this.t('ยกเลิก', 'Cancel')}</button>
+                <div class="cfk-qty" role="group" aria-label="${this.t('จำนวน', 'Quantity')}">
+                    <button onclick="CFKiosk.addQty(-1)" ${L.qty <= 1 ? 'disabled' : ''}
+                            aria-label="${this.t('ลด', 'Less')}">${CFKioskArt.icon('minus')}</button>
+                    <output>${L.qty}</output>
+                    <button onclick="CFKiosk.addQty(1)" aria-label="${this.t('เพิ่ม', 'More')}">${CFKioskArt.icon('plus')}</button>
+                </div>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.addToCart()">
                     ${CFKioskArt.icon('check')} ${L.lineId ? this.t('บันทึก', 'Save') : this.t('เพิ่มลงตะกร้า', 'Add to cart')} · ฿${CFApp.money(this.lineTotal(L))}
                 </button>
@@ -630,14 +674,17 @@ const CFKiosk = {
 
         return `
         ${this.topHtml({ title: this.t('ตะกร้าของคุณ', 'Your cart'), sub: this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item')), back: 'menu', mode: true })}
-        <div style="display:grid;grid-template-rows:1fr auto auto;min-height:0">
-            <div style="overflow-y:auto;min-height:0;padding:0 var(--pad)">
-                ${this.state.cart.map((l) => this.cartLineHtml(l)).join('')}
-                <button class="cfk-mini" style="margin:calc(var(--u)*1.6) 0"
-                        onclick="CFKiosk.askClear()">${CFKioskArt.icon('trash')} ${this.t('ล้างตะกร้าทั้งหมด', 'Clear cart')}</button>
+        <div class="cfk-cart">
+            <div class="cfk-cart-list">
+                ${this.state.cart.map((l) => this.cartCardHtml(l)).join('')}
+                <button class="cfk-cart-clear" onclick="CFKiosk.askClear()">
+                    ${CFKioskArt.icon('trash')} ${this.t('ล้างตะกร้าทั้งหมด', 'Clear cart')}</button>
             </div>
-            <div class="cfk-total"><span>${this.t('ยอดรวม (รวมภาษีมูลค่าเพิ่มแล้ว)', 'Total (VAT included)')}</span>
-                 <strong>฿${CFApp.money(this.cartTotal())}</strong></div>
+            <div class="cfk-cart-sum">
+                <div><span>${this.t('ยอดรวม', 'Total')}</span>
+                     <small>${this.t(n + ' ชิ้น · รวมภาษีมูลค่าเพิ่มแล้ว', n + (n > 1 ? ' items' : ' item') + ' · VAT included')}</small></div>
+                <strong>฿${CFApp.money(this.cartTotal())}</strong>
+            </div>
             <div class="cfk-actionbar">
                 <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.go('menu')">${this.t('สั่งเพิ่ม', 'Add more')}</button>
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.toCheckout()">
@@ -667,6 +714,37 @@ const CFKiosk = {
             <div class="cfk-cartline-end">
                 <div class="cfk-cartline-mods">× ${l.qty}</div>
                 <div class="cfk-cartline-amt">฿${CFApp.money(this.lineTotal(l))}</div>
+            </div>
+        </div>`;
+    },
+
+    /**
+     * การ์ดหนึ่งรายการในหน้าตะกร้า — ปุ่มทุกปุ่มขนาดเท่าปุ่มหลัก (กดจากระยะยืนได้)
+     * จำนวนอยู่กลางปุ่ม − / + ให้เห็นตรงที่กด · เหลือ 1 ชิ้นแล้วปุ่ม − กลายเป็นถังขยะ
+     */
+    cartCardHtml(l) {
+        const e = CFApp.esc;
+        const p = CFStore.byId('products', l.productId);
+        const mods = l.mods.map((m) => this.modLabel(m)).filter(Boolean);
+        const one = l.qty <= 1;
+        return `<div class="cfk-cline">
+            <div class="cfk-cline-top">
+                <div class="cfk-cline-thumb">${CFKioskArt.tile(p, l.serveType)}</div>
+                <div class="cfk-cline-info">
+                    <div class="cfk-cline-name">${e(this.nm(p))}${e(this.serveSuffix(l.serveType))}</div>
+                    ${mods.length ? `<div class="cfk-cline-mods">${mods.map((m) => `<span>${e(m)}</span>`).join('')}</div>` : ''}
+                </div>
+                <div class="cfk-cline-amt">฿${CFApp.money(this.lineTotal(l))}</div>
+            </div>
+            <div class="cfk-cline-act">
+                <div class="cfk-qty" role="group" aria-label="${this.t('จำนวน', 'Quantity')}">
+                    <button class="${one ? 'is-del' : ''}" onclick="CFKiosk.lineQty('${l.lineId}',-1)"
+                            aria-label="${one ? this.t('ลบ', 'Remove') : this.t('ลด', 'Less')}">${CFKioskArt.icon(one ? 'trash' : 'minus')}</button>
+                    <output>${l.qty}</output>
+                    <button onclick="CFKiosk.lineQty('${l.lineId}',1)" aria-label="${this.t('เพิ่ม', 'More')}">${CFKioskArt.icon('plus')}</button>
+                </div>
+                <button class="cfk-cline-edit" onclick="CFKiosk.openItem('${l.productId}','${l.lineId}')">
+                    ${CFKioskArt.icon('pencil')} ${this.t('แก้ไขตัวเลือก', 'Edit options')}</button>
             </div>
         </div>`;
     },
@@ -709,6 +787,8 @@ const CFKiosk = {
         if (!this.state.cart.length) return;
         if (this.cfg().kioskUpsell !== false && !this.state.upsellShown && this.upsellPicks().length) {
             this.state.upsellShown = true;
+            // ล็อกรายการแนะนำไว้ตอนเข้าหน้า — ถ้าคำนวณใหม่ทุกครั้ง ของที่เพิ่งเพิ่มจะหายจากจอ (เพราะอยู่ในตะกร้าแล้ว)
+            this._upsellIds = this.upsellPicks().map((p) => p.id);
             this.go('upsell');
         } else this.go('pay');
     },
@@ -728,45 +808,66 @@ const CFKiosk = {
 
     screen_upsell() {
         const e = CFApp.esc;
-        const picks = this.upsellPicks();
-        const inCart = new Set(this.state.cart.map((l) => l.productId));
+        const picks = (this._upsellIds || this.upsellPicks().map((p) => p.id))
+            .map((id) => CFStore.byId('products', id)).filter(Boolean);
+        const addedLine = (id) => this.state.cart.find((l) => l.productId === id && l.upsell);
+        const nAdded = picks.filter((p) => addedLine(p.id)).length;
 
         return `
-        ${this.topHtml({ title: this.t('เพิ่มอีกสักหน่อยไหม?', 'Anything else?'), sub: this.t('แนะนำสำหรับคุณ', 'Recommended for you'), back: 'cart' })}
+        ${this.topHtml({ title: this.t('แนะนำเพิ่มเติม', 'Recommended'), back: 'cart' })}
         <div class="cfk-upsell">
-            <div class="cfk-upgrid">
+            <div class="cfk-upsell-body">
+                <div class="cfk-choices-q">${this.t('รับอะไรเพิ่มไหม?', 'Anything else?')}
+                    <small>${this.t('แตะเพื่อเพิ่ม · แตะอีกครั้งเพื่อเอาออก · ไม่เอาก็กดไปชำระเงินได้เลย',
+                                    'Tap to add · tap again to remove · or just continue to payment')}</small></div>
+                <div class="cfk-upgrid">
                 ${picks.map((p) => {
-                    const added = inCart.has(p.id);
-                    return `<button class="cfk-card cfk-upcard ${added ? 'is-added' : ''}"
-                        onclick="CFKiosk.quickAdd('${p.id}')">
+                    const added = !!addedLine(p.id);
+                    return `<button class="cfk-card cfk-upcard ${added ? 'is-added' : ''}" aria-pressed="${added}"
+                        onclick="CFKiosk.quickAdd('${p.id}')" ${p.soldOut ? 'disabled' : ''}>
                         ${CFKioskArt.tile(p, CFApp.serveTypesOf(p)[0])}
                         <span class="cfk-card-body">
                             <span class="cfk-card-name">${e(this.nm(p))}</span>
                             <span class="cfk-card-foot">
-                                <span class="cfk-serve-pill">${added ? this.t('เพิ่มแล้ว', 'Added') : this.t('แตะเพื่อเพิ่ม', 'Tap to add')}</span>
                                 <span class="cfk-price">+฿${CFApp.money(CFApp.minPriceOf(p))}</span>
                             </span>
+                            <span class="cfk-upcard-btn">${added
+                                ? CFKioskArt.icon('check') + ' ' + this.t('เพิ่มแล้ว', 'Added')
+                                : CFKioskArt.icon('plus') + ' ' + this.t('เพิ่ม', 'Add')}</span>
                         </span>
                     </button>`;
                 }).join('')}
+                </div>
             </div>
-            <!-- ปุ่มเดียว — เดิมมี "ไม่ ขอบคุณ" กับ "ชำระเงิน" ที่ไปหน้าเดียวกัน ลูกค้าลังเลว่าต้องกดอันไหน -->
+            <!-- ปุ่มเดียว — เดิมมี "ไม่ ขอบคุณ" กับ "ชำระเงิน" ที่ไปหน้าเดียวกัน ลูกค้าลังเลว่าต้องกดอันไหน
+                 ข้อความบนปุ่มจึงบอกเองว่า "ไม่เพิ่ม" ได้ เมื่อยังไม่ได้เลือกอะไร -->
             <div class="cfk-actionbar">
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.go('pay')">
-                    ${this.t('ไปชำระเงิน', 'Continue to payment')} ฿${CFApp.money(this.cartTotal())}
+                    ${nAdded ? this.t('ไปชำระเงิน', 'Continue to payment') : this.t('ไม่เพิ่ม · ไปชำระเงิน', 'No thanks · continue to payment')}
+                    ฿${CFApp.money(this.cartTotal())} ${CFKioskArt.icon('next')}
                 </button>
             </div>
         </div>`;
     },
 
-    /** เพิ่มจากหน้าแนะนำ — ใช้ค่าเริ่มต้นของกฎ ไม่ต้องให้ลูกค้าเลือกซ้ำ */
+    /**
+     * เพิ่มจากหน้าแนะนำ — ใช้ค่าเริ่มต้นของกฎ ไม่ต้องให้ลูกค้าเลือกซ้ำ
+     * แตะซ้ำ = เอาออก (เฉพาะรายการที่เพิ่มจากหน้านี้ — ของที่ลูกค้าเลือกเองจากเมนูไม่แตะ)
+     */
     quickAdd(productId) {
         const p = CFStore.byId('products', productId);
         if (!p || p.soldOut) return;
+        const had = this.state.cart.find((l) => l.productId === productId && l.upsell);
+        if (had) {
+            this.state.cart = this.state.cart.filter((l) => l !== had);
+            this.render();
+            this.toast(this.t('เอา ' + p.nameTh + ' ออกแล้ว', 'Removed ' + this.nm(p)));
+            return;
+        }
         const sv = CFApp.serveTypesOf(p)[0];
         this.state.cart.push({
             lineId: 'L' + Date.now().toString(36), productId, serveType: sv, qty: 1,
-            mods: CFRules.defaultsFor(sv, p.categoryId),
+            mods: CFRules.defaultsFor(sv, p.categoryId), upsell: true,
         });
         this.render();
         this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)));
@@ -781,11 +882,10 @@ const CFKiosk = {
                 <svg class="cfk-art" viewBox="0 0 120 120"><use href="#cfa-${key}"/></svg></span>`;
         return `
         ${this.topHtml({ title: this.t('เลือกวิธีชำระเงิน', 'How would you like to pay?'), back: 'cart', mode: true })}
-        <div style="display:grid;grid-template-rows:auto 1fr;min-height:0">
-            <div class="cfk-paytotal">
-                <span>${this.t('ยอดที่ต้องชำระ', 'Amount due')}</span><strong>฿${CFApp.money(this.cartTotal())}</strong>
-            </div>
-            <div class="cfk-choices">
+        <div class="cfk-choices">
+                <div class="cfk-paytotal">
+                    <span>${this.t('ยอดที่ต้องชำระ', 'Amount due')}</span><strong>฿${CFApp.money(this.cartTotal())}</strong>
+                </div>
                 <button class="cfk-bigchoice" onclick="CFKiosk.submit('CASH')">
                     ${CFKioskArt.icon('cash')}
                     <b>${this.t('เงินสด', 'Cash')}</b><small>${this.t('ชำระที่เคาน์เตอร์', 'Pay at the counter')}</small>
@@ -794,7 +894,6 @@ const CFKiosk = {
                     ${CFKioskArt.icon('qr')}
                     <b>${this.t('QR พร้อมเพย์', 'PromptPay QR')}</b><small>${this.t('สแกนจ่ายด้วยมือถือ', 'Scan with your banking app')}</small>
                 </button>
-            </div>
         </div>`;
     },
 
@@ -824,11 +923,14 @@ const CFKiosk = {
             });
             if (!orderId) { this.toast(this.t('สร้างออเดอร์ไม่สำเร็จ', 'Could not place your order')); return; }
 
-            const ok = await CFOrders.transition(orderId,
-                method === 'CASH' ? 'WAITING_CASH' : 'WAITING_PAYMENT',
-                { byId: 'KIOSK', device: this.state.deviceId });
+            // กดซ้ำหลังหมดเวลารอ — เซิร์ฟเวอร์คืนออเดอร์เดิม (clientUuid) ซึ่งอาจเปลี่ยนสถานะไปแล้วรอบก่อน
+            const target = method === 'CASH' ? 'WAITING_CASH' : 'WAITING_PAYMENT';
+            const cur = CFStore.byId('orders', orderId);
+            const ok = (cur && cur.status === target) ? true
+                : await CFOrders.transition(orderId, target, { byId: 'KIOSK', device: this.state.deviceId });
             if (ok === false) { this.toast(this.t('ส่งออเดอร์ไม่สำเร็จ', 'Could not send your order')); return; }
 
+            this._orderCart = { orderId, cart: this.state.cart };
             this.state.cart = [];
             this.state.orderId = orderId;
             this._clientUuid = null;          // ออเดอร์ถัดไปต้องได้ uuid ใหม่
@@ -860,33 +962,72 @@ const CFKiosk = {
     },
 
     /* ── QR + นับถอยหลัง (§14, §16) ── */
+    /**
+     * หน้าจ่ายด้วย QR — QR · ภาพแนะนำวิธียกสลิป · กล้อง อยู่หน้าเดียว
+     * กล้องรออ่านสลิปตั้งแต่แสดง QR: ลูกค้าโอนเสร็จยกมือถือขึ้นได้เลย ไม่ต้องหาปุ่ม "โอนแล้ว"
+     */
     screen_qr() {
         const o = CFStore.byId('orders', this.state.orderId);
         const sec = CFStore.settings().qrTimeoutSec || 60;
+        this._qrScanned = false;
+        this._paused = false;
+        this._rejectedRef = null;
         // ขอ QR ที่ผูกยอดไว้แล้วจากเซิร์ฟเวอร์ — นับถอยหลังเริ่มเมื่อได้เวลาหมดอายุจริง
-        setTimeout(() => this.loadQr(), 0);
+        setTimeout(() => { this.loadQr(); this.startCam(); }, 0);
         return `
         ${this.topHtml({ title: this.t('สแกนเพื่อชำระเงิน', 'Scan to pay'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo })}
-        <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
-            <div class="cfk-center">
-                <div class="cfk-qr" id="cfkQrBox">
-                    ${CFKioskArt.icon('qr')}
-                    <span>${this.t('กำลังสร้าง QR…', 'Creating QR…')}</span>
+        <div class="cfk-pay2">
+            <div class="cfk-pay2-row">
+                <div class="cfk-pay2-qr">
+                    <div class="cfk-qr" id="cfkQrBox">
+                        ${CFKioskArt.icon('qr')}
+                        <span>${this.t('กำลังสร้าง QR…', 'Creating QR…')}</span>
+                    </div>
+                    <div class="cfk-pay2-amount">฿${CFApp.money(o.total)}</div>
+                    <div class="cfk-note cfk-note-ok" id="cfkQrTimer">
+                        ${CFKioskArt.icon('timer')}
+                        <span>${this.t('เหลือเวลา', 'Time left')} <b class="cfk-countdown" id="cfkLeft">${sec}</b> ${this.t('วินาที', 'sec')}</span>
+                    </div>
                 </div>
-                <div class="cfk-done-no" style="font-size:calc(var(--u)*5)">฿${CFApp.money(o.total)}</div>
-                <div class="cfk-note cfk-note-ok">
-                    ${CFKioskArt.icon('timer')}
-                    <span>${this.t('เหลือเวลา', 'Time left')} <b class="cfk-countdown" id="cfkLeft">${sec}</b> ${this.t('วินาที', 'sec')}</span>
+                <div class="cfk-pay2-guide">
+                    <b>${this.t('โอนแล้ว ยกสลิปแบบนี้', 'Paid? Show your slip like this')}</b>
+                    ${this.slipGuideSvg()}
+                </div>
+            </div>
+            <div class="cfk-pay2-cam">
+                <div class="cfk-cam" id="cfkCam">
+                    <video id="cfkVideo" playsinline muted></video>
+                    <div class="cfk-cam-frame"></div>
+                </div>
+                <div class="cfk-note cfk-note-ok" id="cfkCamMsg">
+                    ${CFKioskArt.icon('qr')}
+                    <span>${this.SLIP_HOW()}</span>
                 </div>
             </div>
             <div class="cfk-actionbar">
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.askPayCash()">${this.t('จ่ายเงินสดแทน', 'Pay cash instead')}</button>
-                <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.askStaff()">${this.t('แจ้งพนักงาน', 'Call staff')}</button>
-                <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.qrPaid()">
-                    ${CFKioskArt.icon('check')} ${this.t('โอนแล้ว · สแกนสลิป', 'Paid · scan slip')}
-                </button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.askEditOrder()">${CFKioskArt.icon('back')} ${this.t('แก้รายการ', 'Edit order')}</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.askPayCash()">${this.t('จ่ายเงินสดแทน', 'Pay cash instead')}</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.askStaff()">${this.t('แจ้งพนักงาน', 'Call staff')}</button>
             </div>
         </div>`;
+    },
+
+    /** ภาพแนะนำ: มือถือแสดงสลิป (แถบเขียว · เครื่องหมายถูก · QR มุมล่าง) อยู่ในกรอบเล็ง */
+    slipGuideSvg() {
+        return `<svg class="cfk-pay2-art" viewBox="0 0 200 130" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
+                <path d="M46 30V18h14M154 30V18h-14M46 100v12h14M154 100v12h-14"/>
+            </g>
+            <rect x="74" y="10" width="52" height="108" rx="9" fill="#1F2937"/>
+            <rect x="78" y="16" width="44" height="96" rx="5" fill="#fff"/>
+            <rect x="78" y="16" width="44" height="10" rx="3" fill="#22C55E"/>
+            <path d="M94 40l5 5 9-10" fill="none" stroke="#22C55E" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <g fill="#D1D5DB"><rect x="84" y="54" width="32" height="3" rx="1.5"/><rect x="84" y="61" width="26" height="3" rx="1.5"/>
+               <rect x="84" y="68" width="30" height="3" rx="1.5"/></g>
+            <rect x="84" y="78" width="20" height="4" rx="2" fill="#111827"/>
+            <g fill="#111827"><rect x="104" y="90" width="14" height="14" rx="1.5"/></g>
+            <g fill="#fff"><rect x="106.5" y="92.5" width="4" height="4"/><rect x="111.5" y="97.5" width="4" height="4"/></g>
+        </svg>`;
     },
 
     /**
@@ -948,25 +1089,37 @@ const CFKiosk = {
     screen_slip() {
         const o = CFStore.byId('orders', this.state.orderId);
         setTimeout(() => this.startCam(), 0);
+        // หน้าตาเดียวกับหน้า QR (cfk-pay2) — ช่อง QR ด้านซ้ายเปลี่ยนเป็นป้าย "โอนแล้ว" เพราะไม่ต้องสแกน QR อีก
         return `
-        ${this.topHtml({ title: this.t('สแกนสลิปโอนเงิน', 'Scan your transfer slip'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
-        <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
-            <!-- ภาพกล้องชิดบนสุด — กล้องจริงติดอยู่ขอบบนของเครื่อง ลูกค้ายกมือถือขึ้นระดับสายตา
-                 แล้วเห็นภาพตัวเองตรงนั้นพอดี ไม่ต้องก้มมองกลางจอขณะเล็งขึ้นข้างบน -->
-            <div class="cfk-center cfk-slip">
-                <div class="cfk-slip-hint">${CFKioskArt.icon('up')} ${this.t('ยกมือถือขึ้นหากล้องด้านบนเครื่อง', 'Hold your phone up to the camera at the top')}</div>
+        ${this.topHtml({ title: this.t('สแกนสลิปโอนเงิน', 'Scan your transfer slip'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo })}
+        <div class="cfk-pay2">
+            <div class="cfk-pay2-row">
+                <div class="cfk-pay2-qr">
+                    <div class="cfk-qr cfk-pay2-paid">
+                        ${CFKioskArt.icon('check')}
+                        <span>${this.t('โอนแล้ว · รอตรวจสลิป', 'Paid · checking slip')}</span>
+                    </div>
+                    <div class="cfk-pay2-amount">฿${CFApp.money(o.total)}</div>
+                    <!-- หมดเวลาแล้วส่งให้พนักงานเอง — ต้องเห็นตัวนับ ไม่งั้นลูกค้างงว่าทำไมหน้าเปลี่ยน -->
+                    <div class="cfk-note cfk-note-ok" id="cfkSlipTimer">
+                        ${CFKioskArt.icon('timer')}
+                        <span>${this.t('เหลือเวลา', 'Time left')} <b class="cfk-countdown" id="cfkSlipLeft">${this.cfg().kioskSlipScanSec || 90}</b> ${this.t('วินาที', 'sec')}</span>
+                    </div>
+                </div>
+                <div class="cfk-pay2-guide">
+                    <b>${this.t('ยกสลิปแบบนี้', 'Show your slip like this')}</b>
+                    ${this.slipGuideSvg()}
+                </div>
+            </div>
+            <div class="cfk-pay2-cam">
                 <div class="cfk-cam" id="cfkCam">
                     <video id="cfkVideo" playsinline muted></video>
                     <div class="cfk-cam-frame"></div>
-                    <div class="cfk-cam-label">${this.t('ให้เห็นทั้งใบ ตั้งแต่วันที่ด้านบน จนถึง QR', 'Show the whole slip, from the date at the top to the QR')}</div>
                 </div>
                 <div class="cfk-note cfk-note-ok" id="cfkCamMsg">
                     ${CFKioskArt.icon('qr')}
                     <span>${this.SLIP_HOW()}</span>
                 </div>
-                <!-- หมดเวลาแล้วส่งให้พนักงานเอง — ต้องเห็นตัวนับ ไม่งั้นลูกค้างงว่าทำไมหน้าเปลี่ยน -->
-                <div class="cfk-done-timer" id="cfkSlipTimer">${this.t('เหลือเวลา', 'Time left')}
-                    <b id="cfkSlipLeft">${this.cfg().kioskSlipScanSec || 90}</b> ${this.t('วินาที', 'sec')}</div>
             </div>
             <div class="cfk-actionbar">
                 <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.askStaff()">
@@ -977,8 +1130,7 @@ const CFKiosk = {
     },
 
     SLIP_HOW() {
-        return this.t('เปิดสลิปในแอปธนาคาร แล้วหันจอมือถือเข้าหากล้อง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR',
-                      'Open the slip in your banking app and turn your phone screen to the camera — show the whole slip from the date to the QR');
+        return this.t('หันจอสลิปเข้ากล้อง ให้เห็นทั้งใบจนถึง QR', 'Turn your slip to the camera — show the whole slip down to the QR');
     },
 
     camMsg(text, warn) {
@@ -989,9 +1141,14 @@ const CFKiosk = {
         el.querySelector('span').textContent = text;
     },
 
+    /** หน้าที่เปิดกล้องสแกนสลิป — หน้า QR (กล้องรอตั้งแต่แสดง QR) และหน้าสแกนสลิปเดี่ยว */
+    camScreen() { return this.state.screen === 'slip' || this.state.screen === 'qr'; },
+
     resetScanDeadline() {
         // หมดเวลาแล้วส่งให้พนักงานดูแทน — ไม่ปล่อยให้ลูกค้ายืนงงหน้าเครื่อง
-        this._deadline = Date.now() + (this.cfg().kioskSlipScanSec || 90) * 1000;
+        // หน้า QR ก่อนสแกนครั้งแรก: ตัวนับของ QR เป็นตัวคุมเวลา (หมดแล้วไปหน้า "โอนแล้วหรือยัง?")
+        this._deadline = (this.state.screen === 'qr' && !this._qrScanned)
+            ? Infinity : Date.now() + (this.cfg().kioskSlipScanSec || 90) * 1000;
     },
 
     /**
@@ -1102,7 +1259,7 @@ const CFKiosk = {
             this.camMsg(this.t('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', 'Could not open the camera — please ask our staff at the counter'), true);
             return;
         }
-        if (this.state.screen !== 'slip') { this.stopCam(); return; }   // ลูกค้ากดออกไประหว่างรอ
+        if (!this.camScreen()) { this.stopCam(); return; }   // ลูกค้ากดออกไประหว่างรอ
         video.srcObject = this._cam;
         await video.play().catch(() => {});
 
@@ -1259,11 +1416,18 @@ const CFKiosk = {
     async submitSlip(payload, video) {
         if (this._submitting) return;
         this._submitting = true;
+        if (this.state.screen === 'qr' && !this._qrScanned) {
+            this._qrScanned = true;
+            clearInterval(this._qr);
+            const t = document.getElementById('cfkQrTimer');
+            if (t) t.hidden = true;
+            this.resetScanDeadline();
+        }
         this.slipSteps('capture');
         try {
             const image = video ? await this.captureBest(video) : null;
             this.slipSteps('send');
-            const r = await CFApi.post('/api/orders/' + encodeURIComponent(this.state.orderId) + '/slip', { payload, image });
+            const r = await CFApi.post('/api/orders/' + encodeURIComponent(this.state.orderId) + '/slip', { payload, image }, { timeout: 60000 });   // อัปโหลดภาพเต็มขนาด — Wi-Fi ช้าใช้เวลานานกว่าคำขอทั่วไป
             const res = r.slipId ? await this.waitSlipCheck(r.slipId, r.bank) : null;
             if (res && res.verdict === 'FAIL') {
                 // ยอด/วันที่ไม่ตรง — บอกลูกค้าตรงนี้ ให้สแกนใบที่ถูกต้องหรือแจ้งพนักงาน (กล้องยังเปิดอยู่)
@@ -1379,17 +1543,18 @@ const CFKiosk = {
         return `
         ${this.topHtml({ title: this.t('หมดเวลาชำระเงิน', 'Payment time is up'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
-            <div class="cfk-center">
+            <div class="cfk-center"><div class="cfk-panel">
                 <div class="cfk-done-ico warn">${CFKioskArt.icon('timer')}</div>
                 <div class="cfk-slipwait-title">${this.t('โอนเงินไปแล้วหรือยัง?', 'Have you already paid?')}</div>
                 <div class="cfk-note cfk-note-ok">${CFKioskArt.icon('qr')}
                     <span>${this.t('ถ้าโอนแล้ว กดสแกนสลิปได้เลย แม้เวลาจะหมด · ถ้ายังไม่ได้โอน ขอ QR ใหม่หรือจ่ายเงินสดได้',
                                    'If you paid, scan your slip even though time is up · If not, get a new QR or pay cash')}</span></div>
-            </div>
+            </div></div>
             <div class="cfk-actionbar cfk-actionbar-stack">
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.expiredChoice('scan')">
                     ${CFKioskArt.icon('check')} ${this.t('โอนแล้ว · สแกนสลิป', 'Paid · scan slip')}</button>
                 <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('newqr')">${this.t('ขอ QR ใหม่', 'Get a new QR')}</button>
+                <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('edit')">${this.t('กลับไปแก้รายการ', 'Go back and edit order')}</button>
                 <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('cash')">${this.t('จ่ายเงินสดแทน', 'Pay cash instead')}</button>
                 <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.expiredChoice('staff')">${this.t('แจ้งพนักงาน', 'Call staff')}</button>
             </div>
@@ -1401,6 +1566,7 @@ const CFKiosk = {
         if (kind === 'scan') return this.qrPaid();
         if (kind === 'newqr') return this.go('qr');                 // screen_qr ขอ QR ใบใหม่จากเซิร์ฟเวอร์เอง
         if (kind === 'cash') return this.askPayCash();
+        if (kind === 'edit') return this.askEditOrder();
         return this.askStaff();
     },
 
@@ -1418,6 +1584,47 @@ const CFKiosk = {
     },
 
     /** ลูกค้าไม่มีแอปธนาคาร / เน็ตมือถือ — เปลี่ยนออเดอร์นี้ไปจ่ายเงินสด (เซิร์ฟเวอร์ปิด QR ให้) */
+    /**
+     * กลับไปแก้รายการ — ยกเลิกออเดอร์ QR ที่ยังไม่ได้โอน แล้วคืนของเข้าตะกร้า
+     * ถามก่อนเสมอ: ถ้าโอนไปแล้วแต่ยกเลิก เงินจะเข้าออเดอร์ที่ไม่มีอยู่
+     * (เซิร์ฟเวอร์ปฏิเสธเองถ้ามีสลิปสแกนเข้ามาแล้ว — ดู /api/orders/:id/kiosk-cancel)
+     */
+    askEditOrder() {
+        this.confirmSheet({
+            title: this.t('ยังไม่ได้โอนเงินใช่ไหม?', 'You have not paid yet?'),
+            text: this.t('ออเดอร์นี้และ QR จะถูกยกเลิก แล้วกลับไปแก้รายการในตะกร้า — ถ้าโอนไปแล้ว อย่ากด ให้สแกนสลิปหรือแจ้งพนักงาน',
+                         'This order and its QR will be cancelled and you go back to your cart — if you already paid, do not continue: scan your slip or call staff'),
+            ok: this.t('ยังไม่โอน · แก้รายการ', 'Not paid · edit order'), onOk: 'editOrder',
+        });
+    },
+
+    async editOrder() {
+        if (this._submitting) return;
+        this._submitting = true;
+        this.setBusy(true, this.t('กำลังยกเลิกออเดอร์…', 'Cancelling the order…'));
+        try {
+            const id = this.state.orderId;
+            try {
+                await CFApi.post('/api/orders/' + encodeURIComponent(id) + '/kiosk-cancel', {});
+            } catch (err) {
+                this.toast(err.message || this.t('แก้รายการไม่ได้ กรุณาแจ้งพนักงาน', 'Cannot edit — please call staff'), 3000);
+                return;
+            }
+            clearInterval(this._qr);
+            clearTimeout(this._expT);
+            this.stopCam();
+            const saved = this._orderCart && this._orderCart.orderId === id ? this._orderCart.cart : [];
+            this._orderCart = null;
+            this.state.orderId = null;
+            this.state.cart = saved;
+            this.state.stack = [];
+            this.go(saved.length ? 'cart' : 'menu');
+        } finally {
+            this._submitting = false;
+            this.setBusy(false);
+        }
+    },
+
     askPayCash() {
         const o = CFStore.byId('orders', this.state.orderId);
         this.confirmSheet({
@@ -1504,7 +1711,7 @@ const CFKiosk = {
         <div class="cfk-top"><div class="cfk-top-title"><b>${e(v.title)}</b>
             <span>${e(this.diningLabel())}</span></div></div>
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
-            <div class="cfk-center">
+            <div class="cfk-center"><div class="cfk-panel">
                 <div class="cfk-done-ico ${v.tone}">
                     ${CFKioskArt.icon(v.ico)}
                 </div>
@@ -1512,7 +1719,7 @@ const CFKiosk = {
                 <div class="cfk-done-no">${e(o.orderNo)}</div>
                 <div class="cfk-note ${v.banner[1]}">${CFKioskArt.icon(v.banner[0])}<span>${e(v.banner[2])}</span></div>
                 <div class="cfk-done-timer">${this.t('กลับหน้าแรกใน', 'Back to start in')} <b id="cfkDoneLeft">${sec}</b> ${this.t('วินาที', 'sec')}</div>
-            </div>
+            </div></div>
             <div class="cfk-actionbar">
                 <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.reset()">${this.t('เสร็จสิ้น', 'Done')}</button>
             </div>

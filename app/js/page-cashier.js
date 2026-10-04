@@ -577,7 +577,7 @@ const CashierPage = {
         this._slipBusy = true;
         this.slipScanMsg('กำลังส่งสลิปให้ระบบตรวจ…');
         try {
-            await CFApi.post('/api/orders/' + encodeURIComponent(this._review.orderId) + '/slip', { payload, image });
+            await CFApi.post('/api/orders/' + encodeURIComponent(this._review.orderId) + '/slip', { payload, image }, { timeout: 60000 });
             // ข้อมูลสลิปกับผลอ่านยอดจะตามมาทางสายข้อมูล (refreshSlipOcr วาดกล่องใหม่ให้เอง)
             this.slipScanMsg('รับสลิปแล้ว — ระบบกำลังอ่านยอดเงินจากภาพ ดูผลด้านบน');
             showToast('รับสลิปแล้ว', 'success');

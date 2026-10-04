@@ -279,6 +279,11 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
             [orderId]);
         await c.query("UPDATE cf_order SET payment_method = 'CASH' WHERE id = $1", [orderId]);
     }
+    // ยกเลิกระหว่างรอโอน — ปิด QR ด้วย สลิปที่ยกมาทีหลังจะไม่ถูกจับคู่กับออเดอร์ที่ยกเลิกแล้ว
+    if (newStatus === 'CANCELLED' && ['WAITING_PAYMENT', 'PAYMENT_TIMEOUT'].includes(o.status)) {
+        await c.query('UPDATE payment_qr SET cancelled_at = now() WHERE order_id = $1 AND cancelled_at IS NULL',
+            [orderId]);
+    }
 
     // ชำระแล้ว → บันทึกการชำระ + ส่งเข้าครัวทันที (§44 "Verify Before Forward")
     // ออกจากขั้นรอตรวจ = แคชเชียร์ตัดสินแล้ว — บันทึกคู่กับผลที่ระบบอ่านจากสลิป ใช้วัดความแม่นจริง
@@ -661,6 +666,41 @@ function registerOrders(app, { pool, tx, query, branchId }) {
 
         const out = await tx((c) =>
             transition(c, branchId(), req.params.id, to, req.body || {}, ctx));
+        publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
+        return out;
+    }));
+
+    /**
+     * ลูกค้ากด "กลับไปแก้รายการ" ที่คีออสก์ — ยกเลิกออเดอร์ QR ที่ยังไม่ได้จ่าย แล้วคีออสก์คืนของเข้าตะกร้าเอง
+     *
+     * ★ คีออสก์ยกเลิกออเดอร์ทั่วไปไม่ได้ (ดู KIOSK_ALLOWED ด้านบน) — ช่องนี้แคบโดยตั้งใจ:
+     *   - ออเดอร์ของคีออสก์เครื่องนี้เท่านั้น
+     *   - ยังรอโอน (WAITING_PAYMENT) หรือ QR หมดเวลา (PAYMENT_TIMEOUT)
+     *   - ยังไม่มีสลิปสแกนเข้ามาเลยสักใบ — มีสลิปแล้วอาจมีเงินเข้า ต้องให้พนักงานตัดสิน
+     */
+    app.post('/api/orders/:id/kiosk-cancel', handle(async (req) => {
+        const ctx = await context(req);
+        if (ctx.user || !ctx.device || ctx.device.kind !== 'KIOSK') {
+            throw new ApiError(403, 'ใช้ได้เฉพาะคีออสก์');
+        }
+        const out = await tx(async (c) => {
+            const o = (await c.query(
+                'SELECT * FROM cf_order WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+                [req.params.id, branchId()])).rows[0];
+            if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
+            if (o.kiosk_id !== ctx.device.id) {
+                throw new ApiError(403, 'ออเดอร์นี้ไม่ได้สั่งจากเครื่องนี้');
+            }
+            if (!['WAITING_PAYMENT', 'PAYMENT_TIMEOUT'].includes(o.status)) {
+                throw new ApiError(409, 'ออเดอร์นี้แก้ไม่ได้แล้ว กรุณาแจ้งพนักงาน', { from: o.status });
+            }
+            const slips = await c.query('SELECT 1 FROM payment_slip WHERE order_id = $1 LIMIT 1', [o.id]);
+            if (slips.rows.length) {
+                throw new ApiError(409, 'มีสลิปสแกนเข้ามาแล้ว กรุณาแจ้งพนักงาน');
+            }
+            return transition(c, branchId(), o.id, 'CANCELLED',
+                { reason: 'ลูกค้ากลับไปแก้รายการที่คีออสก์ (ยังไม่ได้โอน)' }, ctx);
+        });
         publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
         return out;
     }));
