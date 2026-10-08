@@ -78,8 +78,7 @@ const CFOrders = {
 
         // clientUuid ทำให้ retry ตอน Wi-Fi สะดุดไม่กลายเป็นสองออเดอร์
         // สร้างครั้งเดียวต่อการกด "ชำระเงิน" ไม่ใช่ต่อการยิงแต่ละครั้ง
-        const clientUuid = opts.clientUuid ||
-            (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+        const clientUuid = opts.clientUuid || CFApi.uuid();
         return CFStore.cmd('post', '/api/orders', {
             clientUuid,
             cart: cart.map((l) => ({

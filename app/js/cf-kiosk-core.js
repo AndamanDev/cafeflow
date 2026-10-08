@@ -939,8 +939,7 @@ const CFKiosk = {
         this.setBusy(true, this.t('กำลังส่งออเดอร์…', 'Sending your order…'));
         try {
             // clientUuid ผูกกับ "การกดชำระครั้งนี้" — retry ตอนเน็ตสะดุดจึงได้ใบเดิม
-            this._clientUuid = this._clientUuid || (window.crypto && crypto.randomUUID
-                ? crypto.randomUUID() : 'cu-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+            this._clientUuid = this._clientUuid || CFApi.uuid();
 
             const orderId = await CFOrders.create(this.state.cart, {
                 kioskId: this.state.deviceId,

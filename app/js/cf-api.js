@@ -137,9 +137,25 @@
         return setInterval(check, intervalMs || 30000);
     }
 
+    /**
+     * UUID v4 — ใช้เป็น clientUuid กันออเดอร์ซ้ำ
+     * crypto.randomUUID() มีเฉพาะหน้า https / localhost — จอในร้านเปิดผ่าน http://<IP เครื่องหลัก>
+     * ซึ่งเบราว์เซอร์ไม่นับว่าปลอดภัย จึงไม่มีให้ใช้ (ตัวสำรองเดิมได้ค่าที่ไม่ใช่ UUID → เซิร์ฟเวอร์ตอบ 400)
+     * getRandomValues ใช้ได้ทุกหน้า
+     */
+    function uuid() {
+        if (window.crypto && crypto.randomUUID && window.isSecureContext) return crypto.randomUUID();
+        const b = crypto.getRandomValues(new Uint8Array(16));
+        b[6] = (b[6] & 0x0f) | 0x40;   // version 4
+        b[8] = (b[8] & 0x3f) | 0x80;   // variant 10xx
+        const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+        return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+    }
+
     window.CFApi = {
         watchVersion,
         baseUrl,
+        uuid,
 
         get:  (p, o)    => request('GET', p, undefined, o),
         post: (p, b, o) => request('POST', p, b, o),
