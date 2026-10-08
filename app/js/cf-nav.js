@@ -70,6 +70,7 @@ const CF_MENU = [
             { href: 'kiosk.html',               label: 'เปิดโหมดคีออสก์',      icon: 'monitor' },
             { href: 'dashboard.html?shop=1',    label: 'ข้อมูลร้าน',            icon: 'fileText' },
             { href: 'dashboard.html?kiosk=1',   label: 'ตั้งค่าคีออสก์',        icon: 'settings' },
+            { href: 'dashboard.html?display=1', label: 'ตั้งค่าจอแสดงคิว',      icon: 'monitor' },
             { href: 'dashboard.html?devices=1', label: 'อุปกรณ์ในเครือข่าย',    icon: 'monitor' },
             { href: 'dashboard.html?printers=1', label: 'เครื่องพิมพ์',          icon: 'printer' },
             { href: 'dashboard.html?users=1',   label: 'ผู้ใช้และสิทธิ์',        icon: 'users', roles: 'ADMIN' },

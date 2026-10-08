@@ -37,13 +37,18 @@ curl http://localhost:8080/api/health      # API ตอบไหม
 | ครัวไม่ได้ตั๋ว แต่ KDS มี | เครื่องพิมพ์ | หัวข้อ "เครื่องพิมพ์" |
 
 ### สตาร์ทใหม่ทั้งชุด
-เปิดเองทุกครั้งที่ login (ตั้งไว้ด้วย `ops\install-autostart.ps1` — ทางลัด CafeFlow ในโฟลเดอร์ Startup)
+เปิดเองทุกครั้งที่ login (Task Scheduler ชื่อ **CafeFlow** ตั้งด้วย `ops\install-autostart.ps1`)
 สั่งเองก็ได้ เรียกซ้ำได้ ตัวไหนเปิดอยู่แล้วจะข้าม:
 ```powershell
-powershell -ExecutionPolicy Bypass -File ops\start-cafeflow.ps1
+powershell -ExecutionPolicy Bypass -File ops\run-cafeflow.ps1
 ```
 ลำดับ: เปิด Docker Desktop → รอฐานข้อมูลพร้อม → API (8080) → ตัวอ่านสลิป (5101)
-ดูว่าติดตรงไหน: `logs\start.log` · `logspi.log` · `logs\ocr.log`
+**ขั้นไหนไม่ติดจะรอแล้วลองใหม่เรื่อย ๆ จนกว่าจะติด** (เว้น 10 → 20 → … สูงสุด 60 วิ)
+- Docker ไม่พร้อมใน 3 นาที → ปิด Docker Desktop แล้วเปิดใหม่ให้เอง
+- API เปิดแล้วตาย → ลองใหม่ · ตัวอ่านสลิปลองแค่ 5 ครั้ง (ไม่มีก็ขายได้)
+- กดเปิดซ้ำระหว่างที่ตัวแรกยังทำงาน ตัวที่สองจะออกเองทันที
+
+ดูว่าติดตรงไหน: `logs\start.log` · `logs\api.log` / `logs\api.err.log` · `logs\ocr.log` / `logs\ocr.err.log` (รอบก่อนหน้าอยู่ใน `*.prev.log`)
 
 ⚠️ Windows ต้อง login เองตอนเปิดเครื่อง (Docker Desktop ทำงานเฉพาะตอนมีผู้ใช้ login)
 ตั้งด้วย `netplwiz` → เอาติ๊ก "Users must enter a user name and password" ออก
@@ -249,7 +254,7 @@ cd api && npm start
 ติดตั้งครั้งเดียวบนเครื่องเซิร์ฟเวอร์ **ตอนยังมีเน็ต** (หลังจากนั้นใช้แบบไม่มีเน็ตได้):
 1. ลง Python 3.11 จาก python.org (ติ๊ก "Add to PATH")
 2. ดับเบิลคลิก `ocr-svc\setup.bat` — โหลดราว 900 MB รอจนขึ้น "Done"
-3. ไม่ต้องตั้งแยก — `ops\start-cafeflow.ps1` เปิดตัวอ่านสลิปให้ด้วย (ถ้าติดตั้งไว้)
+3. ไม่ต้องตั้งแยก — `ops\run-cafeflow.ps1` เปิดตัวอ่านสลิปให้ด้วย (ถ้าติดตั้งไว้)
 
 เช็กว่าทำงานอยู่: `curl http://127.0.0.1:5101/health` · ใช้แรม ~1 GB · อ่านทีละใบ
 

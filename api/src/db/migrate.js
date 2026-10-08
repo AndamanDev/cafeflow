@@ -19,6 +19,16 @@ const DIR = path.resolve(__dirname, '..', '..', '..', 'db', 'migrations');
 
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 
+/**
+ * checksum ที่ยอมรับของไฟล์หนึ่ง — ทั้งแบบ LF และ CRLF
+ * git บน Windows (core.autocrlf) เปลี่ยนตัวขึ้นบรรทัดตอน checkout เนื้อหาเหมือนเดิมแต่ hash เปลี่ยน
+ * ในฐานมีทั้งสองแบบปนกัน (ขึ้นกับว่าไฟล์ถูกรันครั้งแรกบนเครื่องไหน) จึงต้องรับทั้งคู่
+ */
+const sums = (s) => {
+    const lf = s.replace(/\r\n/g, '\n');
+    return [sha(lf), sha(lf.replace(/\n/g, '\r\n'))];
+};
+
 async function ensureTable() {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS schema_migration (
@@ -61,7 +71,7 @@ async function run() {
         if (done.has(name)) {
             // ไฟล์ที่รันไปแล้วถูกแก้ = ฐานจริงกับโค้ดไม่ตรงกันโดยที่ไม่มีใครรู้
             // ต้องดังทันที ไม่ใช่ปล่อยผ่าน
-            if (done.get(name) !== sum) {
+            if (!sums(sql).includes(done.get(name))) {
                 console.error(`\nMIGRATION ผิดพลาด: ${name} ถูกแก้หลังจากรันไปแล้ว`);
                 console.error('  แก้ไฟล์ที่รันแล้วไม่ได้ — ให้สร้างไฟล์ migration ใหม่แทน');
                 process.exit(1);

@@ -37,6 +37,8 @@
 .cf-rc-row > span:first-child { overflow-wrap: anywhere; min-width: 0; }
 .cf-rc-row > span:last-child  { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .cf-rc-name   { overflow-wrap: anywhere; font-weight: 700; }
+/* ชื่อเมนูบนสลิปครัว — ครัวต้องอ่านออกจากระยะแขน */
+.cf-rc-item-lg { font-size: 1.15em; }
 .cf-rc-mod    { padding-left: 10px; font-size: .88em; overflow-wrap: anywhere; }
 .ds-paper-58 .cf-rc-mod { padding-left: 6px; }
 .cf-rc-lg     { font-size: 1.35em; font-weight: 800; }

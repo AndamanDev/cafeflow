@@ -57,7 +57,7 @@ function seedData() {
     const modifierGroups = [
         { id: 'MG-SWEET',  nameTh: 'ระดับความหวาน', nameEn: 'Sweetness',  type: 'SINGLE', required: true },
         { id: 'MG-ICE',    nameTh: 'น้ำแข็ง', nameEn: 'Ice',         type: 'SINGLE', required: true },
-        { id: 'MG-ADDON',  nameTh: 'ท็อปปิ้งเพิ่ม', nameEn: 'Add-ons',   type: 'MULTI',  required: false },
+        { id: 'MG-ADDON',  nameTh: 'ท็อปปิ้งเพิ่ม', nameEn: 'Add-ons',   type: 'MULTI',  required: false, maxSelect: 3 },
         { id: 'MG-BEAN',   nameTh: 'เมล็ดกาแฟพิเศษ', nameEn: 'Coffee beans',  type: 'SINGLE', required: false },
         { id: 'MG-MATCHA', nameTh: 'เกรดมัทฉะ', nameEn: 'Matcha grade',       type: 'SINGLE', required: false },
     ];
@@ -76,10 +76,15 @@ function seedData() {
         /* ADD ON — ตามป้ายจริง */
         { id: 'MO-A-OAT',   groupId: 'MG-ADDON', nameTh: 'นมโอ๊ต', nameEn: 'Oat milk',              shortLabel: 'โอ๊ต',   priceDelta: 10, isDefault: false, sort: 1 },
         { id: 'MO-A-SODA',  groupId: 'MG-ADDON', nameTh: 'โซดา', nameEn: 'Soda',                shortLabel: 'โซดา',   priceDelta: 10, isDefault: false, sort: 2 },
-        { id: 'MO-A-SYRUP', groupId: 'MG-ADDON', nameTh: 'ไซรัป (สตรอว์เบอร์รี / วานิลลา / คาราเมล / บราวน์ชูการ์)', nameEn: 'Syrup (strawberry / vanilla / caramel / brown sugar)', shortLabel: 'ไซรัป', priceDelta: 20, isDefault: false, sort: 3 },
-        { id: 'MO-A-KONJ',  groupId: 'MG-ADDON', nameTh: 'บุกบราวน์ชูการ์ / บุกคาราเมล / เจลลี่', nameEn: 'Brown sugar konjac / caramel konjac / jelly',    shortLabel: 'บุก/เจลลี่', priceDelta: 20, isDefault: false, sort: 4 },
-        { id: 'MO-A-PALM',  groupId: 'MG-ADDON', nameTh: 'ตาลโตนด', nameEn: 'Toddy palm',             shortLabel: 'ตาลโตนด', priceDelta: 20, isDefault: false, sort: 5 },
-        { id: 'MO-A-SHOT',  groupId: 'MG-ADDON', nameTh: 'เพิ่มช็อตกาแฟ', nameEn: 'Extra espresso shot',       shortLabel: '+ช็อต',  priceDelta: 20, isDefault: false, sort: 6 },
+        { id: 'MO-A-SYRUP',    groupId: 'MG-ADDON', nameTh: 'ไซรัปสตรอว์เบอร์รี', nameEn: 'Strawberry syrup',   shortLabel: 'ไซรัปสตรอว์ฯ', priceDelta: 20, isDefault: false, sort: 3 },
+        { id: 'MO-A-SYR-VAN',  groupId: 'MG-ADDON', nameTh: 'ไซรัปวานิลลา',     nameEn: 'Vanilla syrup',      shortLabel: 'ไซรัปวานิลลา', priceDelta: 20, isDefault: false, sort: 4 },
+        { id: 'MO-A-SYR-CAR',  groupId: 'MG-ADDON', nameTh: 'ไซรัปคาราเมล',     nameEn: 'Caramel syrup',      shortLabel: 'ไซรัปคาราเมล', priceDelta: 20, isDefault: false, sort: 5 },
+        { id: 'MO-A-SYR-BRS',  groupId: 'MG-ADDON', nameTh: 'ไซรัปบราวน์ชูการ์', nameEn: 'Brown sugar syrup',  shortLabel: 'ไซรัปบราวน์ฯ', priceDelta: 20, isDefault: false, sort: 6 },
+        { id: 'MO-A-KONJ',     groupId: 'MG-ADDON', nameTh: 'บุกบราวน์ชูการ์',   nameEn: 'Brown sugar konjac', shortLabel: 'บุกบราวน์ฯ',   priceDelta: 20, isDefault: false, sort: 7 },
+        { id: 'MO-A-KONJ-CAR', groupId: 'MG-ADDON', nameTh: 'บุกคาราเมล',       nameEn: 'Caramel konjac',     shortLabel: 'บุกคาราเมล',   priceDelta: 20, isDefault: false, sort: 8 },
+        { id: 'MO-A-JELLY',    groupId: 'MG-ADDON', nameTh: 'เจลลี่',            nameEn: 'Jelly',              shortLabel: 'เจลลี่',        priceDelta: 20, isDefault: false, sort: 9 },
+        { id: 'MO-A-PALM',     groupId: 'MG-ADDON', nameTh: 'ตาลโตนด',          nameEn: 'Toddy palm',         shortLabel: 'ตาลโตนด',      priceDelta: 20, isDefault: false, sort: 10 },
+        { id: 'MO-A-SHOT',     groupId: 'MG-ADDON', nameTh: 'เพิ่มช็อตกาแฟ',      nameEn: 'Extra espresso shot', shortLabel: '+ช็อต',       priceDelta: 20, isDefault: false, sort: 11 },
 
         /* กาแฟพิเศษ SPECIAL COFFEE */
         { id: 'MO-B-STD',  groupId: 'MG-BEAN', nameTh: 'กาแฟไทย / ลาวพรีเมี่ยม (คั่วกลาง-เข้ม)', nameEn: 'Thai / Lao premium (medium-dark roast)', shortLabel: 'ไทย/ลาว', priceDelta: 0,  isDefault: true,  sort: 1 },

@@ -11,7 +11,12 @@
 const CFDocs = {
 
     /* ══════════════════════════════════════════════════════
-       ใบเสร็จรับเงิน — กระดาษม้วน
+       ใบเสร็จรับเงิน — กระดาษม้วน (ทางสำรองตอนยังไม่ได้ตั้งเครื่องพิมพ์)
+       ------------------------------------------------------
+       ⚠️ ต้องหน้าตาเดียวกับ receipt() ใน api/src/print/raster.js
+          ลูกค้าไม่ควรได้ใบเสร็จคนละแบบเพียงเพราะร้านยังไม่ได้ตั้งเครื่องพิมพ์
+          แก้ที่หนึ่งต้องแก้อีกที่
+       บรรทัดภาษีพิมพ์เฉพาะสาขาที่จด VAT — ไม่ได้จดแต่แสดงยอดภาษี = เรียกเก็บโดยไม่มีสิทธิ์
        ══════════════════════════════════════════════════════ */
     receiptRoll(orderId, width) {
         const narrow = width === '58mm';
@@ -22,70 +27,62 @@ const CFDocs = {
         const s = CFStore.settings();
         const items = CFOrders.items(orderId);
         const pay = CFOrders.payment(orderId);
-        const vat = o.total - (o.total / (1 + s.vatPercent / 100));
+        const row = (l, r, cls) =>
+            `<div class="cf-rc-row${cls ? ' ' + cls : ''}"><span>${l}</span><span>${r}</span></div>`;
 
-        /* ── หัวใบเสร็จ: 58 มม. ตัดที่อยู่ทิ้ง เหลือแค่ชื่อร้าน + เลขผู้เสียภาษี ── */
+        /* ── หัวใบเสร็จ: 58 มม. ตัดที่อยู่ทิ้ง ── */
         let html = '<div class="cf-rc-center">';
         html += `<div class="cf-rc-lg">${e(s.shopName)}</div>`;
-        if (!narrow) html += `<div class="cf-rc-sm">${e(s.branch)}</div><div class="cf-rc-sm">${e(s.address)}</div>`;
-        html += `<div class="cf-rc-sm">เลขประจำตัวผู้เสียภาษี ${e(s.taxId)}</div>`;
+        if (s.address && !narrow) html += `<div class="cf-rc-sm">${e(s.address)}</div>`;
+        if (s.taxId) html += `<div class="cf-rc-sm">เลขประจำตัวผู้เสียภาษี ${e(s.taxId)}</div>`;
+        html += '<div class="cf-rc-sp">ใบเสร็จรับเงิน</div>';
         html += '</div>';
         html += '<div class="cf-rc-hr"></div>';
 
-        html += `<div class="cf-rc-row"><span>เลขที่</span><span><b>${e(o.orderNo)}</b></span></div>`;
-        html += `<div class="cf-rc-row"><span>วันที่</span><span>${CFApp.date(o.createdAt)} ${CFApp.time(o.createdAt)}</span></div>`;
-        html += `<div class="cf-rc-row"><span>จุดสั่ง</span><span>${e(o.kioskId)}</span></div>`;
-        if (o.cashierId) {
-            html += `<div class="cf-rc-row"><span>พนักงาน</span><span>${e(CFApp.actorName(o.cashierId))}</span></div>`;
-        }
+        html += row('เลขที่', `<b>${e(o.orderNo)}</b>`);
+        html += row('วันที่', CFApp.dateTime((o.ts && o.ts.paidAt) || o.createdAt));
+        if (o.cashierId) html += row('พนักงาน', e(CFApp.actorName(o.cashierId)));
+        html += row('รับที่', o.diningOption === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน');
         html += '<div class="cf-rc-hr"></div>';
 
         /* ── รายการสินค้า ──────────────────────────────────
-           80 มม. : ชื่อ ... x2 ... 120.00  แถวเดียว
-           58 มม. : ชื่อขึ้นบรรทัดเอง แล้ว x2 / ราคา อยู่บรรทัดถัดไป */
+           80 มม. : ชื่อ ×2 ... 120.00  แถวเดียว
+           58 มม. : ชื่อขึ้นบรรทัดเอง แล้ว 2 × ราคา อยู่บรรทัดถัดไป */
         items.forEach((it) => {
             const amount = CFApp.money(it.unitPrice * it.qty);
             const nm = e(it.nameSnapshot) + e(CFApp.serveSuffix(it.serveType));
             if (narrow) {
                 html += `<div class="cf-rc-name">${nm}</div>`;
-                html += `<div class="cf-rc-row"><span class="cf-rc-sm">x${it.qty} @ ${CFApp.money(it.unitPrice)}</span><span>${amount}</span></div>`;
+                html += row(`&nbsp;&nbsp;${it.qty} × ${CFApp.money(it.unitPrice)}`, amount);
             } else {
-                html += `<div class="cf-rc-row"><span class="cf-rc-name">${nm} x${it.qty}</span><span>${amount}</span></div>`;
+                html += row(`<span class="cf-rc-name">${nm} ×${it.qty}</span>`, amount);
             }
-            // ใบเสร็จลูกค้าใช้ตัวย่อได้เมื่อกระดาษแคบ — สลิปครัวห้าม (ดู kitchenSlipRoll)
-            if (it.mods && it.mods.length) {
-                html += `<div class="cf-rc-mod">${e(CFApp.modsText(it, narrow))}</div>`;
-            }
+            // ใบเสร็จลูกค้าใช้ตัวย่อได้ — สลิปครัวห้าม (ดู kitchenSlipRoll)
+            const mods = (it.mods || []).map((m) => m.shortLabel || m.label).filter(Boolean);
+            if (mods.length) html += `<div class="cf-rc-mod">${e(mods.join(' · '))}</div>`;
         });
 
         html += '<div class="cf-rc-hr"></div>';
-        html += `<div class="cf-rc-row"><span>ยอดรวม</span><span>${CFApp.money(o.subtotal)}</span></div>`;
-        if (o.discount) html += `<div class="cf-rc-row"><span>ส่วนลด</span><span>-${CFApp.money(o.discount)}</span></div>`;
-        html += `<div class="cf-rc-row cf-rc-sm"><span>ภาษีมูลค่าเพิ่ม ${s.vatPercent}% (ในราคา)</span><span>${CFApp.money(vat)}</span></div>`;
-        html += `<div class="cf-rc-row cf-rc-lg"><span>สุทธิ</span><span>${CFApp.money(o.total)}</span></div>`;
-        html += '<div class="cf-rc-hr"></div>';
-
-        if (pay) {
-            if (pay.method === 'CASH') {
-                html += `<div class="cf-rc-row"><span>เงินสด</span><span>${CFApp.money(pay.received || o.total)}</span></div>`;
-                html += `<div class="cf-rc-row"><span>เงินทอน</span><span>${CFApp.money(pay.change || 0)}</span></div>`;
-            } else {
-                html += `<div class="cf-rc-row"><span>ชำระผ่าน QR</span><span>${e(pay.bank || '')}</span></div>`;
-                if (pay.ref) html += `<div class="cf-rc-row cf-rc-sm"><span>อ้างอิง</span><span>${e(pay.ref)}</span></div>`;
-            }
-            if (pay.overrideBy) {
-                html += `<div class="cf-rc-sm cf-rc-sp">* ยืนยันโดยพนักงาน: ${e(CFApp.actorName(pay.overrideBy))}</div>`;
-            }
+        html += row('รวมทั้งสิ้น', CFApp.baht(o.total), 'cf-rc-lg');
+        if (s.vatRegistered) {
+            // ?? ไม่ใช่ || — ร้านที่ตั้ง 0% (อัตราศูนย์) ต้องแสดง 0% ไม่ใช่ 7%
+            const rate = Number(s.vatPercent ?? 7);
+            const vat = o.total - o.total / (1 + rate / 100);
+            html += row(`ภาษีมูลค่าเพิ่ม ${rate}% (รวมในราคา)`, CFApp.money(vat), 'cf-rc-sm');
         }
 
-        /* ── เลขคิว — สิ่งที่ลูกค้าต้องอ่านจากระยะไกล ── */
-        html += '<div class="cf-rc-hr"></div>';
-        html += '<div class="cf-rc-center cf-rc-sp">';
-        html += '<div class="cf-rc-sm">หมายเลขรับสินค้า</div>';
-        html += `<div class="cf-rc-xl">${e(o.orderNo)}</div>`;
-        html += '</div>';
+        if (pay) {
+            html += '<div class="cf-rc-sp"></div>';
+            html += row(pay.method === 'CASH' ? 'เงินสด' : 'QR พร้อมเพย์', CFApp.baht(pay.amount));
+            if (pay.received != null) {
+                html += row('รับมา', CFApp.baht(pay.received));
+                html += row('เงินทอน', `<b>${CFApp.baht(pay.change)}</b>`);
+            }
+            if (pay.ref) html += `<div class="cf-rc-sm">อ้างอิง ${e(pay.ref)}</div>`;
+        }
 
-        html += '<div class="cf-rc-center cf-rc-sp cf-rc-sm">ขอบคุณที่ใช้บริการ</div>';
+        html += '<div class="cf-rc-hr"></div>';
+        html += '<div class="cf-rc-center">ขอบคุณที่ใช้บริการ</div>';
         if (o.reprintCount > 0) {
             html += `<div class="cf-rc-center cf-rc-sm">(พิมพ์ซ้ำครั้งที่ ${o.reprintCount})</div>`;
         }
@@ -118,7 +115,7 @@ const CFDocs = {
             html += '<div class="cf-rc-center cf-rc-sm">ไม่มีรายการของสถานีนี้</div>';
         }
         items.forEach((it) => {
-            html += `<div class="cf-rc-name" style="font-size:1.15em">${it.qty} x ${e(it.nameSnapshot)}${e(CFApp.serveSuffix(it.serveType))}</div>`;
+            html += `<div class="cf-rc-name cf-rc-item-lg">${it.qty} x ${e(it.nameSnapshot)}${e(CFApp.serveSuffix(it.serveType))}</div>`;
             // ⚠️ ครัวใช้ข้อมูลนี้ตัดสินใจผลิต — ต้องสะกดเต็มคำเสมอ แม้กระดาษ 58 มม.
             // การย่อ "หวาน 25%" เป็น "ห.25%" คือการแลกความถูกต้องกับกระดาษไม่กี่มิลลิเมตร
             (it.mods || []).forEach((m) => {
@@ -138,7 +135,7 @@ const CFDocs = {
     closingA4(shiftId) {
         const e = CFApp.esc;
         const s = CFStore.settings();
-        const shift = CFStore.byId('shifts', shiftId) || CFStore.openShift();
+        const shift = CFStore.byId('shifts', shiftId);   // ไม่เจอ = ไม่พิมพ์ ห้ามถอยไปใช้รอบที่เปิดอยู่
         if (!shift) return '<div class="ds-empty">ไม่พบรอบการขาย</div>';
 
         const k = CFKpi.summary(shift.id);
@@ -217,10 +214,10 @@ const CFDocs = {
        เพราะตารางหลายคอลัมน์ลงกระดาษกว้าง 48 มม. ไม่ได้
        ข้อมูลครบยังอยู่ในเวอร์ชัน A4
        ══════════════════════════════════════════════════════ */
-    closingRoll(shiftId, width) {
+    closingRoll(shiftId) {
         const e = CFApp.esc;
         const s = CFStore.settings();
-        const shift = CFStore.byId('shifts', shiftId) || CFStore.openShift();
+        const shift = CFStore.byId('shifts', shiftId);   // ไม่เจอ = ไม่พิมพ์ ห้ามถอยไปใช้รอบที่เปิดอยู่
         if (!shift) return '<div class="ds-empty">ไม่พบรอบการขาย</div>';
 
         const k = CFKpi.summary(shift.id);
@@ -307,13 +304,22 @@ const CFDocs = {
     },
 
     previewClosing(shiftId) {
-        CFPrint.preview({
+        const browser = {
             title: 'ใบสรุปปิดรอบการขาย',
             size: CFStore.settings().closingWidth || 'A4',
             sizes: ['58mm', '80mm', 'A4'],
             // กระดาษม้วนได้ฉบับย่อ A4 ได้ฉบับเต็ม — ตารางหลายคอลัมน์ลง 48 มม. ไม่ได้
-            build: (w) => (w === 'A4' ? CFDocs.closingA4(shiftId) : CFDocs.closingRoll(shiftId, w)),
+            build: (w) => (w === 'A4' ? CFDocs.closingA4(shiftId) : CFDocs.closingRoll(shiftId)),
             docRef: { type: 'closing', orderId: null },
+        };
+        const id = encodeURIComponent(shiftId);
+        CFPrint.previewServer({
+            title: browser.title,
+            previewPath: '/api/reports/shift/' + id + '/print-preview',
+            printPath: '/api/reports/shift/' + id + '/print',
+            fallback: browser,
+            // ฉบับเต็ม A4 มีแค่ทางเบราว์เซอร์ — ต้องเลือกได้เสมอ แม้ตั้งเครื่องพิมพ์ม้วนแล้ว
+            browserAlways: 'ฉบับเต็ม A4 / เบราว์เซอร์',
         });
     },
 };

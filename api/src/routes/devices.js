@@ -53,6 +53,67 @@ function tooManyFails(ip) {
     return n >= 10;
 }
 
+/**
+ * เครื่องที่กำลังค้างอยู่หน้าขอรหัสจับคู่ — เก็บในหน่วยความจำ (รีสตาร์ทแล้วหาย ไม่เป็นไร เครื่องถามซ้ำทุก 15 วิ)
+ * หน้าภาพรวมใช้เตือนว่า "เครื่องไหนหลุดการจับคู่" แทนที่จะเห็นแค่ว่าออฟไลน์
+ * key = IP ของเครื่อง · reason: NO_COOKIE (เบราว์เซอร์ไม่มีข้อมูลจับคู่) / REVOKED (มีแต่ใช้ไม่ได้แล้ว)
+ */
+const waits = new Map();
+const WAIT_TTL_MS = 60 * 1000;
+const PAGE_KIND = { kiosk: 'KIOSK', display: 'DISPLAY', kds: 'KDS' };
+
+function waitingList() {
+    const now = Date.now();
+    for (const [ip, w] of waits) if (now - w.at > WAIT_TTL_MS) waits.delete(ip);
+    return [...waits.values()].map((w) => ({
+        ip: w.ip, page: w.page, reason: w.reason, deviceId: w.deviceId,
+        since: new Date(w.since).toISOString(), at: new Date(w.at).toISOString(),
+    }));
+}
+
+/**
+ * ตัวเฝ้าสถานะอุปกรณ์ — เพิ่ม rev เฉพาะตอนสถานะที่หน้าภาพรวมเห็นเปลี่ยนจริง
+ * (ออนไลน์↔ออฟไลน์ · จับคู่/เลิกจับคู่ · เริ่ม/เลิกค้างหน้าขอรหัส)
+ *
+ * ทำไมต้องมี: CFStore วาดหน้าจอใหม่ก็ต่อเมื่อ rev เปลี่ยน แค่ publish() เฉย ๆ
+ * ทุกจอโหลดข้อมูลใหม่ทั้งก้อนแต่ไม่วาดอะไร — และ heartbeat ทุก 20 วิไม่ควรปลุกทุกจอ
+ * ส่วนการ "หลุดเป็นออฟไลน์" กับ "คำเตือนหมดอายุ" ไม่มี request มากระตุ้น จึงต้องเช็กเป็นรอบด้วย
+ */
+const WATCH_MS = 10 * 1000;
+let lastSig = null;
+let checking = Promise.resolve();
+
+async function deviceSignature(query, branchId, cutoffMs) {
+    const r = await query(
+        `SELECT id, pairing_token_hash IS NOT NULL AS paired,
+                COALESCE(last_seen_at > now() - ($2 || ' milliseconds')::interval, false) AS online
+           FROM device WHERE branch_id = $1 AND active ORDER BY id`,
+        [branchId, String(cutoffMs)]);
+    const devs = r.rows.map((d) => d.id + ':' + (d.paired ? 'P' : '-') + (d.online ? 'O' : '-'));
+    const ws = waitingList().map((w) => w.ip + ':' + w.page + ':' + w.reason + ':' + (w.deviceId || '')).sort();
+    return devs.join(',') + '|' + ws.join(',');
+}
+
+/** เช็กว่าสถานะเปลี่ยนไหม เปลี่ยนแล้วค่อย touch + publish — เรียกซ้อนกันได้ (ต่อคิวกันไป) */
+function checkDevices(query, branchId, id) {
+    checking = checking.then(async () => {
+        const { ONLINE_CUTOFF_MS } = require('./bootstrap');   // require ตรงนี้ กันวนกับ bootstrap.js
+        const sig = await deviceSignature(query, branchId, ONLINE_CUTOFF_MS);
+        if (sig === lastSig) return;
+        const first = lastSig == null;
+        lastSig = sig;
+        if (first) return;                                    // รอบแรกหลังสตาร์ทแค่จำไว้
+        await touch({ query }, branchId, 'devices', id || 'status', 'update');
+        publish(branchId, { entity: 'devices', op: 'update', id: id || null });
+    }).catch(() => {});
+    return checking;
+}
+
+function startDeviceWatch(query, branchId) {
+    checkDevices(query, branchId());
+    setInterval(() => checkDevices(query, branchId()), WATCH_MS).unref();
+}
+
 const STATIONS = ['BAR', 'KITCHEN', 'BAKERY', 'DESSERT'];
 
 /**
@@ -178,13 +239,14 @@ function registerDevices(app, deps) {
               WHERE id = $1`,
             [dev.id, sha(token), ip || null]);
 
+        waits.delete(ip);
         reply.setCookie(COOKIE, token, {
             httpOnly: true, sameSite: 'lax', path: '/',
             maxAge: TOKEN_DAYS * 24 * 3600,
             secure: process.env.CF_COOKIE_SECURE === '1',
         });
 
-        publish(branchId(), { entity: 'devices', op: 'update', id: dev.id });
+        await checkDevices(query, branchId(), dev.id);
         return { ok: true, deviceId: dev.id, name: dev.name_th, kind: dev.kind,
                  station: dev.assigned_station };
     }));
@@ -192,7 +254,29 @@ function registerDevices(app, deps) {
     /** เครื่องถามว่าตัวเองจับคู่อยู่กับอะไร — ใช้ตอน boot */
     app.get('/api/devices/me', handle(async (req) => {
         const dev = await currentDevice(query, req);
-        if (!dev) return { paired: false };
+        const ip = (req.ip || '').replace(/^::ffff:/, '');
+        if (!dev) {
+            // มี cookie แต่ใช้ไม่ได้ = ถูกจับคู่ใหม่ที่เครื่องอื่น / ถูกยกเลิก / ปิดใช้งาน
+            // ไม่มี cookie เลย = เบราว์เซอร์ล้างข้อมูล หรือเปิดคนละที่อยู่ (localhost กับ IP เป็นคนละ cookie)
+            const reason = req.cookies && req.cookies[COOKIE] ? 'REVOKED' : 'NO_COOKIE';
+            const page = PAGE_KIND[String((req.query || {}).page || '')] ? String(req.query.page) : null;
+            if (page && ip) {
+                // เดาว่าเป็นอุปกรณ์ตัวไหน จาก IP ที่เครื่องนั้นเคยใช้ (ชนิดต้องตรงกับหน้าที่เปิด)
+                const g = await query(
+                    `SELECT id FROM device
+                      WHERE branch_id = $1 AND active AND kind = $2
+                        AND (host(paired_ip) = $3 OR host(ip) = $3)
+                      ORDER BY last_seen_at DESC NULLS LAST LIMIT 1`,
+                    [branchId(), PAGE_KIND[page], ip]);
+                const prev = waits.get(ip);
+                waits.set(ip, { ip, page, reason, deviceId: g.rows[0] ? g.rows[0].id : null,
+                                since: prev ? prev.since : Date.now(), at: Date.now() });
+                // เพิ่งเริ่มค้าง → บอกหน้าภาพรวมทันที (ครั้งต่อ ๆ ไปแค่ต่ออายุ ตัวเฝ้าไม่เห็นความต่าง)
+                await checkDevices(query, branchId());
+            }
+            return { paired: false, reason, ip };
+        }
+        if (waits.delete(ip)) await checkDevices(query, branchId(), dev.id);
         return { paired: true, deviceId: dev.id, name: dev.name_th, kind: dev.kind,
                  station: dev.assigned_station };
     }));
@@ -284,9 +368,9 @@ function registerDevices(app, deps) {
               WHERE id = $1 AND branch_id = $2 RETURNING id`,
             [req.params.id, branchId()]);
         if (!r.rows.length) throw new ApiError(404, 'ไม่พบอุปกรณ์');
-        publish(branchId(), { entity: 'devices', op: 'update', id: req.params.id });
+        await checkDevices(query, branchId(), req.params.id);
         return { ok: true };
     }));
 }
 
-module.exports = { registerDevices, currentDevice, COOKIE, sha };
+module.exports = { registerDevices, currentDevice, COOKIE, sha, waitingList, checkDevices, startDeviceWatch };

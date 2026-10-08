@@ -99,6 +99,14 @@
         kioskIdleSec: 90,
         kioskDoneSec: 12,
     };
+    /** ค่าเริ่มต้นของจอแสดงคิว (ทีวี) — ตั้งจากปุ่ม ⚙ ในแถวจอคิวของตารางอุปกรณ์ */
+    const CF_DISPLAY_DEFAULTS = {
+        displayTheme: 'light',          // 'light' | 'dark' · บันทึกแล้วจอเปลี่ยนตามเอง
+        displayHighlights: true,        // ช่องเมนูแนะนำด้านขวา · ปิด = คิวเต็มจอ
+        displayHighlightSec: 7,         // วินาทีต่อเมนูแนะนำ (3–60)
+        displaySound: true,             // เสียงเรียกคิวเมื่อคิวพร้อม
+        displayTicker: '',              // ข้อความประกาศด้านล่างจอ · ว่าง = ไม่แสดง (≤ 200 ตัว)
+    };
     /** พรีเซ็ตขนาดจอ — พิกเซลเท่ากันแต่ขนาดกายภาพต่างกันเกือบ 1.5 เท่า */
     const CF_KIOSK_SIZES = [
         { in: '21"', scale: 1.25 }, { in: '24"', scale: 1.1 },
@@ -108,6 +116,6 @@
     return {
         CF_STATIONS, CF_SERVE, CF_SERVE_ORDER, CF_STATUS,
         CF_DINING, CF_DINING_MODES, CF_DINING_MODE,
-        CF_KIOSK_DEFAULTS, CF_KIOSK_SIZES,
+        CF_KIOSK_DEFAULTS, CF_KIOSK_SIZES, CF_DISPLAY_DEFAULTS,
     };
 });

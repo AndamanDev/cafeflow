@@ -82,7 +82,9 @@ async function ruleData(c, branchId) {
           WHERE g.branch_id = $1`, [branchId])).rows;
     const r = (await c.query('SELECT * FROM modifier_rule WHERE branch_id = $1', [branchId])).rows;
     return {
-        modifierGroups: g.map((x) => ({ id: x.id, nameTh: x.name_th, type: x.type, required: x.required })),
+        // maxSelect ต้องมาด้วย — ไม่งั้นตัวตรวจไม่เห็นเพดาน ยิง API ตรงก็เลือกท็อปปิ้งได้ไม่จำกัด
+        modifierGroups: g.map((x) => ({ id: x.id, nameTh: x.name_th, type: x.type, required: x.required,
+                                        maxSelect: x.max_select == null ? null : Number(x.max_select) })),
         modifierOptions: o.map((x) => ({
             id: x.id, groupId: x.group_id, nameTh: x.name_th, shortLabel: x.short_label,
             priceDelta: Number(x.price_delta), isDefault: x.is_default, sort: x.sort })),
@@ -189,15 +191,17 @@ async function createOrder(c, branchId, input, ctx) {
     const orderNo = 'A' + String(seq.rows[0].last_no).padStart(3, '0');
     const orderId = 'O-' + bdate.slice(2).replace(/-/g, '') + '-' + orderNo;
 
+    // ไม่มีรอบเปิด = ไม่รับออเดอร์ — ออเดอร์ที่ไม่มีรอบไม่เข้ายอดเงินสดของรอบไหนเลย ปิดรอบแล้วเงินไม่ตรง
     const shift = (await c.query(
         "SELECT id FROM shift WHERE branch_id = $1 AND status = 'OPEN'", [branchId])).rows[0];
+    if (!shift) throw new ApiError(409, 'ร้านยังไม่เปิดรอบการขาย — แจ้งพนักงาน');
 
     await c.query(
         `INSERT INTO cf_order (id, branch_id, order_no, business_date, client_uuid, shift_id,
                                kiosk_id, dining_option, status, payment_method,
                                subtotal, discount, total, rev)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'ORDER_CONFIRMED',$9,$10,0,$10,nextval('global_rev'))`,
-        [orderId, branchId, orderNo, bdate, clientUuid, shift ? shift.id : null,
+        [orderId, branchId, orderNo, bdate, clientUuid, shift.id,
          input.kioskId || null, input.diningOption === 'TAKE_AWAY' ? 'TAKE_AWAY' : 'DINE_IN',
          input.paymentMethod === 'QR' ? 'QR' : 'CASH', subtotal]);
 
@@ -615,6 +619,8 @@ function registerOrders(app, { pool, tx, query, branchId }) {
             return await fn(req, reply);
         } catch (err) {
             if (err instanceof ApiError) {
+                // บันทึกเหตุผลไว้ใน log — หน้าจอลูกค้าอาจไม่ได้แสดงข้อความนี้ ตามหาย้อนหลังไม่ได้
+                req.log.warn({ status: err.status, reason: err.message }, 'request rejected');
                 return reply.code(err.status).send({ error: err.message, ...err });
             }
             // unique violation จาก client_uuid / จ่ายซ้ำ — ตอบให้รู้เรื่อง ไม่ใช่ 500 เปล่า ๆ

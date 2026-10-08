@@ -195,6 +195,8 @@ body.cfk-landscape .cfk-attract { grid-template-columns: 1fr 1fr; align-items: c
     background: var(--primary); color: #fff; border-radius: 999px;
     font-size: calc(var(--u) * 2.8); font-weight: 700;
 }
+/* ยังไม่เปิดรอบ — ปุ่มเทา ไม่กระพริบ ให้รู้ว่าแตะแล้วไม่มีอะไรเกิดขึ้น */
+.cfk-attract-cta.cfk-attract-closed { background: var(--gray-400, #9ca3af); animation: none; }
 @keyframes cfk-breathe { 0%, 100% { opacity: 1 } 50% { opacity: .62 } }
 
 .cfk-attract-band { overflow: hidden; padding-bottom: calc(var(--u) * 2.4); }
@@ -462,43 +464,43 @@ body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); 
     overflow-y: auto; min-height: 0; padding: var(--pad);
     display: flex; flex-direction: column; gap: var(--gap);
 }
+/* แถวเดียวต่อรายการ (แบบใบเสร็จ): รูป | ชื่อ + ตัวเลือก + แก้ไข | จำนวน + ราคา */
 .cfk-cline {
-    display: grid; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.6);
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 1.2);
     background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r-lg);
 }
-.cfk-cline-top { display: flex; gap: calc(var(--u) * 1.4); align-items: flex-start; }
 .cfk-cline-thumb {
-    flex-shrink: 0; width: calc(var(--u) * 10); height: calc(var(--u) * 10);
+    width: calc(var(--u) * 8); height: calc(var(--u) * 8);
     border-radius: var(--r); overflow: hidden;
 }
 .cfk-cline-thumb .cfk-media { width: 100%; height: 100%; }
-.cfk-cline-info { flex: 1; min-width: 0; }
-.cfk-cline-name { font-size: calc(var(--u) * 2.2); font-weight: 700; color: var(--text); line-height: 1.25; }
-/* ตัวเลือกเป็นป้ายแยกชิ้น — อ่านทีละอย่างได้ ไม่ใช่ประโยคยาวคั่นด้วยจุด */
-.cfk-cline-mods { display: flex; flex-wrap: wrap; gap: calc(var(--u) * .5); margin-top: calc(var(--u) * .8); }
-.cfk-cline-mods span {
-    padding: calc(var(--u) * .3) calc(var(--u) * 1); border-radius: 999px;
-    background: var(--surface-2); color: var(--text-secondary);
-    font-size: calc(var(--u) * 1.45); font-weight: 600;
+/* ทั้งก้อนชื่อเป็นปุ่มแก้ไข — เป้าใหญ่ แตะตรงไหนก็ได้ */
+.cfk-cline-info {
+    display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--u) * .4);
+    min-width: 0; padding: 0; background: none; border: 0; text-align: left;
+    font: inherit; color: inherit; cursor: pointer;
+}
+.cfk-cline-name { font-size: calc(var(--u) * 2); font-weight: 700; color: var(--text); line-height: 1.25; }
+.cfk-cline-mods { font-size: calc(var(--u) * 1.5); color: var(--text-muted); line-height: 1.4; }
+.cfk-cline-edit {
+    display: inline-flex; align-items: center; gap: calc(var(--u) * .4);
+    font-size: calc(var(--u) * 1.45); font-weight: 700; color: var(--primary-dark);
+}
+.cfk-cline-edit .cfk-ic { width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6); }
+.cfk-cline-info:active .cfk-cline-name { color: var(--primary-dark); }
+.cfk-cline-end {
+    display: flex; flex-direction: column; align-items: flex-end; gap: calc(var(--u) * .6);
 }
 .cfk-cline-amt {
-    flex-shrink: 0; font-size: calc(var(--u) * 2.4); font-weight: 800; color: var(--text);
+    font-size: calc(var(--u) * 2.2); font-weight: 800; color: var(--text);
     font-variant-numeric: tabular-nums;
 }
-.cfk-cline-act {
-    display: flex; align-items: center; justify-content: space-between; gap: var(--gap);
-    padding-top: calc(var(--u) * 1.2); border-top: 0.8px solid var(--border-light);
-}
-.cfk-cline .cfk-qty button { width: calc(var(--u) * 5.6); height: calc(var(--u) * 5.6); }
+.cfk-cline .cfk-qty { gap: calc(var(--u) * .5); }
+.cfk-cline .cfk-qty button { width: calc(var(--u) * 5); height: calc(var(--u) * 5); border-radius: 50%; }
+.cfk-cline .cfk-qty output { min-width: calc(var(--u) * 3); font-size: calc(var(--u) * 2.2); }
 .cfk-cline .cfk-qty button.is-del { color: var(--status-danger); border-color: #FFC9CE; }
-.cfk-cline-edit {
-    display: inline-flex; align-items: center; gap: calc(var(--u) * .6);
-    min-height: calc(var(--u) * 5.6); padding: 0 calc(var(--u) * 2);
-    background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r);
-    font: inherit; font-size: calc(var(--u) * 1.6); font-weight: 700; color: var(--text); cursor: pointer;
-}
-.cfk-cline-edit .cfk-ic { width: calc(var(--u) * 2); height: calc(var(--u) * 2); }
-.cfk-cline-edit:active, .cfk-cline .cfk-qty button:active { background: var(--brand-bg); }
+.cfk-cline .cfk-qty button:active { background: var(--brand-bg); }
 .cfk-cart-clear {
     align-self: center; display: inline-flex; align-items: center; gap: calc(var(--u) * .6);
     min-height: calc(var(--u) * 5); padding: 0 calc(var(--u) * 1.6); margin-top: calc(var(--u) * .4);
@@ -530,27 +532,39 @@ body.cfk-landscape .cfk-item > .cfk-actionbar { grid-column: 1 / -1; }
 /* ห้ามเลื่อน — ตัวเลือกทั้งหมดต้องอยู่ในจอเดียว เนื้อหาที่ยาวเกินถูกย่อด้วย CFKiosk.fitItem() */
 .cfk-item-scroll { overflow: hidden; min-height: 0; padding: calc(var(--u) * 1.2) var(--pad) 0; }
 .cfk-item-fit { padding-bottom: calc(var(--u) * 1.2); }
-/* จอแนวตั้ง: ไม่มีรูปใหญ่ — ใช้แถวรูปเล็ก + ชื่อ (.cfk-item-head) แทน พื้นที่ที่เหลือเป็นของตัวเลือก */
+/* จอแนวตั้ง: ไม่มีคอลัมน์รูปด้านซ้าย — ใช้รูปเต็มความกว้าง (.cfk-item-banner) เหนือชื่อแทน */
 body.cfk-portrait .cfk-item-left { display: none; }
 
 .cfk-hero { width: 100%; border-radius: calc(var(--u) * 1.6); overflow: hidden; }
 body.cfk-landscape .cfk-hero { aspect-ratio: 1 / 1; }
 .cfk-hero .cfk-media { width: 100%; height: 100%; }
 
-/* หัวสินค้า — การ์ดขาว รูป · ชื่อ · ราคา */
+/* จอแนวตั้ง: รูปเต็มความกว้างเหนือชื่อ — contain ให้เห็นรูปครบทั้งใบ ไม่ถูกครอปหัวท้าย */
+.cfk-item-banner {
+    width: 100%; height: calc(var(--u) * 24);
+    border-radius: calc(var(--u) * 1.6); overflow: hidden;
+}
+.cfk-item-banner .cfk-media { width: 100%; height: 100%; }
+.cfk-item-banner .cfk-img { object-fit: contain; }
+.cfk-item-banner .cfk-art { width: auto; height: 70%; }
+body.cfk-landscape .cfk-item-banner { display: none; }
+
+/* ชื่อ · ราคา ใต้รูป */
 .cfk-item-head {
-    display: flex; align-items: center; gap: calc(var(--u) * 1.4);
-    padding: calc(var(--u) * 1.2); background: #fff;
-    border: 0.8px solid var(--brand-border); border-radius: var(--r-lg);
+    display: flex; align-items: flex-start; gap: calc(var(--u) * 1.4);
+    margin-top: calc(var(--u) * 1.2);
 }
 .cfk-item-head-text { min-width: 0; flex: 1; }
+.cfk-item-head .cfk-item-en { margin-bottom: 0; }
 .cfk-item-price { flex-shrink: 0; font-size: calc(var(--u) * 2.4); font-weight: 800; color: var(--text); }
-.cfk-item-thumb {
-    flex-shrink: 0; width: calc(var(--u) * 10); height: calc(var(--u) * 10);
-    border-radius: calc(var(--u) * 1.2); overflow: hidden;
+
+/* แถวจำนวน — ท้ายรายการตัวเลือก ปุ่ม − / + ชิดขวา */
+.cfk-item-qtyrow {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: calc(var(--u) * 1.8);
 }
-.cfk-item-thumb .cfk-media { width: 100%; height: 100%; }
-body.cfk-landscape .cfk-item-thumb { display: none; }
+.cfk-item-qtyrow > b { font-size: calc(var(--u) * 1.9); font-weight: 700; color: #111; }
+.cfk-item-qtyrow .cfk-qty button { border-radius: 50%; }
 .cfk-item-name { font-size: calc(var(--u) * 2.4); font-weight: 700; color: #111; line-height: 1.2; }
 .cfk-item-en   { font-size: calc(var(--u) * 1.5); color: var(--text-light);
                  margin-bottom: calc(var(--u) * .4); }
@@ -595,8 +609,9 @@ body.cfk-landscape .cfk-item-thumb { display: none; }
     font-size: calc(var(--u) * 1.6); font-weight: 600; color: #111; line-height: 1.3;
     transition: border-color .12s, background .12s;
 }
-.cfk-opts-short .cfk-opt { align-items: center; text-align: center; }
 .cfk-opt b { flex-shrink: 0; font-size: calc(var(--u) * 1.4); font-weight: 600; color: var(--text-muted); }
+/* กลุ่มครบเพดานแล้ว — ยังแตะได้ (ขึ้นข้อความบอก) แต่ดูออกว่าเลือกเพิ่มไม่ได้ */
+.cfk-opt.is-full { opacity: .4; }
 /* ที่เลือกอยู่ต้องเห็นชัดจากระยะยืน — ขอบเขียวหนา พื้นเขียวอ่อน และวงเครื่องหมายถูกที่มุม */
 .cfk-opt.active { background: var(--primary-bg); border-color: var(--primary);
                   color: var(--primary-dark); font-weight: 700; }
@@ -607,10 +622,6 @@ body.cfk-landscape .cfk-item-thumb { display: none; }
     background: var(--primary); color: #fff; font-size: calc(var(--u) * 1.3); font-weight: 800;
     box-shadow: 0 0 0 2px #fff;
 }
-/* แถบบอกระดับ (ความหวาน) — สูงขึ้นทีละขั้น ขั้นที่ถึงแล้วเป็นสีเขียว */
-.cfk-level { display: flex; align-items: flex-end; gap: calc(var(--u) * .3); height: calc(var(--u) * 1.8); }
-.cfk-level i { width: calc(var(--u) * .7); border-radius: 2px; background: var(--brand-border); }
-.cfk-level i.on { background: var(--primary); }
 .cfk-optgroup.is-missing .cfk-optgroup-head b { color: var(--status-danger); }
 .cfk-optgroup.is-missing .cfk-opt { border-color: #FFC9CE; }
 
@@ -630,7 +641,7 @@ body.cfk-landscape .cfk-item-thumb { display: none; }
 .cfk-serve.active { background: var(--primary); border-color: var(--primary); }
 .cfk-serve.active b, .cfk-serve.active small { color: #fff; }
 
-/* จำนวนอยู่ในแถบปุ่มล่าง ระหว่าง "ยกเลิก" กับ "เพิ่มลงตะกร้า" — ไม่กินแถวในพื้นที่ตัวเลือก */
+/* ปุ่มจำนวน (หน้าเลือกตัวเลือก: .cfk-item-qtyrow · ตะกร้า: .cfk-cline) */
 .cfk-qty { display: flex; align-items: center; gap: calc(var(--u) * .8); flex-shrink: 0; }
 .cfk-qty button {
     width: calc(var(--u) * 6); height: calc(var(--u) * 6); cursor: pointer;

@@ -116,6 +116,18 @@ async function saveSettings(c, branchId, body, ctx) {
     for (const [key, value] of Object.entries(body || {})) {
         if (value === undefined) continue;
         if (key === 'branch' || key === 'vatPercent' || key === 'vatRegistered') continue;
+        if (key === 'displayTheme' && value !== 'light' && value !== 'dark') {
+            throw new ApiError(400, 'ธีมจอแสดงคิวต้องเป็น light หรือ dark');
+        }
+        if ((key === 'displayHighlights' || key === 'displaySound') && typeof value !== 'boolean') {
+            throw new ApiError(400, 'ค่าเปิด/ปิดของจอแสดงคิวไม่ถูกต้อง');
+        }
+        if (key === 'displayHighlightSec' && !(Number.isInteger(value) && value >= 3 && value <= 60)) {
+            throw new ApiError(400, 'เวลาสลับเมนูแนะนำต้องเป็น 3–60 วินาที');
+        }
+        if (key === 'displayTicker' && (typeof value !== 'string' || value.trim().length > 200)) {
+            throw new ApiError(400, 'ข้อความประกาศยาวได้ไม่เกิน 200 ตัวอักษร');
+        }
 
         if (BRANCH_KEYS[key]) {
             await c.query(`UPDATE branch SET ${BRANCH_KEYS[key]} = $2 WHERE id = $1`,
@@ -152,6 +164,62 @@ async function saveSettings(c, branchId, body, ctx) {
    ══════════════════════════════════════════════════════════════════ */
 
 /**
+ * สร้างรอบใหม่ (OPEN) แล้วยกออเดอร์ที่ยังไม่ชำระเข้ารอบนี้ — ใช้ทั้งตอนปิดรอบและตอนเปิดรอบเอง
+ * ไม่ touch/audit ให้ — ผู้เรียกเป็นคนบันทึก เพราะเหตุผลต่างกัน
+ */
+async function insertShift(c, branchId, openingCash, ctx) {
+    const bdate = businessDate();
+    const n = Number((await c.query(
+        'SELECT count(*)::int AS n FROM shift WHERE branch_id = $1 AND business_date = $2',
+        [branchId, bdate])).rows[0].n) + 1;
+    const id = 'SH-' + bdate.replace(/-/g, '') + '-' + String(n).padStart(2, '0');
+
+    await c.query(
+        `INSERT INTO shift (id, branch_id, business_date, opened_at, opened_by,
+                            opening_cash, status)
+         VALUES ($1,$2,$3,now(),$4,$5,'OPEN')`,
+        [id, branchId, bdate, ctx.actorUserId || null, openingCash]);
+
+    // ออเดอร์ที่ยังไม่ได้ชำระ (รวมที่ค้างจากรอบ/วันก่อน) ยกไปรอบใหม่ —
+    // เงินสดคิดตาม shift_id ของออเดอร์ ถ้าทิ้งไว้รอบเก่า ลูกค้ามาจ่ายทีหลัง เงินจะไม่เข้า "เงินสดที่ควรมี" ของรอบที่รับเงินจริง
+    // ออเดอร์ที่ชำระแล้วอยู่รอบเดิม เพราะเงินถูกนับในรอบนั้นไปแล้ว
+    const carried = (await c.query(
+        `UPDATE cf_order SET shift_id = $2, rev = nextval('global_rev'), updated_at = now()
+          WHERE branch_id = $1 AND shift_id IS DISTINCT FROM $2
+            AND status IN ('DRAFT','ORDER_CONFIRMED','WAITING_CASH','WAITING_PAYMENT',
+                           'PAYMENT_TIMEOUT','PAYMENT_REVIEW','PAYMENT_FAILED')
+          RETURNING id`, [branchId, id])).rows.map((r) => r.id);
+    return { id, carried };
+}
+
+/**
+ * เปิดรอบเอง — ใช้ตอนยังไม่มีรอบเปิดอยู่เลย (ร้านเพิ่งติดตั้ง / ล้างข้อมูลทดสอบ)
+ * ปกติไม่ต้องใช้ เพราะปิดรอบแล้วระบบเปิดรอบใหม่ให้ทันที
+ */
+async function openShift(c, branchId, body, ctx) {
+    const cash = Number(body.openingCash);
+    if (body.openingCash === '' || body.openingCash == null || !isFinite(cash) || cash < 0) {
+        throw new ApiError(400, 'ต้องกรอกเงินตั้งต้นในลิ้นชัก (0 ขึ้นไป)');
+    }
+    // ล็อกสาขาไว้ก่อน — กดเปิดรอบพร้อมกันสองเครื่องต้องได้รอบเดียว
+    await c.query('SELECT id FROM branch WHERE id = $1 FOR UPDATE', [branchId]);
+    const open = (await c.query(
+        "SELECT id FROM shift WHERE branch_id = $1 AND status = 'OPEN'", [branchId])).rows[0];
+    if (open) throw new ApiError(409, 'มีรอบ ' + open.id + ' เปิดอยู่แล้ว');
+
+    const { id, carried } = await insertShift(c, branchId, cash, ctx);
+    await audit(c, branchId, {
+        eventType: 'SHIFT_OPEN', actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
+        deviceId: ctx.deviceId, ip: ctx.ip,
+        reason: `เปิดรอบ ${id} · เงินตั้งต้น ${cash.toFixed(2)}`,
+        payload: { shiftId: id, openingCash: cash, carriedOver: carried },
+    });
+    await touch(c, branchId, 'shifts', id, 'insert');
+    for (const oid of carried) await touch(c, branchId, 'orders', oid, 'update');
+    return { ok: true, shiftId: id, carriedOver: carried.length };
+}
+
+/**
  * ปิดรอบแล้วเปิดรอบใหม่ — ต้องอยู่ในทรานแซกชันเดียวกัน
  * ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้จนกว่าจะมีคนเข้าไปแก้ฐาน
  *
@@ -165,7 +233,7 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
     if (s.status !== 'OPEN') throw new ApiError(409, 'รอบนี้ปิดไปแล้ว');
 
     const actual = Number(body.actualCash);
-    if (!isFinite(actual)) throw new ApiError(400, 'ต้องกรอกยอดเงินสดที่นับได้จริง');
+    if (!isFinite(actual) || actual < 0) throw new ApiError(400, 'ต้องกรอกยอดเงินสดที่นับได้จริง');
 
     // เงินสดที่ควรมีคิดจากฐาน ไม่เชื่อตัวเลขที่หน้าจอส่งมา
     const cash = Number((await c.query(
@@ -181,29 +249,20 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
         [shiftId, ctx.actorUserId || null, actual, expected]);
 
     // เปิดรอบใหม่ทันที เงินตั้งต้นคือเงินที่นับได้จริง
-    const bdate = businessDate();
-    const n = Number((await c.query(
-        'SELECT count(*)::int AS n FROM shift WHERE branch_id = $1 AND business_date = $2',
-        [branchId, bdate])).rows[0].n) + 1;
-    const newId = 'SH-' + bdate.replace(/-/g, '') + '-' + String(n).padStart(2, '0');
-
-    await c.query(
-        `INSERT INTO shift (id, branch_id, business_date, opened_at, opened_by,
-                            opening_cash, status)
-         VALUES ($1,$2,$3,now(),$4,$5,'OPEN')`,
-        [newId, branchId, bdate, ctx.actorUserId || null, actual]);
+    const { id: newId, carried } = await insertShift(c, branchId, actual, ctx);
 
     await audit(c, branchId, {
         eventType: 'SHIFT_CLOSE', actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
         deviceId: ctx.deviceId, ip: ctx.ip,
         reason: `ปิดรอบ ${shiftId} · ผลต่าง ${(actual - expected).toFixed(2)}`,
-        payload: { shiftId, expected, actual, cashSales: cash, nextShift: newId },
+        payload: { shiftId, expected, actual, cashSales: cash, nextShift: newId, carriedOver: carried },
     });
     await touch(c, branchId, 'shifts', shiftId, 'update');
     await touch(c, branchId, 'shifts', newId, 'insert');
+    for (const id of carried) await touch(c, branchId, 'orders', id, 'update');
 
     return { ok: true, closed: shiftId, expected, actual,
-             difference: actual - expected, nextShift: newId };
+             difference: actual - expected, nextShift: newId, carriedOver: carried.length };
 }
 
 /* ══════════════════════════════════════════════════════════════════ */
@@ -242,14 +301,28 @@ function registerAdmin(app, deps) {
         const name = String(b.nameTh || '').trim();
         if (!name) throw new ApiError(400, 'ต้องระบุชื่อกลุ่ม');
 
+        // เพดานจำนวนที่เลือกได้ (กลุ่ม MULTI) — ไม่ส่งมา = คงเดิม · 0 = ไม่จำกัด
+        let max = null;
+        if (b.maxSelect != null && b.maxSelect !== '') {
+            max = Number(b.maxSelect);
+            if (!Number.isInteger(max) || max < 0 || max > 20) {
+                throw new ApiError(400, 'จำนวนที่เลือกได้สูงสุดต้องเป็นเลข 1–20 (เว้นว่าง = ไม่จำกัด)');
+            }
+        }
+
         await tx(async (c) => {
             const r = await c.query(
                 `UPDATE modifier_group SET name_th = $3,
-                        type = COALESCE($4, type), required = COALESCE($5, required)
+                        type = COALESCE($4, type), required = COALESCE($5, required),
+                        max_select = CASE
+                            WHEN COALESCE($4, type) = 'SINGLE' THEN NULL     -- เลือกได้ 1 อยู่แล้ว
+                            WHEN $6::int IS NULL THEN max_select
+                            WHEN $6::int = 0 THEN NULL
+                            ELSE $6::int END
                   WHERE id = $1 AND branch_id = $2 RETURNING id`,
                 [req.params.id, branchId(), name,
                  b.type === 'SINGLE' || b.type === 'MULTI' ? b.type : null,
-                 typeof b.required === 'boolean' ? b.required : null]);
+                 typeof b.required === 'boolean' ? b.required : null, max]);
             if (!r.rows.length) throw new ApiError(404, 'ไม่พบกลุ่มตัวเลือก');
             await audit(c, branchId(), {
                 eventType: 'PRODUCT_UPDATE', actorKind: ctx.actorKind,
@@ -275,7 +348,7 @@ function registerAdmin(app, deps) {
         const ctx = await context(req);
         requirePerm(ctx, 'SHIFT_CLOSE');
         const v = Number((req.body || {}).actualCash);
-        if (!isFinite(v)) throw new ApiError(400, 'ยอดเงินสดไม่ถูกต้อง');
+        if (!isFinite(v) || v < 0) throw new ApiError(400, 'ยอดเงินสดไม่ถูกต้อง');
         await tx(async (c) => {
             const r = await c.query(
                 `UPDATE shift SET actual_cash = $3 WHERE id = $1 AND branch_id = $2
@@ -287,6 +360,14 @@ function registerAdmin(app, deps) {
         return { ok: true };
     }));
 
+    app.post('/api/shifts/open', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'SHIFT_CLOSE');
+        const out = await tx((c) => openShift(c, branchId(), req.body || {}, ctx));
+        publish(branchId(), { entity: 'shifts', op: 'insert', id: out.shiftId });
+        return out;
+    }));
+
     app.post('/api/shifts/:id/close', handle(async (req) => {
         const ctx = await context(req);
         requirePerm(ctx, 'SHIFT_CLOSE');
@@ -296,4 +377,4 @@ function registerAdmin(app, deps) {
     }));
 }
 
-module.exports = { registerAdmin, saveProduct, archiveProduct, saveSettings, closeShift };
+module.exports = { registerAdmin, saveProduct, archiveProduct, saveSettings, closeShift, openShift };

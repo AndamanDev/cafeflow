@@ -83,6 +83,9 @@
             const picked = arr(mods).filter((m) => m.groupId === g.id);
             if (g.required && picked.length === 0) problems.push('ต้องเลือก "' + g.nameTh + '"');
             if (g.type === 'SINGLE' && picked.length > 1) problems.push('"' + g.nameTh + '" เลือกได้อย่างเดียว');
+            if (g.type === 'MULTI' && g.maxSelect && picked.length > g.maxSelect) {
+                problems.push('"' + g.nameTh + '" เลือกได้สูงสุด ' + g.maxSelect + ' อย่าง');
+            }
         });
         return problems;
     }

@@ -231,7 +231,10 @@ function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   ใบเสร็จรับเงิน — ร้านยังไม่จด VAT จึงไม่มีบรรทัดภาษี
+   ใบเสร็จรับเงิน
+   บรรทัดภาษีพิมพ์เฉพาะสาขาที่จด VAT (branch.vat_registered)
+   ร้านที่ไม่ได้จดแต่ออกใบที่แสดงยอดภาษี = เรียกเก็บภาษีโดยไม่มีสิทธิ์
+   ⚠️ แม่แบบเดียวกับ CFDocs.receiptRoll (ทางสำรองผ่านเบราว์เซอร์) — แก้ที่หนึ่งต้องแก้อีกที่
    ══════════════════════════════════════════════════════════════════ */
 function receipt({ order, items, payment, branch, width = '80mm', cashier, dots }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
@@ -270,6 +273,12 @@ function receipt({ order, items, payment, branch, width = '80mm', cashier, dots 
 
     s.rule();
     s.row('รวมทั้งสิ้น', '฿' + money(order.total), { size: base + 6, bold: true });
+    if (branch.vat_registered) {
+        // ?? ไม่ใช่ || — ร้านที่ตั้ง 0% (อัตราศูนย์) ต้องพิมพ์ 0% ไม่ใช่ 7%
+        const rate = Number(branch.vat_percent ?? 7);
+        const vat = Number(order.total) - Number(order.total) / (1 + rate / 100);
+        s.row(`ภาษีมูลค่าเพิ่ม ${rate}% (รวมในราคา)`, money(vat), { size: narrow ? 17 : 18 });
+    }
     if (payment) {
         s.gap(4);
         s.row(payment.method === 'CASH' ? 'เงินสด' : 'QR พร้อมเพย์', '฿' + money(payment.amount), { size: base });
@@ -333,6 +342,57 @@ function kioskTicket({ order, items, branch, kind, width = '80mm', dots }) {
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   ใบสรุปปิดรอบ (§27) — ฉบับกระดาษม้วน
+   ตัดตารางสินค้าขายดีและ KPI ออก (ฉบับเต็มอยู่ใน A4 ของเบราว์เซอร์)
+   ⚠️ แม่แบบเดียวกับ CFDocs.closingRoll — แก้ที่หนึ่งต้องแก้อีกที่
+   ══════════════════════════════════════════════════════════════════ */
+function closingSlip({ shift, summary: k, cash: cc, branch, staff, width = '80mm', dots }) {
+    const W = dots || WIDTH[width] || WIDTH['80mm'];
+    const narrow = W < 500;
+    const s = createSheet(W);
+    const base = narrow ? 21 : 23;
+    const blank = '________';
+
+    s.line(branch.name_th, { size: narrow ? 26 : 30, bold: true, align: 'center' });
+    s.line('ใบสรุปปิดรอบการขาย', { size: base, align: 'center' });
+    if (shift.status === 'OPEN') s.line('(ยังไม่ปิดรอบ — ฉบับตัวอย่าง)', { size: 17, align: 'center' });
+    s.rule();
+
+    s.row('รหัสรอบ', shift.id, { size: base });
+    s.row('เปิดรอบ', dateTime(shift.opened_at), { size: base });
+    s.row('ปิดรอบ', shift.closed_at ? dateTime(shift.closed_at) : '—', { size: base });
+    s.row('ผู้รับผิดชอบ', staff || '—', { size: base });
+    s.rule({ dashed: true });
+
+    s.row('ยอดขายเงินสด', money(k.cash), { size: base });
+    s.row('ยอดขาย QR', money(k.qr), { size: base });
+    s.row('จำนวนบิล', String(k.orderCount), { size: base });
+    s.row('ยอดขายรวม', '฿' + money(k.sales), { size: base + 4, bold: true });
+    s.rule({ dashed: true });
+
+    s.row(`ยกเลิก (${k.cancelledCount})`, money(k.cancelledAmount), { size: base });
+    s.row(`คืนเงิน (${k.refundedCount})`, money(k.refundedAmount), { size: base });
+    s.rule({ dashed: true });
+
+    s.line('การควบคุมเงินสด', { size: base, bold: true });
+    s.row('เงินตั้งต้น', money(cc.opening), { size: base });
+    s.row('ขายเงินสด', money(cc.cashSales), { size: base });
+    s.row('ควรมี', money(cc.expected), { size: base + 2, bold: true });
+    s.row('นับได้จริง', cc.actual == null ? blank : money(cc.actual), { size: base });
+    s.row('ผลต่าง', cc.difference == null ? blank : money(cc.difference), { size: base + 2, bold: true });
+    s.rule();
+
+    s.gap(10);
+    s.line('ลงชื่อผู้ปิดรอบ', { size: 18 });
+    s.gap(28);
+    s.rule({ dashed: true });
+    s.line('พิมพ์ ' + dateTime(Date.now()), { size: 17, align: 'center' });
+
+    const { canvas, height } = s.render();
+    return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
+}
+
 /**
  * บิตแมป 1 บิตที่จะส่งเข้าเครื่องพิมพ์ → PNG สำหรับพรีวิวบนจอ
  * ต้องวาดจาก "บิตแมป" ไม่ใช่จาก canvas ต้นฉบับ — พรีวิวจะได้เห็นเหมือนกระดาษจริง
@@ -355,4 +415,5 @@ function bitsToPng(bits, width, height) {
     return canvas.toBuffer('image/png');
 }
 
-module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket, fontFamily };
+module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket,
+                   closingSlip, fontFamily };

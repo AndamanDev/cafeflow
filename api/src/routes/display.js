@@ -12,6 +12,9 @@
 'use strict';
 const { ApiError } = require('./orders');
 
+/** ค่าตั้งที่จอคิวอ่านได้ — ตรงกับ CF_DISPLAY_DEFAULTS ใน shared/cf-consts.js */
+const DISPLAY_KEYS = ['displayTheme', 'displayHighlights', 'displayHighlightSec', 'displaySound', 'displayTicker'];
+
 /** เรียงตามเวลาที่เข้าครัว — คิวที่สั่งก่อนต้องอยู่ก่อน ไม่ใช่เรียงตามเลข */
 const SQL = `
     SELECT o.order_no, o.status, o.dining_option,
@@ -36,6 +39,11 @@ function registerDisplay(app, deps) {
         const rows = (await query(SQL, [branchId()])).rows;
         const branch = (await query('SELECT name_th FROM branch WHERE id = $1',
             [branchId()])).rows[0];
+        // อ่านเฉพาะค่าของจอคิว — endpoint นี้ห้ามส่งค่าตั้งทั้งก้อน (ดูหัวไฟล์)
+        const cfg = {};
+        (await query('SELECT key, value FROM app_setting WHERE branch_id = $1 AND key = ANY($2)',
+            [branchId(), DISPLAY_KEYS])).rows.forEach((r) => { cfg[r.key] = r.value; });
+        const sec = Number(cfg.displayHighlightSec);
 
         const preparing = [];
         const ready = [];
@@ -53,6 +61,15 @@ function registerDisplay(app, deps) {
 
         return {
             shopName: branch ? branch.name_th : 'CafeFlow',
+            display: {
+                theme: cfg.displayTheme === 'dark' ? 'dark' : 'light',
+                highlights: cfg.displayHighlights !== false,
+                highlightSec: Number.isInteger(sec) && sec >= 3 && sec <= 60 ? sec : 7,
+                sound: cfg.displaySound !== false,
+                ticker: typeof cfg.displayTicker === 'string' ? cfg.displayTicker.trim().slice(0, 200) : '',
+            },
+            // จอที่ยังเปิดโค้ดรุ่นก่อนอ่านคีย์นี้ — คงไว้จนทุกจอโหลดหน้าใหม่
+            displayTheme: cfg.displayTheme === 'dark' ? 'dark' : 'light',
             serverTime: new Date().toISOString(),
             preparing, ready,
         };

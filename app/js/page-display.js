@@ -11,16 +11,18 @@
  */
 const DisplayPage = {
 
-    state: { preparing: [], ready: [], highlights: [], shopName: '', hi: 0, lastReady: null },
+    state: { preparing: [], ready: [], highlights: [], shopName: '', hi: 0, lastReady: null,
+             cfg: { highlights: true, highlightSec: 7, sound: true, ticker: '' } },
 
     POLL_MS: 4000,          // สำรองเมื่อ SSE หลุด
-    HILIGHT_MS: 7000,       // เปลี่ยนเมนูแนะนำ
     FLASH_MS: 8000,         // ไฮไลต์คิวที่เพิ่งพร้อม
 
     /* ══════════════════════════════════════════════════════
        BOOT
        ══════════════════════════════════════════════════════ */
     async boot() {
+        // ใช้ธีมที่จำไว้ก่อน — หน้ากำลังเชื่อมต่อ/จับคู่จะได้ไม่กระพริบสีผิดตอนเปิด
+        try { this.applyTheme(localStorage.getItem('cfdTheme')); } catch { /* ไม่มี storage ก็ใช้โทนสว่าง */ }
         try {
             await this.refresh();
             this.loadHighlights();
@@ -41,13 +43,7 @@ const DisplayPage = {
         clearInterval(this._poll);
         this._poll = setInterval(() => this.refresh().catch(() => {}), this.POLL_MS);
 
-        clearInterval(this._rotate);
-        this._rotate = setInterval(() => {
-            if (this.state.highlights.length > 1) {
-                this.state.hi = (this.state.hi + 1) % this.state.highlights.length;
-                this.renderHighlight();
-            }
-        }, this.HILIGHT_MS);
+        this.startRotate();
 
         // เมนูแนะนำเปลี่ยนไม่บ่อย ดึงชั่วโมงละครั้งพอ
         clearInterval(this._hiTimer);
@@ -59,9 +55,75 @@ const DisplayPage = {
 
         // จอที่จับคู่แล้วต้องรายงานตัว ไม่งั้นหน้าภาพรวมจะขึ้นว่าออฟไลน์ตลอด
         clearInterval(this._beat);
+        CFApi.heartbeat().catch(() => {});
         this._beat = setInterval(() => CFApi.heartbeat().catch(() => {}), 20000);
         // ทีวีแขวนผนัง ไม่มีใครกด F5 ให้ — มีเวอร์ชันใหม่ก็โหลดใหม่เลย
         if (!this._ver) this._ver = CFApi.watchVersion(() => location.reload());
+    },
+
+    /** สลับเมนูแนะนำ — ความเร็วมาจากหน้าตั้งค่า (displayHighlightSec) */
+    startRotate() {
+        clearInterval(this._rotate);
+        this._rotate = setInterval(() => {
+            if (this.state.highlights.length > 1) {
+                this.state.hi = (this.state.hi + 1) % this.state.highlights.length;
+                this.renderHighlight();
+            }
+        }, (this.state.cfg.highlightSec || 7) * 1000);
+    },
+
+    /**
+     * ค่าตั้งของจอคิวจากหน้าตั้งค่า (ตั้งค่าจอแสดงคิว) — มากับ /api/display ทุกครั้ง
+     * บันทึกแล้ว SSE ปลุก refresh() จอจึงเปลี่ยนตามเองภายในไม่กี่วินาที
+     */
+    applyConfig(c) {
+        c = c || {};
+        this.applyTheme(c.theme);
+        const prevSec = this.state.cfg.highlightSec;
+        this.state.cfg = {
+            highlights: c.highlights !== false,
+            highlightSec: c.highlightSec || 7,
+            sound: c.sound !== false,
+            ticker: c.ticker || '',
+        };
+        document.body.classList.toggle('cfd-noad', !this.state.cfg.highlights);
+        if (this._rotate && prevSec !== this.state.cfg.highlightSec) this.startRotate();
+        this.renderTicker();
+    },
+
+    /**
+     * แถบข้อความประกาศล่างจอ — อยู่นอก #cfdStage เพราะ render() เขียนทับ stage ทุก 4 วิ
+     * ถ้าอยู่ข้างใน ตัววิ่งจะเริ่มใหม่ทุกครั้งที่ refresh
+     */
+    renderTicker() {
+        const text = this.state.cfg.ticker;
+        let bar = document.getElementById('cfdTicker');
+        if (!text) { if (bar) bar.hidden = true; return; }
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'cfdTicker';
+            bar.className = 'cfd-ticker';
+            bar.innerHTML = '<span></span>';
+            document.body.appendChild(bar);
+        }
+        bar.hidden = false;
+        const span = bar.firstElementChild;
+        if (span.textContent === text) return;       // เหมือนเดิม — ไม่แตะ ตัววิ่งจะได้ไม่สะดุด
+        span.textContent = text;
+        // วิ่งจากขวาไปซ้ายเสมอ — วัดความกว้างก่อนใส่คลาส (คลาสเติมระยะเริ่มต้นนอกจอ)
+        // ระยะทาง = ความกว้างข้อความ + ความกว้างจอ หารความเร็วคงที่ ข้อความสั้นยาวจึงวิ่งเร็วเท่ากัน
+        bar.classList.remove('is-scroll');
+        const px = span.offsetWidth + bar.clientWidth;
+        bar.style.setProperty('--dur', Math.max(8, Math.round(px / 120)) + 's');
+        void bar.offsetWidth;                         // ให้ animation เริ่มใหม่เมื่อเปลี่ยนข้อความ
+        bar.classList.add('is-scroll');
+    },
+
+    /** ธีมมาจากหน้าตั้งค่า (displayTheme) — บันทึกแล้ว SSE ปลุก refresh() จอเปลี่ยนเองภายในไม่กี่วินาที */
+    applyTheme(theme) {
+        const dark = theme === 'dark';
+        document.body.classList.toggle('cfd-dark', dark);
+        try { localStorage.setItem('cfdTheme', dark ? 'dark' : 'light'); } catch { /* ไม่เป็นไร */ }
     },
 
     async refresh() {
@@ -69,6 +131,7 @@ const DisplayPage = {
         const prevReady = new Set(this.state.ready.map((x) => x.orderNo));
 
         this.state.shopName = d.shopName;
+        this.applyConfig(d.display || { theme: d.displayTheme });
         this.state.preparing = d.preparing;
         this.state.ready = d.ready;
 
@@ -103,6 +166,7 @@ const DisplayPage = {
      *    จะเงียบตลอด จึงต้องมีปุ่ม "เปิดเสียง" ให้กดครั้งเดียวตอนติดตั้ง
      */
     ding() {
+        if (!this.state.cfg.sound) return;          // ร้านปิดเสียงไว้ในหน้าตั้งค่า
         const ctx = this._audio;
         if (!ctx || ctx.state !== 'running') return;
         const now = ctx.currentTime;
@@ -148,9 +212,11 @@ const DisplayPage = {
         const s = this.state;
         const soundOn = this._audio && this._audio.state === 'running';
 
-        const col = (title, list, cls) => `
+        // หัวคอลัมน์มีภาษาอังกฤษด้วย — ลูกค้าต่างชาติอ่านเลขคิวได้แต่ไม่รู้ว่าอยู่ฝั่งไหน
+        const col = (title, en, list, cls, empty) => `
             <section class="cfd-col ${cls}">
-                <h2 class="cfd-col-head">${title}
+                <h2 class="cfd-col-head">
+                    <span class="cfd-col-title"><i class="cfd-dot"></i>${title}<small>${en}</small></span>
                     <span class="cfd-col-count">${list.length}</span></h2>
                 <div class="cfd-nums">${
                     list.length
@@ -158,7 +224,7 @@ const DisplayPage = {
                                 ${this.esc(x.orderNo)}
                                 ${x.takeAway ? '<span class="cfd-away">กลับบ้าน</span>' : ''}
                             </div>`).join('')
-                        : '<div class="cfd-empty">—</div>'
+                        : `<div class="cfd-empty">${empty}</div>`
                 }</div>
             </section>`;
 
@@ -166,7 +232,7 @@ const DisplayPage = {
             <header class="cfd-top">
                 <div class="cfd-brand">${this.esc(s.shopName)}</div>
                 <div class="cfd-right">
-                    ${soundOn ? '' : `<button class="cfd-sound" onclick="DisplayPage.enableSound()">
+                    ${soundOn || !s.cfg.sound ? '' : `<button class="cfd-sound" onclick="DisplayPage.enableSound()">
                         🔔 เปิดเสียงเรียกคิว</button>`}
                     <div class="cfd-clock" id="cfdClock"></div>
                 </div>
@@ -174,8 +240,8 @@ const DisplayPage = {
 
             <div class="cfd-body">
                 <div class="cfd-queue">
-                    ${col('กำลังจัดเตรียม', s.preparing, 'is-prep')}
-                    ${col('พร้อมรับที่เคาน์เตอร์', s.ready, 'is-ready')}
+                    ${col('กำลังจัดเตรียม', 'Preparing', s.preparing, 'is-prep', 'ยังไม่มีคิว')}
+                    ${col('พร้อมรับที่เคาน์เตอร์', 'Ready for pickup', s.ready, 'is-ready', 'รอสักครู่นะคะ')}
                 </div>
                 <aside class="cfd-ad" id="cfdAd"></aside>
             </div>
@@ -234,8 +300,10 @@ const DisplayPage = {
     },
 
     showPair(msg) {
+        const why = CFApi.pairReasonText(this._me);
+        CFApi.keepWaiting('display');
         this.showBoot('จอนี้ยังไม่ได้จับคู่',
-            'ขอรหัสจับคู่ 6 หลักจากผู้จัดการ (หน้าภาพรวม › อุปกรณ์ในเครือข่าย)',
+            (why ? why + ' — ' : '') + 'ขอรหัสจับคู่ 6 หลักจากผู้จัดการ (หน้าภาพรวม › อุปกรณ์ในเครือข่าย)',
             `<div class="cfd-pair">
                 <input id="cfdCode" maxlength="6" autocomplete="off" placeholder="ABC123"
                        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')"
@@ -259,6 +327,7 @@ const DisplayPage = {
                 return;
             }
             window.CF_DEVICE_ID = r.deviceId;
+            CFApi.stopWaiting();
             this.boot();
         } catch (err) {
             msg.textContent = err.message || 'จับคู่ไม่สำเร็จ';
@@ -274,7 +343,8 @@ window.DisplayPage = DisplayPage;
 document.addEventListener('DOMContentLoaded', async () => {
     // ต้องรู้ก่อนว่าเราคือจอไหน เพื่อให้ heartbeat รายงานถูกเครื่อง
     try {
-        const me = await CFApi.get('/api/devices/me');
+        const me = await CFApi.deviceMe('display');
+        DisplayPage._me = me;
         if (me.paired) window.CF_DEVICE_ID = me.deviceId;
     } catch { /* ยังไม่จับคู่ — boot() จะพาไปหน้ากรอกรหัสเอง */ }
     DisplayPage.boot();

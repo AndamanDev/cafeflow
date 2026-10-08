@@ -311,7 +311,7 @@ const MenuPage = {
                 <div class="flex flex-between gap-md" style="align-items:center">
                     <div>
                         <strong style="font-size:14px">${e(g.nameTh)}</strong>
-                        <span class="sip-chip sip-chip-muted">${g.type === 'SINGLE' ? 'เลือกได้ 1' : 'เลือกได้หลายอย่าง'}</span>
+                        <span class="sip-chip sip-chip-muted">${g.type === 'SINGLE' ? 'เลือกได้ 1' : g.maxSelect ? 'เลือกได้สูงสุด ' + g.maxSelect : 'เลือกได้หลายอย่าง'}</span>
                         ${g.required ? '<span class="sip-chip sip-chip-active">บังคับ</span>' : ''}
                     </div>
                     <button type="button" class="btn btn-ghost btn-sm" onclick="MenuPage.openGroup('${g.id}')">
@@ -522,6 +522,12 @@ const MenuPage = {
                             onclick="MenuPage.setGroupType('MULTI')">เลือกได้หลายอย่าง</button>
                 </div>
             </div>
+            <!-- เพดานจำนวน — มีความหมายเฉพาะกลุ่มหลายอย่าง (setGroupType ซ่อน/แสดง) -->
+            <div class="sip-field" id="gMaxField" ${g.type === 'MULTI' ? '' : 'hidden'}>
+                <label class="sip-label">เลือกได้สูงสุด (อย่าง)</label>
+                <input class="sip-input" id="gMax" type="number" min="1" max="20" step="1"
+                       value="${g.maxSelect || ''}" placeholder="เว้นว่าง = ไม่จำกัด">
+            </div>
             <div class="sip-field">
                 <button type="button" class="ds-toggle ${g.required ? 'is-on' : ''}" id="gReq"
                         onclick="MenuPage.toggleGroupRequired()">
@@ -553,6 +559,8 @@ const MenuPage = {
         document.querySelectorAll('#gTypeBar .ds-seg').forEach((b, i) => {
             b.classList.toggle('active', ['SINGLE', 'MULTI'][i] === t);
         });
+        const f = document.getElementById('gMaxField');
+        if (f) f.hidden = t !== 'MULTI';
     },
 
     toggleGroupRequired() {
@@ -571,6 +579,13 @@ const MenuPage = {
 
         if (!name) { showToast('ต้องระบุชื่อกลุ่ม', 'error'); return; }
 
+        // เว้นว่าง = ไม่จำกัด (ส่ง 0 ให้เซิร์ฟเวอร์ล้างค่า)
+        const maxRaw = (document.getElementById('gMax') || {}).value || '';
+        const maxSelect = maxRaw.trim() === '' ? 0 : Number(maxRaw);
+        if (!Number.isInteger(maxSelect) || maxSelect < 0 || maxSelect > 20) {
+            showToast('เลือกได้สูงสุดต้องเป็นเลข 1–20 หรือเว้นว่าง', 'error'); return;
+        }
+
         const done = () => {
             this._groupType = null;
             this._groupRequired = null;
@@ -579,7 +594,7 @@ const MenuPage = {
         };
 
         CFStore.cmd('patch', '/api/modifier-groups/' + encodeURIComponent(id),
-            { nameTh: name, type, required: req })
+            { nameTh: name, type, required: req, maxSelect })
             .then(done)
             .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
     },
@@ -647,7 +662,7 @@ const MenuPage = {
                 : 'หมวด ' + (CFStore.byId('categories', r.categoryId) || {}).nameTh);
             return `<tr>
                 <td class="td-name">${e(g.nameTh)}</td>
-                <td class="td-sub">${g.type === 'SINGLE' ? 'เลือกได้ 1' : 'หลายอย่าง'}${g.required ? ' · บังคับ' : ''}</td>
+                <td class="td-sub">${g.type === 'SINGLE' ? 'เลือกได้ 1' : g.maxSelect ? 'สูงสุด ' + g.maxSelect : 'หลายอย่าง'}${g.required ? ' · บังคับ' : ''}</td>
                 <td class="td-sub">${opts.length} ตัวเลือก</td>
                 <td class="td-sub">${e(applies.join(', ')) || '—'}</td>
             </tr>`;

@@ -9,6 +9,7 @@
     "migrate": "npm --prefix api run migrate",
     "seed": "npm --prefix api run seed",
     "reset": "npm --prefix api run reset",
+    "clear-tx": "npm --prefix api run clear-tx --",
     "test": "npm --prefix api test"
   }
 }

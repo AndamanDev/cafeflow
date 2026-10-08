@@ -9,12 +9,18 @@ const DashPage = {
     render() {
         const e = CFApp.esc;
         const k = CFKpi.summary();
+
+        // ลิ้นชักอุปกรณ์เปิดอยู่ → วาดตารางใหม่ (จับคู่ / heartbeat แล้วสถานะต้องเปลี่ยนเอง ไม่ต้องปิดเปิดใหม่)
+        const devRows = document.getElementById('devRows');
+        if (devRows) { devRows.innerHTML = this.deviceRows() + this.unknownWaitRows(); refreshIcons(); }
+        this.renderDevWaits();
         const shift = CFStore.openShift();
 
-        document.getElementById('shiftLine').textContent =
+        // ไม่มีรอบเปิด = คีออสก์ไม่รับออเดอร์ — ชี้ทางไปเปิดรอบ
+        document.getElementById('shiftLine').innerHTML =
             shift
-                ? 'รอบ ' + shift.id + ' · เปิดเมื่อ ' + CFApp.time(shift.openedAt) + ' · ' + CFApp.dateFull(shift.openedAt)
-                : 'ยังไม่มีรอบการขายที่เปิดอยู่';
+                ? e('รอบ ' + shift.id + ' · เปิดเมื่อ ' + CFApp.time(shift.openedAt) + ' · ' + CFApp.dateFull(shift.openedAt))
+                : 'ยังไม่เปิดรอบการขาย — คีออสก์ยังไม่รับออเดอร์ · <a href="closing.html">ไปเปิดรอบ</a>';
 
         /* ── ยอดขาย ── */
         const kpi = (icon, value, label, critical) => `
@@ -100,9 +106,10 @@ const DashPage = {
     /* ══════════════════════════════════════════════════════
        DRAWER — อุปกรณ์ (§30)
        ══════════════════════════════════════════════════════ */
-    openDevices() {
+    /** แถวตารางอุปกรณ์ — render() เรียกซ้ำทุกครั้งที่ store เปลี่ยน สถานะจึงอัปเดตเองตอนลิ้นชักเปิดค้าง */
+    deviceRows() {
         const e = CFApp.esc;
-        const rows = CFStore.all('devices').map((d) => {
+        return CFStore.all('devices').map((d) => {
             const online = d.status === 'ONLINE';
             // จับคู่ได้เฉพาะเครื่องที่รับออเดอร์/แสดงผล — เครื่องพิมพ์ไม่ได้เปิดเบราว์เซอร์
             const page = this.devicePage(d.type);
@@ -114,18 +121,79 @@ const DashPage = {
                 </td>
                 <td>${d.assignedStation ? CFApp.stationChip(d.assignedStation) : '<span class="text-muted">—</span>'}</td>
                 <td class="cf-nowrap">${CFApp.time(d.lastSeen)}</td>
-                <td><span class="status-badge ${online ? 'active' : 'danger'}">${online ? 'ออนไลน์' : 'ออฟไลน์'}</span></td>
+                <td>${pairable ? this.pairStateHtml(d) : `<span class="status-badge ${online ? 'active' : 'danger'}">${online ? 'ออนไลน์' : 'ออฟไลน์'}</span>`}</td>
                 <td class="cf-nowrap">${pairable ? `
                     <button class="btn btn-outline btn-sm" onclick="DashPage.pairDevice('${d.id}')">
                         <i data-lucide="link" class="icon-sm"></i> จับคู่
                     </button>
+                    ${d.type === 'DISPLAY' ? `<button class="btn btn-outline btn-sm" title="ตั้งค่าจอแสดงคิว"
+                        onclick="DashPage.openDisplaySettings()"><i data-lucide="settings" class="icon-sm"></i></button>` : ''}
                     <a class="btn btn-outline btn-sm" href="${page}" target="_blank" rel="noopener"
                        title="เปิดหน้า ${page} ในแท็บใหม่">
                         <i data-lucide="external-link" class="icon-sm"></i> เปิดหน้า
                     </a>` : '<span class="text-muted">—</span>'}</td>
             </tr>`;
         }).join('');
+    },
 
+    /** เครื่องที่ค้างหน้าขอรหัสแต่เดาไม่ได้ว่าเป็นอุปกรณ์ตัวไหน — ต่อท้ายตารางให้เห็น */
+    unknownWaitRows() {
+        const e = CFApp.esc;
+        return CFStore.all('deviceWaits').filter((w) => !w.deviceId).map((w) => `<tr>
+                <td>
+                    <div class="td-name">เครื่องที่ยังไม่รู้จัก</div>
+                    <div class="td-sub">${e(w.ip)} · เปิดหน้า ${e(w.page)}</div>
+                </td>
+                <td><span class="text-muted">—</span></td>
+                <td class="cf-nowrap">${CFApp.time(w.at)}</td>
+                <td><span class="status-badge waiting">รอรหัสจับคู่</span>
+                    <div class="td-sub">ตั้งแต่ ${CFApp.time(w.since)}</div></td>
+                <td class="td-sub">กด "จับคู่" ที่อุปกรณ์ที่ต้องการให้เครื่องนี้เป็น</td>
+            </tr>`).join('');
+    },
+
+    /**
+     * สถานะการจับคู่ของเครื่องที่เปิดเบราว์เซอร์ (คีออสก์ / จอคิว / KDS)
+     * แยก "ปิดเครื่อง" ออกจาก "เปิดอยู่แต่หลุดการจับคู่" — สองอย่างนี้แก้คนละวิธี
+     */
+    pairStateHtml(d) {
+        const w = CFStore.all('deviceWaits').find((x) => x.deviceId === d.id);
+        const badge = (cls, label, sub) =>
+            `<span class="status-badge ${cls}">${label}</span>${sub ? `<div class="td-sub">${sub}</div>` : ''}`;
+        if (w) {
+            return badge('waiting', 'หลุดการจับคู่ · รอรหัส',
+                'ค้างตั้งแต่ ' + CFApp.time(w.since) + (w.reason === 'REVOKED' ? ' · สิทธิ์ถูกแทนที่/ยกเลิก' : ' · ข้อมูลเบราว์เซอร์หาย'));
+        }
+        if (!d.paired) return badge('inactive', 'ยังไม่จับคู่');
+        if (d.status === 'ONLINE') return badge('active', 'ใช้งานอยู่');
+        const mins = d.lastSeen ? Math.floor(CFApp.elapsedMin(d.lastSeen)) : null;
+        return badge('danger', 'ปิดเครื่อง / ไม่ส่งสัญญาณ',
+            mins == null ? 'ยังไม่เคยส่งสัญญาณ' : 'เงียบไป ' + (mins < 60 ? mins + ' นาที' : Math.floor(mins / 60) + ' ชม.'));
+    },
+
+    /** แถบเตือนบนหน้าภาพรวม — มีเครื่องค้างหน้าขอรหัสอยู่ */
+    renderDevWaits() {
+        const el = document.getElementById('devWaitBanner');
+        if (!el) return;
+        const waits = CFAuth.can('MENU_EDIT') ? CFStore.all('deviceWaits') : [];
+        if (!waits.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+        const e = CFApp.esc;
+        el.style.display = '';
+        el.innerHTML = waits.map((w) => {
+            const d = w.deviceId && CFStore.byId('devices', w.deviceId);
+            const who = d ? `<strong>${e(d.name)}</strong> (${e(d.id)})` : `<strong>เครื่องที่ IP ${e(w.ip)}</strong>`;
+            const btn = d
+                ? `<button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.pairDevice('${d.id}')">ขอรหัสใหม่</button>`
+                : `<button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.openDevices()">เลือกอุปกรณ์</button>`;
+            return `<div class="ds-warn" style="margin-bottom:6px">
+                ${who} หลุดการจับคู่ — ${d ? 'เครื่องที่ IP ' + e(w.ip) : 'เปิดหน้า ' + e(w.page)} ค้างหน้าขอรหัสตั้งแต่ ${CFApp.time(w.since)}
+                (${w.reason === 'REVOKED' ? 'สิทธิ์ถูกแทนที่หรือถูกยกเลิก' : 'ข้อมูลในเบราว์เซอร์หาย หรือเปิดคนละที่อยู่'})
+                ${btn}
+            </div>`;
+        }).join('');
+    },
+
+    openDevices() {
         Drawer.open({
             title: 'อุปกรณ์ในเครือข่าย',
             width: '620px',
@@ -137,12 +205,112 @@ const DashPage = {
                 <div class="table-responsive">
                     <table class="data-table compact">
                         <thead><tr><th>อุปกรณ์</th><th>สถานี</th><th>ล่าสุด</th><th>สถานะ</th><th></th></tr></thead>
-                        <tbody>${rows}</tbody>
+                        <tbody id="devRows">${this.deviceRows()}${this.unknownWaitRows()}</tbody>
                     </table>
                 </div>`,
             footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
             onOpen: () => refreshIcons(),
         });
+    },
+
+    /* ══════════════════════════════════════════════════════
+       DRAWER — ตั้งค่าจอแสดงคิว (เปิดจากปุ่ม ⚙ ในแถวจอคิวของตารางอุปกรณ์)
+       ค่านี้ใช้ร่วมกันทุกจอคิวของร้าน — ไม่ได้แยกต่อเครื่อง
+       ══════════════════════════════════════════════════════ */
+    openDisplaySettings() {
+        this._dd = Object.assign({}, CF_DISPLAY_DEFAULTS, CFStore.settings());
+        const d = this._dd;
+        const e = CFApp.esc;
+        const tg = (key, label, note) => `
+            <div class="sip-field">
+                <button type="button" class="ds-toggle ${d[key] !== false ? 'is-on' : ''}"
+                        id="dt-${key}" onclick="DashPage.dToggle('${key}')">
+                    <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> ${label}
+                </button>
+                ${note ? `<div class="ds-note" style="margin-top:4px">${note}</div>` : ''}
+            </div>`;
+        Drawer.open({
+            title: 'ตั้งค่าจอแสดงคิว',
+            width: '520px',
+            contentHtml: `
+                <div class="ds-section-label">หน้าตา</div>
+                <div class="sip-field">
+                    <label class="sip-label">โทนสีจอ</label>
+                    <div class="ds-segbar" id="dTheme">
+                        <button type="button" class="ds-seg ${d.displayTheme !== 'dark' ? 'active' : ''}"
+                                onclick="DashPage.dTheme('light')">พื้นสว่าง</button>
+                        <button type="button" class="ds-seg ${d.displayTheme === 'dark' ? 'active' : ''}"
+                                onclick="DashPage.dTheme('dark')">พื้นเข้ม</button>
+                    </div>
+                    <div class="ds-note" style="margin-top:6px">
+                        พื้นเข้มอ่านง่ายจากไกลและไม่แสบตาในร้านที่ไฟสลัว · พื้นสว่างเหมาะกับร้านที่สว่างหรือมีแดดส่อง
+                    </div>
+                </div>
+
+                <div class="ds-section-label">เมนูแนะนำ</div>
+                ${tg('displayHighlights', 'แสดงเมนูแนะนำด้านขวาของจอ',
+                     'ปิดแล้วคิวเต็มจอ เลขคิวใหญ่ขึ้น — เหมาะช่วงคนเยอะ')}
+                <div class="sip-field">
+                    <label class="sip-label">สลับเมนูทุก (วินาที)</label>
+                    <input class="sip-input" id="dHiSec" type="number" min="3" max="60" step="1"
+                           value="${Number(d.displayHighlightSec) || 7}">
+                </div>
+
+                <div class="ds-section-label">เสียง</div>
+                ${tg('displaySound', 'เสียงเรียกคิวเมื่อคิวพร้อมรับ',
+                     'ทีวีต้องกดปุ่ม "เปิดเสียงเรียกคิว" บนจอหนึ่งครั้งตอนติดตั้ง (เบราว์เซอร์บังคับ)')}
+
+                <div class="ds-section-label">ข้อความประกาศ</div>
+                <div class="sip-field">
+                    <label class="sip-label">ข้อความด้านล่างจอ</label>
+                    <input class="sip-input" id="dTicker" maxlength="200"
+                           placeholder="เช่น Wi-Fi: cafe1234 · ว่างไว้ = ไม่แสดง"
+                           value="${e(d.displayTicker || '')}">
+                    <div class="ds-note" style="margin-top:6px">ข้อความวิ่งจากขวาไปซ้ายตลอด · ไม่เกิน 200 ตัวอักษร</div>
+                </div>
+
+                <div class="ds-note" style="margin-top:14px">
+                    <i data-lucide="info" class="icon-sm"></i>
+                    ใช้กับจอแสดงคิวทุกจอของร้าน · บันทึกแล้วทีวีเปลี่ยนเองภายในไม่กี่วินาที ไม่ต้องรีเฟรช
+                </div>`,
+            footerHtml: `
+                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="DashPage.saveDisplaySettings()">
+                    <i data-lucide="save" class="icon-sm"></i> บันทึก
+                </button>`,
+            onOpen: () => refreshIcons(),
+        });
+    },
+
+    dTheme(v) {
+        this._dd.displayTheme = v;
+        document.querySelectorAll('#dTheme .ds-seg').forEach((b, i) => {
+            b.classList.toggle('active', ['light', 'dark'][i] === v);
+        });
+    },
+    dToggle(key) {
+        this._dd[key] = this._dd[key] === false;
+        document.getElementById('dt-' + key).classList.toggle('is-on', this._dd[key] !== false);
+    },
+
+    saveDisplaySettings() {
+        const d = this._dd;
+        const sec = parseInt((document.getElementById('dHiSec') || {}).value, 10);
+        if (!(sec >= 3 && sec <= 60)) { showToast('เวลาสลับเมนูแนะนำต้องเป็น 3–60 วินาที', 'error'); return; }
+        d.displayHighlightSec = sec;
+        d.displayTicker = ((document.getElementById('dTicker') || {}).value || '').trim();
+        d.displayHighlights = d.displayHighlights !== false;
+        d.displaySound = d.displaySound !== false;
+
+        // ส่งเฉพาะคีย์ของจอคิว — ไม่ทับค่าตั้งอื่นที่อาจเพิ่งถูกแก้จากอีกเครื่อง
+        const patch = {};
+        Object.keys(CF_DISPLAY_DEFAULTS).forEach((k) => { patch[k] = d[k]; });
+        CFStore.cmd('patch', '/api/settings', patch)
+            .then(() => {
+                Drawer.close();
+                showToast('บันทึกการตั้งค่าจอแสดงคิวแล้ว', 'success');
+            })
+            .catch((err) => showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000));
     },
 
     /** หน้าที่อุปกรณ์แต่ละชนิดต้องเปิด — null = ไม่ต้องจับคู่ (เช่นเครื่องพิมพ์) */
@@ -155,6 +323,22 @@ const DashPage = {
      * รหัสแสดงครั้งเดียว — ในฐานเก็บแต่ hash ย้อนดูไม่ได้ ถ้าปิดไปก่อนต้องขอใหม่
      */
     async pairDevice(id) {
+        // เครื่องเดิมยังใช้งานอยู่ — ออกรหัสใหม่แล้วไปกรอกที่อื่น เครื่องเดิมจะหลุดทันที (อาจกำลังรับออเดอร์อยู่)
+        const cur = CFStore.byId('devices', id);
+        const waiting = CFStore.all('deviceWaits').some((w) => w.deviceId === id);
+        if (cur && cur.paired && cur.status === 'ONLINE' && !waiting) {
+            const go = await Drawer.confirm({
+                title: 'จับคู่ ' + CFApp.esc(cur.name) + ' ใหม่?',
+                message: 'เครื่องนี้ยังใช้งานอยู่',
+                lines: [
+                    'ส่งสัญญาณล่าสุด ' + CFApp.time(cur.lastSeen) + (cur.ip ? ' จาก IP ' + cur.ip : ''),
+                    'ถ้านำรหัสใหม่ไปกรอกที่เครื่องอื่น เครื่องเดิมจะหลุดการจับคู่ทันที',
+                ],
+                note: 'ทำต่อเฉพาะเมื่อตั้งใจย้ายหรือเปลี่ยนเครื่องจริง ๆ',
+                confirmText: 'ขอรหัสใหม่', danger: true,
+            });
+            if (!go) return;
+        }
         try {
             const r = await CFApi.post('/api/devices/' + encodeURIComponent(id) + '/pair-code', {});
             const dev = CFStore.all('devices').find((d) => d.id === id);
@@ -938,6 +1122,7 @@ const DashPage = {
 
         if (q.get('users') === '1')   setTimeout(() => this.openUsers(), 250);
         if (q.get('kiosk') === '1')   setTimeout(() => this.openKioskSettings(), 250);
+        if (q.get('display') === '1') setTimeout(() => this.openDisplaySettings(), 250);
         if (q.get('shop') === '1')    setTimeout(() => this.openShop(), 250);
     },
 };

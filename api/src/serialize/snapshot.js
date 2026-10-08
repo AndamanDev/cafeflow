@@ -64,6 +64,8 @@ function toDevice(r, onlineCutoffMs) {
         assignedStation: r.assigned_station, assignedCashier: r.assigned_cashier,
         lastSeen: iso(r.last_seen_at),
         status: online ? 'ONLINE' : 'OFFLINE',
+        // จับคู่อยู่หรือไม่ — แยก "ปิดเครื่อง" ออกจาก "หลุดการจับคู่" บนหน้าภาพรวม (ไม่ส่ง hash ออกไป)
+        paired: !!r.pairing_token_hash, pairedAt: iso(r.paired_at),
     };
     // เครื่องพิมพ์ไม่ส่ง heartbeat (TCP 9100/USB ตอบกลับไม่ได้) — ส่งค่าตั้งไปแทน
     if (r.kind === 'PRINTER') {
@@ -101,7 +103,8 @@ function toProduct(r) {
 }
 
 function toGroup(r) {
-    return { id: r.id, nameTh: r.name_th, nameEn: r.name_en, type: r.type, required: r.required };
+    return { id: r.id, nameTh: r.name_th, nameEn: r.name_en, type: r.type, required: r.required,
+             maxSelect: r.max_select == null ? null : Number(r.max_select) };
 }
 function toOption(r) {
     return {

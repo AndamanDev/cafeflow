@@ -36,6 +36,12 @@ const LoginPage = {
     },
 
     boot() {
+        // หมดเวลาเข้าสู่ระบบระหว่างเปิดหน้าค้าง (CFAuth.toLogin('expired')) — ล็อกอินแล้วกลับหน้าเดิม
+        if (new URLSearchParams(location.search).get('reason') === 'expired') {
+            const err = document.getElementById('loginError');
+            err.textContent = 'หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่';
+            err.style.display = 'block';
+        }
         // ถูกเด้งมาเพราะสิทธิ์ไม่พอ ต้องบอกเหตุผล ไม่ใช่เงียบ ๆ
         const denied = new URLSearchParams(location.search).get('denied');
         if (denied) {

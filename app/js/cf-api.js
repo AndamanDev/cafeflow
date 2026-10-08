@@ -20,6 +20,17 @@
         return window.CF_DEVICE_ID || null;
     }
 
+    /**
+     * 401 แบบ "ต้องล็อกอินใหม่" บนหน้าพนักงาน → พาไปหน้าเข้าสู่ระบบ แทนการขึ้นแค่ข้อความ
+     * ไม่รวม 401 อื่น (รหัสผ่านผิดตอนล็อกอิน · อุปกรณ์ยังไม่จับคู่)
+     * ไม่ทำกับคีออสก์ / จอคิว (CF_CLIENT) และหน้าเข้าสู่ระบบเอง · ต้องเคยล็อกอินอยู่ กันวนซ้ำ
+     */
+    const LOGIN_MSGS = ['ต้องเข้าสู่ระบบก่อน', 'ยังไม่ได้เข้าสู่ระบบ', 'ต้องเข้าสู่ระบบ หรือจับคู่อุปกรณ์ก่อน'];
+    function loginExpired(msg) {
+        return LOGIN_MSGS.includes(msg) && !window.CF_CLIENT && !!window.CFAuth
+            && !/login\.html$/.test(location.pathname) && window.CFAuth.isLoggedIn();
+    }
+
     async function request(method, path, body, opts) {
         opts = opts || {};
         const headers = { Accept: 'application/json' };
@@ -71,6 +82,7 @@
             const e = new Error((data && (data.message || data.error)) || ('HTTP ' + res.status));
             e.status = res.status;
             e.data = data;
+            if (res.status === 401 && loginExpired(e.message)) window.CFAuth.toLogin('expired');
             throw e;
         }
         return data;
@@ -140,6 +152,33 @@
         },
 
         health() { return request('GET', '/api/health'); },
+
+        /**
+         * เครื่องนี้จับคู่อยู่ไหม — page บอกเซิร์ฟเวอร์ว่าเป็นหน้าอะไร (kiosk / display)
+         * ถ้ายังไม่จับคู่ เซิร์ฟเวอร์จดไว้ว่าเครื่องนี้ค้างหน้าขอรหัส หน้าภาพรวมจะเตือนผู้จัดการ
+         */
+        deviceMe(page) {
+            return request('GET', '/api/devices/me' + (page ? '?page=' + encodeURIComponent(page) : ''));
+        },
+
+        /** ถามซ้ำทุก 15 วิระหว่างค้างหน้าขอรหัส — ให้คำเตือนบนหน้าภาพรวมยังอยู่ (หายเองถ้าเงียบเกิน 60 วิ) */
+        keepWaiting(page) {
+            clearInterval(this._waitT);
+            this._waitT = setInterval(() => this.deviceMe(page).then((me) => {
+                if (me && me.paired) clearInterval(this._waitT);
+            }).catch(() => {}), 15000);
+        },
+        stopWaiting() { clearInterval(this._waitT); },
+
+        /** ข้อความบอกสาเหตุที่หลุดการจับคู่ — แสดงบนหน้าขอรหัสของเครื่อง */
+        pairReasonText(me) {
+            if (!me || me.paired) return '';
+            const here = location.host;
+            return me.reason === 'REVOKED'
+                ? 'เครื่องนี้เคยจับคู่แล้ว แต่สิทธิ์ถูกยกเลิก หรือมีการจับคู่อุปกรณ์ตัวนี้ใหม่ที่เครื่องอื่น — ขอรหัสใหม่จากผู้จัดการ'
+                : 'ไม่พบข้อมูลการจับคู่ในเบราว์เซอร์นี้ (ข้อมูลเบราว์เซอร์ถูกล้าง หรือเปิดคนละที่อยู่กับตอนจับคู่) ' +
+                  '· ที่อยู่ที่เปิดอยู่ตอนนี้: ' + here + (me.ip ? ' · IP เครื่องนี้: ' + me.ip : '');
+        },
 
         heartbeat() {
             const id = deviceId();

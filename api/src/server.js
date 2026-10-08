@@ -170,7 +170,8 @@ app.post('/api/devices/:id/heartbeat', async (req, reply) => {
           WHERE id = $1 AND branch_id = $3 RETURNING id`,
         [req.params.id, req.ip && req.ip !== '::1' ? req.ip.replace(/^::ffff:/, '') : null, BRANCH_ID]);
     if (!r.rows.length) return reply.code(404).send({ error: 'ไม่พบอุปกรณ์นี้' });
-    publish(BRANCH_ID, { entity: 'devices', op: 'update', id: req.params.id });
+    // ปลุกทุกจอเฉพาะตอนเพิ่งกลับมาออนไลน์ — heartbeat ปกติทุก 20 วิไม่ต้องให้ใครโหลดข้อมูลใหม่
+    await require('./routes/devices').checkDevices(query, BRANCH_ID, req.params.id);
     return { ok: true };
 });
 
@@ -194,6 +195,11 @@ async function start() {
     const port = parseInt(process.env.PORT || '8080', 10);
     const host = process.env.HOST || '::';     // dual-stack — ดูเหตุผลใน .env.example
     await app.listen({ port, host });
+
+    // เฝ้าสถานะอุปกรณ์ (หลุดออฟไลน์ / คำเตือนหมดอายุ) → หน้าภาพรวมอัปเดตเอง
+    require('./routes/devices').startDeviceWatch(query, () => BRANCH_ID);
+    // ล้าง session หมดอายุ / change_log เก่า — ไม่แตะข้อมูลบัญชี
+    require('./db/maintenance').startMaintenance(query, app.log);
 
     // ตัวเดินคิวพิมพ์ — เริ่มหลังรู้สาขาแล้วเท่านั้น
     startWorker(pool, () => BRANCH_ID, {

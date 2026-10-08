@@ -163,8 +163,10 @@ const CFPrint = {
        กด "พิมพ์" แล้วออกที่เครื่องพิมพ์เลย ไม่ผ่านหน้าต่างพิมพ์ของเบราว์เซอร์
        ความกว้างกระดาษมาจากเครื่องพิมพ์จริง จึงไม่มีปุ่มสลับขนาด
 
-       opts: { title, previewPath, printPath, printBody, fallback }
+       opts: { title, previewPath, printPath, printBody, fallback, browserAlways }
          fallback = ตัวเลือกของ preview() เดิม — ใช้เมื่อยังไม่ได้ตั้งเครื่องพิมพ์
+         browserAlways = ป้ายปุ่มทางเบราว์เซอร์ที่ต้องโชว์เสมอ (เช่น ใบปิดรอบฉบับ A4)
+                         ตั้งไว้แล้วจะไม่ล็อกขนาดกระดาษของ fallback
        ══════════════════════════════════════════════════════ */
     previewServer(opts) {
         this._server = opts;
@@ -178,7 +180,7 @@ const CFPrint = {
         CFApi.get(opts.previewPath).then((r) => {
             if (this._server !== opts) return;              // เปิดใบอื่นไปแล้ว
             // ทางสำรองผ่านเบราว์เซอร์ก็ต้องใช้ขนาดของเครื่องพิมพ์จริง ไม่ใช่ค่าตั้งเก่าใน settings
-            if (opts.fallback && CF_PAPER[r.width]) {
+            if (opts.fallback && CF_PAPER[r.width] && !opts.browserAlways) {
                 opts.fallback.size = r.width;
                 opts.fallback.sizes = null;
             }
@@ -201,10 +203,13 @@ const CFPrint = {
                     ? 'พิมพ์ที่ <strong>' + CFApp.esc(p.name) + '</strong> · ' + (p.conn === 'USB' ? 'USB' : 'LAN')
                     : '<span style="color:var(--danger,#D92D20)">ยังไม่ได้ตั้งเครื่องพิมพ์ของส่วนนี้</span>'}</span>
                 <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
+                ${ready && opts.browserAlways
+                    ? `<button class="btn btn-outline" onclick="CFPrint.browserFallback()">${CFApp.esc(opts.browserAlways)}</button>`
+                    : ''}
                 ${ready
                     ? `<button class="btn btn-primary" onclick="CFPrint.runServer()">
                            <i data-lucide="printer" class="icon-sm"></i> พิมพ์</button>`
-                    : `<button class="btn btn-outline" onclick="CFPrint.browserFallback()">พิมพ์ผ่านเบราว์เซอร์</button>`}`);
+                    : `<button class="btn btn-outline" onclick="CFPrint.browserFallback()">${CFApp.esc(opts.browserAlways || 'พิมพ์ผ่านเบราว์เซอร์')}</button>`}`);
             refreshIcons();
         }).catch((err) => {
             if (this._server !== opts) return;

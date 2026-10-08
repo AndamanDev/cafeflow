@@ -120,6 +120,8 @@ async function buildSnapshot(c, branchId, opts) {
         settings,
         users: users.map(S.toUser),
         devices: devices.map((d) => S.toDevice(d, ONLINE_CUTOFF_MS)),
+        // เครื่องที่ค้างหน้าขอรหัสจับคู่อยู่ตอนนี้ — require ตอนเรียก กัน require วนกับ devices.js
+        deviceWaits: require('./devices').waitingList(),
         categories: categories.map(S.toCategory),
         products: products.map(S.toProduct),
         modifierGroups: groups.map(S.toGroup),

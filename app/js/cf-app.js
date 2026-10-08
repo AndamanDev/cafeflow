@@ -15,8 +15,21 @@ const CFApp = {
         this.applyRoleGate();
         this.watchUpdates();
 
+        // บัญชียังใช้รหัสตั้งต้น — เด้งหน้าต่างเปลี่ยนรหัสครั้งเดียวต่อการล็อกอิน ไม่ใช่ทุกหน้า
+        // (เปลี่ยนเองทีหลังได้จากเมนูบัญชี "เปลี่ยนรหัสผ่าน")
         const sess = CFAuth.session();
-        if (sess && sess.mustChangePassword) setTimeout(() => this.changePassword({ forced: true }), 300);
+        if (sess && sess.mustChangePassword && !sess.pwPromptShown) {
+            CFAuth.markPwPromptShown();
+            setTimeout(() => this.changePassword({ forced: true }), 300);
+        }
+
+        // session หมดอายุ (12 ชม. / ข้ามวัน) ระหว่างเปิดหน้าค้าง → พาไปหน้าเข้าสู่ระบบเอง
+        // เครื่องแคชเชียร์/KDS ที่จับคู่แล้วดึงข้อมูลผ่านได้ด้วย cookie อุปกรณ์ จึงต้องถามตัวตนพนักงานตรง ๆ
+        // 401 ถูกจัดการใน CFApi.request() — ตรงนี้แค่ถาม · เน็ตหลุดเงียบไว้
+        clearInterval(this._authT);
+        this._authT = setInterval(() => {
+            if (CFAuth.isLoggedIn()) CFApi.get('/api/auth/me').catch(() => {});
+        }, 60 * 1000);
 
         // ?denied= มาจาก CFAuth.guard() เมื่อสิทธิ์ไม่พอ — ต้องบอกเหตุผล ไม่ใช่เด้งเงียบ ๆ
         const q = new URLSearchParams(location.search);
@@ -115,7 +128,7 @@ const CFApp = {
 
     /**
      * เปลี่ยนรหัสผ่านของตัวเอง
-     * forced = ล็อกอินด้วยรหัสตั้งต้น — ปิดหน้าต่างได้ แต่จะเด้งกลับมาทุกหน้าจนกว่าจะเปลี่ยน
+     * forced = ล็อกอินด้วยรหัสตั้งต้น — เด้งเองครั้งเดียวต่อการล็อกอิน (ดู boot) ปิดได้ เปลี่ยนทีหลังได้
      */
     changePassword(opts) {
         opts = opts || {};

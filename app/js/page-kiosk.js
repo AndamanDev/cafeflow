@@ -10,10 +10,11 @@
  */
 const KioskBoot = {
 
-    showPairGate(msg) {
+    showPairGate(msg, why) {
         const gate = document.getElementById('deviceGate');
         gate.querySelector('h2').textContent = 'เครื่องนี้ยังไม่ได้จับคู่';
         gate.querySelector('p').textContent =
+            (why ? why + ' — ' : '') +
             'ขอรหัสจับคู่ 6 หลักจากผู้จัดการ (หน้าภาพรวม › อุปกรณ์ในเครือข่าย) แล้วกรอกที่นี่';
         document.getElementById('deviceList').innerHTML = `
             <div class="cf-pair-box">
@@ -39,6 +40,7 @@ const KioskBoot = {
         msg.textContent = 'กำลังจับคู่…';
         try {
             const res = await CFApi.post('/api/devices/pair', { code });
+            CFApi.stopWaiting();
             await this.start(res.deviceId);
         } catch (err) {
             msg.textContent = err.message || 'จับคู่ไม่สำเร็จ';
@@ -61,8 +63,12 @@ const KioskBoot = {
     async boot() {
         // ตัวตนอยู่ใน cookie — ถามเซิร์ฟเวอร์ว่าเครื่องนี้คือใคร ไม่เชื่อ localStorage
         try {
-            const me = await CFApi.get('/api/devices/me');
-            if (!me.paired) { this.showPairGate(); return; }
+            const me = await CFApi.deviceMe('kiosk');
+            if (!me.paired) {
+                this.showPairGate(null, CFApi.pairReasonText(me));
+                CFApi.keepWaiting('kiosk');
+                return;
+            }
             if (me.kind !== 'KIOSK') {
                 this.showPairGate('เครื่องนี้ถูกจับคู่เป็น ' + me.kind + ' ไม่ใช่คีออสก์');
                 return;

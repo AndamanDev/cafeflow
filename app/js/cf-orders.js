@@ -12,10 +12,14 @@
    ไฟล์นี้เหลือเฉพาะ "การกระทำ" ส่วน "กฎ" อยู่ที่ shared/ */
 
 /** แสดง error ให้ผู้ใช้เห็นเป็นภาษาคน แล้วคืน false เพื่อให้ผู้เรียกเดินต่อได้ */
-function _fail(err) {
-    const msg = err && err.offline
+function _msg(err) {
+    return err && err.offline
         ? 'ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้ — ยังไม่ได้บันทึก'
         : (err && err.message) || 'ทำรายการไม่สำเร็จ';
+}
+
+function _fail(err) {
+    const msg = _msg(err);
     if (window.showToast) showToast(msg, 'error', 4000);
     return false;
 }
@@ -86,7 +90,8 @@ const CFOrders = {
             paymentMethod: opts.paymentMethod || 'CASH',
             kioskId: opts.kioskId || null,
             expectTotal: opts.expectTotal,      // ไม่ตรงกับที่เซิร์ฟเวอร์คิด = ปฏิเสธ
-        }).then((res) => res.orderId).catch((err) => { _fail(err); return null; });
+        }).then((res) => { this.lastError = null; return res.orderId; })
+          .catch((err) => { this.lastError = _msg(err); _fail(err); return null; });
     },
 
     /** บันทึกการพิมพ์ (§19 reprint) */

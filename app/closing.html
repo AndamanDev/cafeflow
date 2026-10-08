@@ -51,10 +51,23 @@
             <button class="btn btn-outline" onclick="CFExport.all()">
                 <i data-lucide="download" class="icon-sm"></i> ส่งออก CSV
             </button>
-            <button class="btn btn-primary" onclick="ClosingPage.closeShift()">
+            <button class="btn btn-primary" id="closeBtn" onclick="ClosingPage.closeShift()">
                 <i data-lucide="lock" class="icon-sm"></i> ปิดรอบ
             </button>
         </div>
+    </div>
+
+    <!-- ยังไม่มีรอบเปิด (ติดตั้งใหม่ / ล้างข้อมูลทดสอบ) — kiosk ไม่รับออเดอร์จนกว่าจะเปิดรอบ -->
+    <div class="section-card" id="openShiftCard" hidden>
+        <div class="section-title"><i data-lucide="unlock" class="mi"></i> ยังไม่เปิดรอบการขาย</div>
+        <div class="ds-note">ตอนนี้คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกรอกด้านล่าง เพื่อให้ยอด "เงินสดที่ควรมี" ตอนปิดรอบถูกต้อง</div>
+        <div class="sip-field" style="margin-top:8px;max-width:280px">
+            <label class="sip-label">เงินตั้งต้นในลิ้นชัก (บาท)</label>
+            <input class="sip-input" id="openingCash" type="number" min="0" step="1" placeholder="0">
+        </div>
+        <button class="btn btn-primary" id="openShiftBtn" onclick="ClosingPage.openShift()">
+            <i data-lucide="unlock" class="icon-sm"></i> เปิดรอบ
+        </button>
     </div>
 
     <div class="ds-kpi-grid" id="kpiStrip"></div>
@@ -75,6 +88,25 @@
                        placeholder="0.00" oninput="ClosingPage.onCash(this.value)">
             </div>
             <div id="diffBox"></div>
+        </div>
+    </div>
+
+    <!-- ออเดอร์ที่ยังไม่จบ (ทุกรอบ ทุกวัน) — เคลียร์ก่อนปิดรอบ ซ่อนเองเมื่อไม่มี -->
+    <div class="section-card" id="pendingCard" hidden>
+        <div class="section-header">
+            <div class="section-title"><i data-lucide="clock" class="mi"></i> ออเดอร์ที่ยังไม่จบ <span id="pendingCount"></span></div>
+            <button class="btn btn-outline btn-sm" onclick="ClosingPage.clearAll()">
+                <i data-lucide="list-checks" class="icon-sm"></i> เคลียร์ทั้งหมด
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table compact">
+                <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th></th></tr></thead>
+                <tbody id="pendingRows"></tbody>
+            </table>
+        </div>
+        <div class="card-body">
+            <div class="ds-note" id="pendingNote"></div>
         </div>
     </div>
 

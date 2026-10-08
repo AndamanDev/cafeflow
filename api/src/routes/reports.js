@@ -128,10 +128,13 @@ async function cashControl(c, branchId, shiftId) {
     const opening = n(sh.opening_cash);
     // รอบที่ปิดแล้วใช้ค่าที่ snapshot ไว้ตอนปิด ไม่คำนวณใหม่
     // ไม่งั้นแก้ออเดอร์ย้อนหลังแล้วส่วนต่างของรอบเก่าขยับตาม
-    const expected = sh.status === 'CLOSED' && sh.expected_cash != null
-        ? n(sh.expected_cash) : opening + s.cash;
+    const frozen = sh.status === 'CLOSED' && sh.expected_cash != null;
+    const expected = frozen ? n(sh.expected_cash) : opening + s.cash;
+    // ขายเงินสดของรอบที่ปิดแล้วต้องมาจาก snapshot เดียวกัน — ไม่งั้นคืนเงินหลังปิดรอบแล้ว
+    // ใบปิดรอบบวกไม่ลงตัว (เงินตั้งต้น + ขายเงินสด ≠ ควรมี)
+    const cashSales = frozen ? expected - opening : s.cash;
     const actual = sh.actual_cash == null ? null : n(sh.actual_cash);
-    return { shiftId, opening, cashSales: s.cash, expected, actual,
+    return { shiftId, opening, cashSales, expected, actual,
              difference: actual == null ? null : actual - expected };
 }
 
@@ -151,9 +154,81 @@ async function snapshotReports(c, branchId) {
 }
 
 /* ══════════════════════════════════════════════════════════════════ */
+/**
+ * วาดใบปิดรอบสำหรับกระดาษม้วน — ใช้ทั้งพรีวิวและพิมพ์จริง ภาพจึงตรงกันเสมอ
+ * ออกที่เครื่องของเคาน์เตอร์ (ไม่ผูกสถานี) เหมือนใบเสร็จ
+ * หารอบไม่เจอ = 404 — ห้ามถอยไปใช้รอบที่เปิดอยู่ ใบปิดรอบผิดรอบคือตัวเลขเงินผิดทั้งใบ
+ */
+async function renderClosing(c, branchId, shiftId) {
+    const { closingSlip } = require('../print/raster');
+    const escpos = require('../print/escpos');
+    const { printerFor } = require('../print/worker');
+
+    const shift = (await c.query('SELECT * FROM shift WHERE id = $1 AND branch_id = $2',
+        [shiftId, branchId])).rows[0];
+    if (!shift) throw new ApiError(404, 'ไม่พบรอบการขาย');
+
+    const staffId = shift.closed_by || shift.opened_by;
+    const staff = staffId
+        ? (await c.query('SELECT name_th FROM app_user WHERE id = $1', [staffId])).rows[0]
+        : null;
+    const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId])).rows[0];
+    const printer = await printerFor(c, branchId, null);
+    const width = (printer && printer.paper_width) || '80mm';
+
+    const doc = closingSlip({
+        shift, branch, width, dots: printer && printer.print_dots,
+        summary: await summarize(c, branchId, { shiftId }),
+        cash: await cashControl(c, branchId, shiftId),
+        staff: staff ? staff.name_th : null,
+    });
+    const payload = escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height });
+    return { doc, payload, printer, width };
+}
+
 function registerReports(app, deps) {
-    const { pool, query, branchId } = deps;
-    const { context, requirePerm, handle } = deps.helpers;
+    const { pool, tx, query, branchId } = deps;
+    const { context, requirePerm, handle, audit } = deps.helpers;
+
+    const printerInfo = (p) => {
+        const { targetOf } = require('../print/worker');
+        return p ? { id: p.id, name: p.name_th, conn: p.printer_conn || 'NETWORK',
+                     ready: !!targetOf(p, false) } : null;
+    };
+
+    /** พรีวิวใบปิดรอบ — บิตแมปชุดเดียวกับที่จะส่งเข้าเครื่องพิมพ์ */
+    app.get('/api/reports/shift/:id/print-preview', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'SHIFT_CLOSE');
+        const { bitsToPng } = require('../print/raster');
+        const c = await pool.connect();
+        try {
+            const r = await renderClosing(c, branchId(), req.params.id);
+            const png = bitsToPng(r.doc.bitmap, r.doc.width, r.doc.height);
+            return { image: 'data:image/png;base64,' + png.toString('base64'),
+                     width: r.width, dots: r.doc.width, printer: printerInfo(r.printer) };
+        } finally { c.release(); }
+    }));
+
+    /** พิมพ์ใบปิดรอบที่เครื่องพิมพ์ความร้อนของเคาน์เตอร์ */
+    app.post('/api/reports/shift/:id/print', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'SHIFT_CLOSE');
+        const { enqueue } = require('../print/worker');
+        return tx(async (c) => {
+            const { payload, printer, width } = await renderClosing(c, branchId(), req.params.id);
+            const jobId = await enqueue(c, branchId(), {
+                deviceId: printer ? printer.id : null,
+                docType: 'CLOSING', paperWidth: width, payload,
+            });
+            await audit(c, branchId(), {
+                eventType: 'PRINT', actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
+                deviceId: ctx.deviceId, ip: ctx.ip,
+                payload: { docType: 'CLOSING', shiftId: req.params.id, width, jobId },
+            });
+            return { ok: true, jobId, width, printer: printerInfo(printer) };
+        });
+    }));
 
     /** รายงานของรอบใดก็ได้ รวมรอบที่ปิดไปแล้ว */
     app.get('/api/reports/shift/:id', handle(async (req) => {
