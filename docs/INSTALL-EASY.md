@@ -170,9 +170,10 @@ npm run seed
 
 เปิด PowerShell (แบบธรรมดา) แล้ววาง:
 ```powershell
-powershell -ExecutionPolicy Bypass -File D:\cafeflow\ops\install-autostart.ps1
+node D:\cafeflow\ops\install-autostart.js
 ```
 ✅ **ต้องเห็น:** `ตั้งแล้ว: Task Scheduler → CafeFlow`
+❌ ขึ้นว่า **Access denied** → ปิดหน้าต่าง เปิด PowerShell **แบบผู้ดูแล (Run as administrator)** แล้ววางใหม่
 ❌ ขึ้นว่า **"contains a virus or potentially unwanted software"** → ขั้นที่ 4 ยังไม่สำเร็จ กลับไปทำใหม่
 
 ---

@@ -37,7 +37,7 @@ curl http://localhost:8080/api/health      # API ตอบไหม
 | ครัวไม่ได้ตั๋ว แต่ KDS มี | เครื่องพิมพ์ | หัวข้อ "เครื่องพิมพ์" |
 
 ### สตาร์ทใหม่ทั้งชุด
-เปิดเองทุกครั้งที่ login (Task Scheduler ชื่อ **CafeFlow** ตั้งด้วย `ops\install-autostart.ps1`)
+เปิดเองทุกครั้งที่ login (Task Scheduler ชื่อ **CafeFlow** ตั้งด้วย `node ops\install-autostart.js` · ถอนด้วย `--remove`)
 สั่งเองก็ได้ เรียกซ้ำได้ ตัวไหนเปิดอยู่แล้วจะข้าม:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ops\run-cafeflow.ps1

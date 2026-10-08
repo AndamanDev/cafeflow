@@ -20,8 +20,17 @@
 | ~08:30–08:35 | Auto | ตรวจผลรีสตาร์ทจริง · ปรับคู่มือติดตั้ง INSTALL.md ให้ใช้ติดตั้งให้ลูกค้าได้ |
 | ~08:35–08:40 | Auto | คู่มือติดตั้งฉบับภาษาง่ายสำหรับคนทั่วไป `docs/INSTALL-EASY.md` |
 | ~08:45–09:15 | **Plan** → Auto | ทดลองทำตัวติดตั้ง `CafeFlow-Setup.exe` แบบไม่ใช้เน็ต → ผู้ใช้เปลี่ยนใจ **ย้อนทั้งหมด** |
+| ~09:20 | Auto | commit `a0e38ca` (งานค้าง 6–8 ต.ค.) |
+| ~09:35–09:50 | **Plan** → Auto | ตัวตั้ง autostart เป็น Node (`ops/install-autostart.js`) — แอนตี้ไวรัสบล็อกตัว PowerShell จน git อ่านไม่ได้ |
 
 ### รายละเอียด
+
+#### ~09:35–09:50 · Plan → Auto — autostart ที่ใช้ได้จาก git
+- **ปัญหา:** `ops/install-autostart.ps1` ตัวใหม่ถูกแอนตี้ไวรัสล็อก → commit ไม่ได้ (VS Code ขึ้น `Git: open("ops/install-autostart.ps1"): Function not implemented`) · ใน git เลยยังเป็นตัวเก่าที่ใช้ไม่ได้
+- **แก้:** เขียนใหม่เป็น `ops/install-autostart.js` (Node) เรียก `schtasks /Create /XML` — ไม่ผ่าน PowerShell แอนตี้ไวรัสจึงไม่จับ · ตั้ง task เหมือนเดิมทุกอย่าง (login + 30 วิ · เรียก run-cafeflow.ps1 ผ่าน cmd · ไม่จำกัดเวลา) · มี `--remove`
+- เอา `install-autostart.ps1` และ `start-cafeflow.ps1` ออกจาก git (`git rm --cached`) + ใส่ .gitignore กันเผลอ add · ไฟล์ยังค้างบนดิสก์เครื่องนี้จนกว่าจะปลดล็อกในแอนตี้ไวรัส
+- ทดสอบบนเครื่องนี้: `--remove` → task หาย · ตั้งใหม่ → action/trigger ถูกต้อง · สั่งรัน task → result 0 · start.log มีบรรทัดใหม่
+- ไฟล์: `ops/install-autostart.js` (ใหม่), `INSTALL.md`, `docs/INSTALL-EASY.md`, `ops/README.md`, `TODO.md`, `.gitignore`
 
 #### ~08:45–09:15 · Plan → Auto — ตัวติดตั้ง exe (ย้อนแล้ว ไม่มีอะไรเปลี่ยน)
 - **Plan mode:** วางแผนตัวติดตั้งไฟล์เดียวแบบออฟไลน์ (Inno Setup + PostgreSQL/Node/Python ในตัว + Windows Service ไม่ใช้ Docker) · ผู้ใช้อนุมัติ

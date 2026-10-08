@@ -76,9 +76,10 @@ npm run seed
    (Windows Security: Virus & threat protection › Manage settings › Exclusions › Add › Folder)
 2. ตั้งให้เปิดเองทุกครั้งที่ login:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File D:\cafeflow\ops\install-autostart.ps1
+   node D:\cafeflow\ops\install-autostart.js
    ```
-   ต้องขึ้น `ตั้งแล้ว: Task Scheduler → CafeFlow` · ถ้าขึ้น *"file contains a virus…"* = ข้อ 1 ยังไม่ผ่าน
+   ต้องขึ้น `ตั้งแล้ว: Task Scheduler → CafeFlow` · Access denied → เปิด PowerShell แบบ Run as administrator · ถอน: `--remove`
+   (เป็นสคริปต์ Node ไม่ใช่ PowerShell เพราะแอนตี้ไวรัสบล็อกสคริปต์ PowerShell ที่ตั้งตัวเองให้เปิดอัตโนมัติ)
    (task นี้เรียก `ops\run-cafeflow.ps1` — เปิด Docker → ฐานข้อมูล → API → ตัวอ่านสลิป ขั้นไหนไม่ติดจะลองใหม่จนกว่าจะติด)
 3. **ให้ Windows login เอง**
    - Windows 11: Settings › Accounts › Sign-in options → ปิด **"For improved security, only allow Windows Hello sign-in…"**

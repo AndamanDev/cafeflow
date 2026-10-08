@@ -25,3 +25,7 @@ __pycache__/
 
 # log ของ ops/start-cafeflow.ps1
 /logs/
+
+# สคริปต์เก่าที่เลิกใช้ — แอนตี้ไวรัสล็อกไฟล์ค้างไว้ในบางเครื่อง (git อ่านไม่ได้ ห้ามเผลอ add)
+/ops/install-autostart.ps1
+/ops/start-cafeflow.ps1

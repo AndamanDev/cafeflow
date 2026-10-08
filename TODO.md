@@ -112,7 +112,7 @@
   วัดกับสลิปจริง 3 ใบ (กสิกร K+/make · กรุงไทย): ยอดถูก 3/3 · วันที่ถูก 2/3 (ภาพเบลอ 1 ใบอ่านไม่ออก → เทา ไม่เตือนแดง)
   ยังต้องเก็บสลิปจริงเพิ่ม 20–30 ใบหลายธนาคาร (ข้อ A4) แล้วเติมเคสลง `api/test/slip-rules.test.js`
 - [x] **สำรองโฟลเดอร์ `data/`** (ภาพสลิป + รูปสินค้า) — backup.sh / offsite.sh / restore.sh
-- [x] **เปิดระบบเองตอน login** — `ops/start-cafeflow.ps1` + `ops/install-autostart.ps1`
+- [x] **เปิดระบบเองตอน login** — `ops/run-cafeflow.ps1` (ลองซ้ำจนติด) + `ops/install-autostart.js` (Task Scheduler)
 - [ ] **ตั้งเวลาสำรองอัตโนมัติบน Windows** — cron ในคู่มือเป็นของ Linux · Windows ต้องใช้ Task Scheduler
   โครงรองรับครบแล้ว: ตาราง `payment_slip` มีทุกคอลัมน์ · `PAYMENT_REVIEW` อยู่ในผังสถานะ
   · หน้าแคชเชียร์มีการ์ด "ข้อมูลที่อ่านได้จากสลิป" พร้อมช่องเหตุผลอยู่แล้ว
