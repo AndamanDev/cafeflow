@@ -102,7 +102,11 @@
          */
         async cmd(method, path, body, opts) {
             const out = await CFApi[method.toLowerCase()](path, body, opts);
-            await refresh('local');       // ดึงภาพจริงกลับมาแทนการเดาเอง
+            // ดึงภาพจริงกลับมาแทนการเดาเอง
+            // ★ ถ้ามีรอบดึง (poll/stream) วิ่งค้างอยู่ มันอาจเริ่มก่อนคำสั่งนี้บันทึก = ภาพเก่า
+            //   refresh() จะคืนรอบนั้นแทน → หน้าไม่เปลี่ยน คนกดซ้ำ (เช่นปิดรอบสองที) จึงต้องรอให้จบแล้วดึงใหม่อีกรอบ
+            if (refreshing) await refreshing.catch(() => {});
+            await refresh('local');
             return out;
         },
 

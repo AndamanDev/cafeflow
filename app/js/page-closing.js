@@ -311,6 +311,11 @@ const ClosingPage = {
 
         // ปิดรอบ + เปิดรอบใหม่ อยู่ในทรานแซกชันเดียวกันฝั่งเซิร์ฟเวอร์
         // ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้จนกว่าจะมีคนเข้าไปแก้ฐาน
+        // ★ ล็อกปุ่มระหว่างรอ — กดซ้ำตอนจอยังไม่อัปเดต = ปิดรอบใหม่ที่ระบบเพิ่งเปิดให้ทันที (รอบว่างซ้อนหลายรอบ)
+        if (this._closing) return;
+        this._closing = true;
+        const btn = document.getElementById('closeBtn');
+        btn.disabled = true;
         try {
             const res = await CFStore.cmd('post',
                 '/api/shifts/' + encodeURIComponent(shift.id) + '/close', { actualCash: actual });
@@ -321,6 +326,9 @@ const ClosingPage = {
                       (res.carriedOver ? ' · ยกออเดอร์ที่ยังไม่ชำระไป ' + res.carriedOver + ' ออเดอร์' : ''), 'success', 4000);
         } catch (err) {
             showToast(err.message || 'ปิดรอบไม่สำเร็จ', 'error', 5000);
+        } finally {
+            this._closing = false;
+            btn.disabled = false;
         }
     },
 
