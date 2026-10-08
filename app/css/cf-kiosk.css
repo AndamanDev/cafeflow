@@ -924,7 +924,9 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 }
 .cfk-pay2-qr { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); min-width: 0; }
 .cfk-pay2 .cfk-qr { width: 100%; }
-.cfk-pay2 .cfk-qr span { display: none; }               /* คำอธิบายใต้ QR — ภาพแนะนำด้านขวาบอกแทน */
+/* คำอธิบายใต้ QR — ภาพแนะนำด้านขวาบอกแทน · ซ่อนเฉพาะตอนมี QR แล้ว
+   ไม่งั้นข้อความ "กำลังสร้าง QR" และสาเหตุที่ออก QR ไม่ได้ (เช่น ยังไม่ตั้งพร้อมเพย์) หายไปด้วย เหลือแค่ไอคอน */
+.cfk-pay2 .cfk-qr.has-qr span { display: none; }
 .cfk-pay2 .cfk-qr-img { width: 100%; height: auto; aspect-ratio: 1; }
 .cfk-pay2-amount {
     font-size: calc(var(--u) * 4); font-weight: 800; color: #111; line-height: 1.1;
