@@ -22,8 +22,22 @@
 | ~08:45–09:15 | **Plan** → Auto | ทดลองทำตัวติดตั้ง `CafeFlow-Setup.exe` แบบไม่ใช้เน็ต → ผู้ใช้เปลี่ยนใจ **ย้อนทั้งหมด** |
 | ~09:20 | Auto | commit `a0e38ca` (งานค้าง 6–8 ต.ค.) |
 | ~09:35–09:50 | **Plan** → Auto | ตัวตั้ง autostart เป็น Node (`ops/install-autostart.js`) — แอนตี้ไวรัสบล็อกตัว PowerShell จน git อ่านไม่ได้ |
+| ~10:00–10:30 | **Plan** → Auto | ไฟล์ติดตั้งอัตโนมัติ `ops/install-cafeflow.bat` + `ops/setup-shop.js` — กดซ้ำได้ ตรวจเองว่าถึงขั้นไหน |
 
 ### รายละเอียด
+
+#### ~10:00–10:30 · Plan → Auto — ไฟล์ติดตั้งอัตโนมัติ
+- **ผู้ใช้ต้องการ:** กดไฟล์เดียวแล้วติดตั้งให้เลย ถ้าต้องรีสตาร์ทกลางทาง กดอีกครั้งแล้วตรวจเองว่าลงอะไรแล้ว/ถึงขั้นไหน แล้วทำต่อ
+- **`ops/install-cafeflow.bat`** (คลิกขวา Run as administrator · ใช้เดี่ยว ๆ จากแฟลชไดรฟ์หรือโหลดจาก GitHub ได้)
+  - ตรวจ admin · winget → ลง Git / Node.js LTS / Python 3.11 / WSL / Docker Desktop เฉพาะตัวที่ยังไม่มี (ตรวจด้วย path ตรง รองรับ Docker แบบลงต่อผู้ใช้)
+  - เพิ่งลง Docker หรือ WSL → บอกให้รีสตาร์ทแล้วกดใหม่ · ไม่งั้นไปต่อ: clone หรือ `git pull` ลง D:\cafeflow (ไม่มี D → C:)
+  - ให้สิทธิ์เขียนโฟลเดอร์กับผู้ใช้ปกติ (ไฟล์ที่สร้างตอน admin เป็นของ Administrators แต่ระบบรันด้วยผู้ใช้ปกติ) + git safe.directory
+  - ไม่มี label/goto และเก็บเป็น CRLF ใน git (`.gitattributes`) — โหลดตรงจาก GitHub แล้ว cmd ยังอ่านถูก
+- **`ops/setup-shop.js`** ทุกขั้นตรวจก่อนทำ: .env · Docker (เปิดให้เองผ่าน explorer = สิทธิ์ผู้ใช้ปกติ) · ฐานข้อมูล · npm ci (เทียบ hash ของ package-lock) · migrate · seed เฉพาะฐานที่ไม่มีเมนู · ตัวอ่านสลิป (ล้มแค่เตือน) · autostart · ห้ามหลับ · ไฟร์วอลล์ 8080 ทุกโปรไฟล์ · เปิดระบบ · แสดง IP (ตัดการ์ดเสมือน WSL ออก) และงานที่ต้องทำเองต่อ
+- **ทดสอบบนเครื่องนี้ (ลงครบแล้ว):** รันไฟล์ .bat แบบ admin → ข้ามการลงโปรแกรมทั้ง 5 · git pull · ทุกขั้นข้ามถูกต้อง · **ไม่ seed ทับ** (เมนู 80 รายการเท่าเดิม) · จบ exit 0 · ปิด API แล้วรันใหม่ → สั่ง task เปิดระบบกลับมาได้
+- **ยังไม่ได้ทดสอบ:** เครื่องเปล่าจริง (รอบลงโปรแกรมด้วย winget + รีสตาร์ท) · กรณีไม่ใช่ admin
+- เอกสาร: `docs/INSTALL-EASY.md` ส่วนใหม่ "วิธีง่ายที่สุด" ก่อนขั้นที่ 1 · `INSTALL.md` หัวข้อ "ทางลัด"
+- ไฟล์: `ops/install-cafeflow.bat` (ใหม่), `ops/setup-shop.js` (ใหม่), `.gitattributes` (ใหม่), `docs/INSTALL-EASY.md`, `INSTALL.md`
 
 #### ~09:35–09:50 · Plan → Auto — autostart ที่ใช้ได้จาก git
 - **ปัญหา:** `ops/install-autostart.ps1` ตัวใหม่ถูกแอนตี้ไวรัสล็อก → commit ไม่ได้ (VS Code ขึ้น `Git: open("ops/install-autostart.ps1"): Function not implemented`) · ใน git เลยยังเป็นตัวเก่าที่ใช้ไม่ได้
