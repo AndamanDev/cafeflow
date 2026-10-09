@@ -380,14 +380,14 @@ const TICKET_STATUS = {
     PAID:    ['ชำระเงินแล้ว', 'รอเรียกหมายเลขที่จอ'],
 };
 
-function kioskTicket({ order, items, branch, kind, width = '80mm', dots, settings }) {
+function kioskTicket({ order, items, branch, kind, width = '80mm', dots, settings, copy }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
     const narrow = W < 500;
     const s = createSheet(W);
     const base = narrow ? 20 : 22;
 
     s.wrap(branch.name_th || '', { size: narrow ? 26 : 30, bold: true, align: 'center', lh: 1.3 });
-    s.line('บัตรคิว', { size: base, align: 'center' });
+    s.line(copy ? 'บัตรคิว (สำเนา)' : 'บัตรคิว', { size: base, align: 'center', bold: !!copy });
     s.rule();
     s.line('หมายเลขคิว', { size: base, align: 'center' });
     s.line(pick(order, 'orderNo', 'order_no') || '—', { size: narrow ? 80 : 104, bold: true, align: 'center', lh: 1.12 });

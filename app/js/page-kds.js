@@ -52,7 +52,8 @@ const KdsPage = {
             const pending = Object.keys(o.stationStatus || {})
                 .filter((x) => x !== st && o.stationStatus[x] !== 'READY');
 
-            return `<div class="cf-kds-card" data-age-target>
+            const pend = this._pending && this._pending[o.id];
+            return `<div class="cf-kds-card ${pend ? 'is-pending' : ''}" data-age-target>
                 <div class="cf-kds-top">
                     <div class="cf-kds-no">${e(o.orderNo)}</div>
                     <div class="cf-kds-timer" data-since="${since}">--:--</div>
@@ -72,6 +73,12 @@ const KdsPage = {
                     รออีก ${pending.length} สถานี: ${pending.map((x) => e(CFApp.stationLabel(x))).join(', ')}
                 </div>` : ''}
 
+                ${pend ? `
+                <div class="cf-kds-undo">
+                    <span><i data-lucide="check" class="icon-sm"></i> พร้อมเสิร์ฟใน <b id="kdsUndo-${o.id}">${this.pendLeft(o.id)}</b></span>
+                    <button class="btn btn-outline btn-sm" onclick="KdsPage.undo('${o.id}')">
+                        <i data-lucide="undo-2" class="icon-sm"></i> ย้อนกลับ</button>
+                </div>` : `
                 <div class="flex gap-sm">
                     <button class="btn btn-outline btn-sm" onclick="CFDocs.previewKitchenSlip('${o.id}','${st}')">
                         <i data-lucide="printer" class="icon-sm"></i> สลิป
@@ -80,7 +87,7 @@ const KdsPage = {
                             onclick="KdsPage.ready('${o.id}')">
                         <i data-lucide="check" class="icon-sm"></i> พร้อมเสิร์ฟ
                     </button>
-                </div>
+                </div>`}
             </div>`;
         }).join('');
 
@@ -92,8 +99,44 @@ const KdsPage = {
 
     toggleLeft() { document.getElementById('shell').classList.toggle('left-collapsed'); },
 
+    /**
+     * พร้อมเสิร์ฟ — หน่วง 5 วิก่อนส่งจริง กดพลาดกด "ย้อนกลับ" ได้ (ไม่ต้องถามยืนยันทุกครั้ง ชั่วโมงเร่งด่วนครัวช้าลง)
+     * ส่งจริงแล้วลูกค้าเห็นเลขบนจอเรียกคิว — ย้อนหลังจากนั้นไม่ได้ จึงหน่วงไว้ฝั่งหน้าจอแทน
+     */
+    UNDO_SEC: 5,
     ready(orderId) {
-        CFOrders.setStationReady(orderId, this.state.station);
+        this._pending = this._pending || {};
+        if (this._pending[orderId]) return;
+        const station = this.state.station;
+        this._pending[orderId] = {
+            until: Date.now() + this.UNDO_SEC * 1000,
+            timer: setTimeout(() => {
+                delete this._pending[orderId];
+                CFOrders.setStationReady(orderId, station);
+                this.render();
+            }, this.UNDO_SEC * 1000),
+        };
+        this.startUndoTick();
+        this.render();
+    },
+    undo(orderId) {
+        const p = this._pending && this._pending[orderId];
+        if (!p) return;
+        clearTimeout(p.timer);
+        delete this._pending[orderId];
+        this.render();
+    },
+    pendLeft(orderId) {
+        const p = this._pending && this._pending[orderId];
+        return p ? Math.max(0, Math.ceil((p.until - Date.now()) / 1000)) : 0;
+    },
+    startUndoTick() {
+        if (this._undoT) return;
+        this._undoT = setInterval(() => {
+            const ids = Object.keys(this._pending || {});
+            if (!ids.length) { clearInterval(this._undoT); this._undoT = null; return; }
+            ids.forEach((id) => { const el = document.getElementById('kdsUndo-' + id); if (el) el.textContent = this.pendLeft(id); });
+        }, 250);
     },
 
     boot() {

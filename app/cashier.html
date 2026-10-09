@@ -54,6 +54,7 @@
 
     <!-- มีงานที่พิมพ์ไม่ออก → แถบแดง กดเพื่อพิมพ์ซ้ำ (CashierPage.refreshPrintAlert) -->
     <div id="shiftAlert" hidden></div>
+    <div id="devAlert" hidden></div>
     <div id="printAlert" hidden></div>
 
     <div class="ds-kpi-grid" id="kpiStrip"></div>
@@ -62,10 +63,10 @@
         <div class="section-header" style="padding-bottom:0; border-bottom:none">
             <div class="ds-tabs" id="tabs" style="border-bottom:none">
                 <button class="ds-tab active" onclick="CashierPage.setTab('cash')">
-                    รอเงินสด <span class="tab-notif" id="cntCash">0</span>
+                    รอจ่าย · เงินสด <span class="tab-notif" id="cntCash">0</span>
                 </button>
                 <button class="ds-tab" onclick="CashierPage.setTab('review')">
-                    ตรวจสอบการชำระ <span class="tab-notif" id="cntReview">0</span>
+                    เช็กสลิป <span class="tab-notif" id="cntReview">0</span>
                 </button>
                 <button class="ds-tab" onclick="CashierPage.setTab('ready')">
                     พร้อมรับ <span class="tab-notif" id="cntReady">0</span>

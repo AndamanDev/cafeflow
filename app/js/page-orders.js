@@ -6,12 +6,9 @@ const OrdersPage = {
              day: null, dayList: null, dayNote: '' },
 
     FILTERS: [
-        { key: 'all',     label: 'ทั้งหมด',  test: () => true },
-        { key: 'waiting', label: 'รอชำระ',   test: (o) => CF_WAITING_PAY.includes(o.status) },
-        { key: 'making',  label: 'กำลังทำ',  test: (o) => CF_IN_PROGRESS.includes(o.status) },
-        { key: 'ready',   label: 'พร้อมรับ', test: (o) => o.status === 'READY' },
-        { key: 'done',    label: 'เสร็จสิ้น', test: (o) => ['SERVED', 'COMPLETED'].includes(o.status) },
-        { key: 'void',    label: 'ยกเลิก',   test: (o) => ['CANCELLED', 'VOIDED', 'REFUNDED'].includes(o.status) },
+        { key: 'all', label: 'ทั้งหมด', test: () => true },
+        // แท็บ = กลุ่มสถานะเดียวกับป้าย (CF_STATUS_GROUPS) — คำบนแท็บกับคำบนป้ายตรงกันเสมอ
+        ...CF_STATUS_GROUPS.map((g) => ({ key: g.key, label: g.label, test: (o) => g.statuses.includes(o.status) })),
     ],
 
     /* ══════════════════════════════════════════════════════
@@ -201,6 +198,20 @@ const OrdersPage = {
         }
     },
 
+    /**
+     * รับเงินสด / ตรวจสลิป / สแกนสลิปที่เคาน์เตอร์ — เปิด drawer ตัวเดียวกับหน้าแคชเชียร์ ในหน้านี้เลย
+     * (page-cashier.js โหลดมาแต่ไม่บูตหน้าแคชเชียร์) · ไม่มีไฟล์นั้นค่อยถอยไปเปิดหน้าแคชเชียร์
+     */
+    toCashier(id) {
+        if (window.CashierPage && CashierPage.open) {
+            const o = CFStore.byId('orders', id);
+            // รอจ่าย QR (ยังไม่หมดเวลา) ก็สแกนสลิปที่เคาน์เตอร์ได้ — open() ปกติพาไปหน้ารายละเอียด
+            if (o && o.status === 'WAITING_PAYMENT') CashierPage.openReview(id); else CashierPage.open(id);
+            return;
+        }
+        location.href = 'cashier.html?order=' + encodeURIComponent(id);
+    },
+
     /** "18 ชม." / "5 นาที" / "2 วัน" — บอกว่าออเดอร์ค้างมานานแค่ไหน */
     ago(iso) {
         const m = Math.max(0, Math.floor(CFApp.elapsedMin(iso)));
@@ -245,9 +256,12 @@ const OrdersPage = {
                  (ended ? '' : ` <em>· ผ่านไป ${this.ago(o.createdAt)}</em>`));
 
         // การ์ดเตือนโผล่เฉพาะตอนที่การชำระมีปัญหา
-        const alertNeeded = ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'PAYMENT_FAILED'].includes(o.status);
+        // คนที่รับเงินได้มีปุ่ม "ตรวจสลิป" ในแผงขวาอยู่แล้ว — การ์ดแดงซ้ำกัน แสดงเฉพาะคนที่กดไม่ได้ (ให้รู้ว่าต้องตามใคร)
+        // ยกเว้นชำระไม่สำเร็จ ที่ไม่มีปุ่มตรวจสลิป
+        const alertNeeded = o.status === 'PAYMENT_FAILED' ||
+            (['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status) && !CFAuth.can('PAY_RECEIVE'));
         document.getElementById('ctxAside').innerHTML = alertNeeded ? `
-            <div class="ds-alert-card" onclick="location.href='cashier.html'">
+            <div class="ds-alert-card" onclick="OrdersPage.toCashier('${o.id}')">
                 <i data-lucide="alert-triangle" class="ac-ico"></i>
                 <div class="ac-body">
                     <span class="ac-label">ต้องตรวจสอบ</span>
@@ -261,13 +275,14 @@ const OrdersPage = {
            ไม่งั้นออเดอร์ที่รอชำระอยู่จะไม่มีขั้นไหน active เลย */
         // at = เวลาที่ผ่านขั้นนั้น (จาก order.ts) แสดงใต้ขั้น — ดูปราดเดียวรู้ว่าค้างขั้นไหนมานานเท่าไร
         const STEPS = [
-            { label: 'ยืนยันออเดอร์', states: ['ORDER_CONFIRMED'], at: 'createdAt' },
-            { label: 'ชำระเงิน',      states: ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'PAYMENT_REVIEW', 'PAYMENT_FAILED', 'PAID'], at: 'paidAt' },
-            { label: 'ส่งเข้าครัว',   states: ['SENT_TO_KITCHEN'], at: 'sentAt' },
-            { label: 'กำลังจัดเตรียม', states: ['PREPARING'], at: 'preparingAt' },
+            // ชื่อขั้นใช้คำเดียวกับป้ายสถานะ (CF_STATUS) — "กำลังเตรียม" บนแถบ = "กำลังทำ · กำลังเตรียม" บนป้าย
+            { label: 'สั่ง',          states: ['ORDER_CONFIRMED'], at: 'createdAt' },
+            { label: 'รับเงิน',       states: ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'PAYMENT_REVIEW', 'PAYMENT_FAILED', 'PAID'], at: 'paidAt' },
+            { label: 'เข้าครัว',      states: ['SENT_TO_KITCHEN'], at: 'sentAt' },
+            { label: 'กำลังเตรียม',   states: ['PREPARING'], at: 'preparingAt' },
             { label: 'พร้อมรับ',      states: ['READY'], at: 'readyAt' },
-            { label: 'ส่งมอบแล้ว',    states: ['SERVED'], at: 'servedAt' },
-            { label: 'เสร็จสิ้น',     states: ['COMPLETED'], at: 'completedAt' },
+            { label: 'ส่งมอบ',        states: ['SERVED'], at: 'servedAt' },
+            { label: 'เสร็จ',         states: ['COMPLETED'], at: 'completedAt' },
         ];
         const dead = ['CANCELLED', 'VOIDED', 'REFUNDED'];
         const pos = STEPS.findIndex((s) => s.states.includes(o.status));
@@ -368,7 +383,8 @@ const OrdersPage = {
         const p = CFOrders.payment(o.id);
         if (!p) {
             document.getElementById('tabPayment').innerHTML =
-                '<div class="ds-empty-sm">ยังไม่มีรายการชำระเงินสำหรับออเดอร์นี้</div>' + this.slipHtml(o);
+                `<div class="ds-empty-sm">ยังไม่ได้รับชำระ${CF_WAITING_PAY.includes(o.status) || ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status)
+                    ? ' — ตรวจ/รับเงินได้ที่ปุ่มด้านขวา' : ''}</div>` + this.slipHtml(o);
             return;
         }
         const row = (label, value) => `<tr><th class="l" style="width:30%">${label}</th><td class="l">${value}</td></tr>`;
@@ -385,7 +401,7 @@ const OrdersPage = {
                 ${p.overrideBy ? row('ยืนยันแทนระบบโดย', e(CFApp.actorName(p.overrideBy))) : ''}
                 ${p.overrideBy ? row('เหตุผล', e(p.overrideReason || '—')) : ''}
                 ${p.overrideBy ? row('เวลาที่ยืนยันแทน', CFApp.dateTime(p.overrideAt)) : ''}
-                ${row('สถานะ', e(p.status))}
+                ${row('สถานะ', e({ PAID: 'รับเงินแล้ว', REFUNDED: 'คืนเงินแล้ว', PENDING: 'รอรับเงิน' }[p.status] || p.status))}
             </table>
             ${o.cancelReason ? `<div class="sip-banner sip-banner-danger">
                 <i data-lucide="info" class="icon-sm"></i> ${e(o.cancelReason)}</div>` : ''}
@@ -426,16 +442,39 @@ const OrdersPage = {
             ? this.state.slipStation : stations[0];
 
         // ปุ่มสร้างจาก CF_FLOW เท่านั้น — ปุ่มที่กดแล้วพังจึงไม่มีทางโผล่
-        const nexts = CFOrders.nextStates(o).filter((s) => !CF_REASON_REQUIRED.includes(s));
+        let nexts = CFOrders.nextStates(o).filter((s) => !CF_REASON_REQUIRED.includes(s));
         const destructive = CFOrders.nextStates(o).filter((s) => CF_REASON_REQUIRED.includes(s));
 
+        // ลูกค้าสแกนสลิปที่ตู้ไม่ติด / QR หมดเวลา / รอรับเงินสด → เปิด drawer รับเงิน/ตรวจสลิปในหน้านี้
+        // (กล้องสแกนสลิปจากมือถือลูกค้า + ตรวจยอด + รับเงินสด) — โค้ดเดียวกับหน้าแคชเชียร์ ไม่ทำซ้ำ
+        const payAct = CFAuth.can('PAY_RECEIVE') && {
+            PAYMENT_REVIEW:  ['scan-line', 'ตรวจสลิป / สแกนสลิปที่เคาน์เตอร์'],
+            PAYMENT_TIMEOUT: ['scan-line', 'สแกนสลิปที่เคาน์เตอร์'],
+            WAITING_PAYMENT: ['scan-line', 'สแกนสลิปที่เคาน์เตอร์'],
+            WAITING_CASH:    ['banknote', 'รับเงินสด'],
+        }[o.status];
+
+        // มีปุ่มรับเงิน/ตรวจสลิปแล้ว ไม่ต้องมี "ยืนยันการชำระ" แบบกดเดียวอีกปุ่ม — ยืนยันในแผงตรวจสลิป (ต้องเลือกเหตุผล)
+        if (payAct) nexts = nexts.filter((s) => s !== 'PAID');
+
         document.getElementById('actionPane').innerHTML = `
+            ${payAct ? `
+            <div class="ds-section-label" style="padding:0 16px">การชำระเงิน</div>
+            <div class="ds-actions cf-stack">
+                <button class="btn btn-primary" onclick="OrdersPage.toCashier('${o.id}')">
+                    <i data-lucide="${payAct[0]}" class="icon-sm"></i> ${payAct[1]}</button>
+                <div class="cf-hint">${o.status === 'WAITING_CASH'
+                    ? 'กรอกเงินที่รับ ระบบคิดเงินทอนให้'
+                    : 'สแกนสลิปจากมือถือลูกค้า แล้วยืนยัน'}</div>
+            </div>` : ''}
             <div class="ds-section-label" style="padding:0 16px">เอกสาร</div>
             <div class="ds-actions cf-stack">
-                <button class="btn btn-outline" onclick="CFDocs.previewReceipt('${o.id}')">
+                ${CFAuth.can('PAY_RECEIVE') ? `<button class="btn btn-outline" onclick="CashierPage.reprintTicket('${o.id}')">
+                    <i data-lucide="ticket" class="icon-sm"></i> พิมพ์บัตรคิวซ้ำ</button>` : ''}
+                ${CFDocs.canReceipt(o) ? `<button class="btn btn-outline" onclick="CFDocs.previewReceipt('${o.id}')">
                     <i data-lucide="receipt" class="icon-sm"></i> ใบเสร็จรับเงิน
                     ${o.reprintCount ? `<span class="sip-chip sip-chip-amber">พิมพ์แล้ว ${o.reprintCount}</span>` : ''}
-                </button>
+                </button>` : ''}
                 ${stations.length ? `
                 <select class="sip-select" onchange="OrdersPage.setSlipStation(this.value)">
                     ${stations.map((st) => `<option value="${st}" ${st === station ? 'selected' : ''}>
@@ -446,13 +485,14 @@ const OrdersPage = {
                 </button>` : ''}
             </div>
 
+            ${nexts.length || !payAct ? `
             <div class="ds-section-label" style="padding:0 16px">เปลี่ยนสถานะ</div>
             <div class="ds-actions cf-stack">
                 ${nexts.length ? nexts.map((s) => `
-                    <button class="btn ${s === 'PAID' ? 'btn-primary' : 'btn-outline'}"
+                    <button class="btn ${s === 'PAID' && !payAct ? 'btn-primary' : 'btn-outline'}"
                             onclick="OrdersPage.go('${s}')">${e(CF_ACTION_LABEL[s] || s)}</button>`).join('')
                   : '<div class="ds-empty-sm">ออเดอร์นี้สิ้นสุดแล้ว</div>'}
-            </div>
+            </div>` : ''}
 
             ${destructive.length ? `
             <div data-role-gate="ADMIN MANAGER">
@@ -462,9 +502,7 @@ const OrdersPage = {
                         <button class="btn btn-danger" onclick="OrdersPage.openReason('${s}')">
                             ${e(CF_ACTION_LABEL[s] || s)}</button>`).join('')}
                 </div>
-                <div class="ds-note" style="margin:0 16px">
-                    ทุกรายการต้องระบุเหตุผล และจะถูกบันทึกไว้ในประวัติ
-                </div>
+                <div class="cf-hint" style="margin:0 16px">ต้องระบุเหตุผล · บันทึกในประวัติ</div>
             </div>` : ''}`;
 
         CFApp.applyRoleGate(document.getElementById('actionPane'));
@@ -472,7 +510,28 @@ const OrdersPage = {
 
     setSlipStation(st) { this.state.slipStation = st; },
 
+    /** เปลี่ยนสถานะ — ถามก่อนทุกครั้ง กดพลาดแล้วย้อนไม่ได้ (เช่น ยืนยันการชำระแล้วออเดอร์เข้าครัวทันที) */
     async go(status) {
+        const o = CFStore.byId('orders', this.state.selectedId);
+        if (!o) return;
+        // ผลที่ตามมาของแต่ละสถานะ — บอกให้ชัดก่อนกด
+        const effect = {
+            PAID: 'บันทึกว่าได้รับเงินแล้ว · ออเดอร์เข้าครัว · พิมพ์ใบเสร็จ',
+            WAITING_CASH: 'เปลี่ยนเป็นรอรับเงินสดที่เคาน์เตอร์',
+            SENT_TO_KITCHEN: 'ส่งออเดอร์เข้าครัว',
+            PREPARING: 'ครัวเริ่มทำ',
+            READY: 'ขึ้นจอเรียกคิวให้ลูกค้ามารับ',
+            SERVED: 'บันทึกว่าส่งมอบให้ลูกค้าแล้ว',
+            COMPLETED: 'ปิดรายการ — ออเดอร์จบ ไม่ขึ้นในรายการค้าง',
+        }[status];
+        const ok = await Drawer.confirm({
+            title: (CF_ACTION_LABEL[status] || CFApp.statusLabel(status)) + '?',
+            message: o.orderNo + ' · ' + CFApp.baht(o.total),
+            lines: [CFApp.statusLabel(o.status) + '  →  ' + CFApp.statusLabel(status), effect],
+            note: 'ย้อนกลับไม่ได้ — ตรวจเลขออเดอร์ให้ถูกก่อนกด',
+            confirmText: CF_ACTION_LABEL[status] || 'ยืนยัน', cancelText: 'ยกเลิก', danger: false,
+        });
+        if (!ok) return;
         if (await CFOrders.transition(this.state.selectedId, status)) {
             showToast('เปลี่ยนสถานะเป็น "' + CFApp.statusLabel(status) + '" แล้ว', 'success');
         }

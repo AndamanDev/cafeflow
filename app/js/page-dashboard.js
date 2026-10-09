@@ -14,6 +14,7 @@ const DashPage = {
         const devRows = document.getElementById('devRows');
         if (devRows) { devRows.innerHTML = this.deviceRows() + this.unknownWaitRows(); refreshIcons(); }
         this.renderDevWaits();
+        this.renderBackupWarn();
         const shift = CFStore.openShift();
 
         // ไม่มีรอบเปิด = คีออสก์ไม่รับออเดอร์ — ชี้ทางไปเปิดรอบ
@@ -1025,6 +1026,24 @@ const DashPage = {
     /* ══════════════════════════════════════════════════════
        รหัสผ่านของพนักงาน (แอดมิน)
        ══════════════════════════════════════════════════════ */
+    /** สำรองข้อมูลล่าสุดนานเกิน 2 วัน / ยังไม่เคย → แถบเตือน (ฮาร์ดดิสก์เสีย = ยอดขายหายหมด) */
+    async loadBackup() {
+        if (!CFAuth.can('SHIFT_CLOSE')) return;
+        try { this._backup = await CFApi.get('/api/backup/status'); } catch { this._backup = null; }
+        this.renderBackupWarn();
+    },
+    renderBackupWarn() {
+        const el = document.getElementById('backupBanner');
+        const b = this._backup;
+        if (!el) return;
+        const age = b && b.lastAt ? (Date.now() - new Date(b.lastAt).getTime()) / 3600000 : Infinity;
+        if (!b || age < 48) { el.style.display = 'none'; return; }
+        el.style.display = '';
+        el.innerHTML = `<div class="ds-warn"><b>ยังไม่ได้สำรองข้อมูล${b.lastAt ? 'มา ' + Math.floor(age / 24) + ' วัน' : 'เลย'}</b> —
+            ถ้าเครื่องเสีย ยอดขายและเมนูจะหาย · ระบบสำรองเองทุกคืน 23:30 และหลังปิดรอบ ตรวจว่า Docker เปิดอยู่
+            หรือรัน <code>node ops\\backup.js</code> ที่เครื่องเซิร์ฟเวอร์ (log: logs\\backup.log)</div>`;
+    },
+
     async loadWeak() {
         if (!CFAuth.can('USER_MANAGE')) return;
         try {
@@ -1212,6 +1231,7 @@ const DashPage = {
     boot() {
         CFApp.boot({ page: 'dashboard' });
         this.loadWeak();
+        this.loadBackup();
         this.render();
         CFStore.subscribe(() => this.render());
 

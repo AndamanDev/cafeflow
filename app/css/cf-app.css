@@ -416,10 +416,11 @@
 .cf-ol-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .cf-ol-row .sip-select, .cf-ol-tools .sip-input { padding: 7px 10px; font-size: 14px; min-width: 0; }
 .cf-ol-dayinfo { font-size: 12.5px; color: var(--text-muted); padding: 0 2px; }
-/* ตัวกรองสถานะ 2 แถว — ปุ่มพื้นขาวมีกรอบบาง ตัวที่เลือกเป็นพื้นเขียว (เดิมพื้นเทาทุกปุ่ม ดูหนัก) */
-.cf-ol-pills { padding: 2px 16px 10px; gap: 6px; }
+/* ตัวกรองสถานะ: "ทั้งหมด" เต็มแถว แล้ว 6 กลุ่ม 3+3 (4 คอลัมน์แคบจนคำ+ตัวเลขล้น) — ปุ่มพื้นขาวมีกรอบบาง ตัวที่เลือกเป็นพื้นเขียว */
+.cf-ol-pills { padding: 2px 16px 10px; gap: 5px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cf-ol-pills .ds-pilltab:first-child { grid-column: 1 / -1; }
 .cf-ol-pills .ds-pilltab {
-    flex: 1 1 calc(33.333% - 6px); padding: 5px 4px; font-size: 12.5px; font-weight: 600;
+    padding: 5px 4px; font-size: 12.5px; font-weight: 600; white-space: nowrap; min-width: 0;
     background: #fff; border: var(--hairline) solid var(--brand-border); color: var(--text-secondary); box-shadow: none;
 }
 .cf-ol-pills .ds-pilltab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
@@ -528,3 +529,13 @@
 
 .cf-num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 .cf-num-grid .sip-field { margin-bottom: 10px; }
+
+.cf-hint { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+
+/* ── ครัว: กด "พร้อมเสิร์ฟ" แล้วมี 5 วิให้ย้อนกลับ ── */
+.cf-kds-card.is-pending { border-top-color: var(--primary); background: var(--primary-bg); }
+.cf-kds-undo { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+               padding: 8px 10px; border-radius: 8px; background: #fff; border: 1px solid var(--primary-border);
+               color: var(--primary-dark); font-weight: 700; }
+.cf-kds-undo span { display: inline-flex; align-items: center; gap: 6px; }
+.cf-kds-undo b { font-size: 18px; min-width: 1ch; }

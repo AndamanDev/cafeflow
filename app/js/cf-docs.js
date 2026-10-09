@@ -18,6 +18,11 @@ const CFDocs = {
           แก้ที่หนึ่งต้องแก้อีกที่
        บรรทัดภาษีพิมพ์เฉพาะสาขาที่จด VAT — ไม่ได้จดแต่แสดงยอดภาษี = เรียกเก็บโดยไม่มีสิทธิ์
        ══════════════════════════════════════════════════════ */
+    /** ออกใบเสร็จได้ไหม — ชำระแล้วและยังไม่ยกเลิก/คืนเงิน */
+    canReceipt(o) {
+        return !!o && ['PAID', 'SENT_TO_KITCHEN', 'PREPARING', 'READY', 'SERVED', 'COMPLETED'].includes(o.status);
+    },
+
     receiptRoll(orderId, width) {
         const narrow = width === '58mm';
         const e = CFApp.esc;
@@ -269,6 +274,11 @@ const CFDocs = {
        ══════════════════════════════════════════════════════ */
     previewReceipt(orderId) {
         const o = CFStore.byId('orders', orderId);
+        // ตรงกับ RECEIPT_OK ฝั่งเซิร์ฟเวอร์ — ทางสำรองผ่านเบราว์เซอร์ก็ต้องไม่ออกใบเสร็จให้ออเดอร์ที่ยังไม่จ่าย
+        if (o && !CFDocs.canReceipt(o)) {
+            showToast('ออเดอร์นี้ยังไม่ได้ชำระเงิน (หรือถูกยกเลิก) — ออกใบเสร็จไม่ได้', 'error', 4000);
+            return;
+        }
         const title = 'ใบเสร็จรับเงิน — ' + (o ? o.orderNo : '');
         const browser = {
             title,

@@ -43,17 +43,18 @@
         WAITING_CASH:    'ส่งไปรอเงินสด',
         WAITING_PAYMENT: 'ออก QR ชำระเงิน',
         PAID:            'ยืนยันการชำระ',
-        PAYMENT_REVIEW:  'ส่งตรวจสอบการชำระ',
-        PAYMENT_TIMEOUT: 'หมดเวลาชำระ',
-        PAYMENT_FAILED:  'ชำระไม่สำเร็จ',
+        PAYMENT_REVIEW:  'ส่งไปเช็กสลิป',
+        PAYMENT_TIMEOUT: 'QR หมดเวลา',
+        PAYMENT_FAILED:  'สลิปไม่ผ่าน',
         SENT_TO_KITCHEN: 'ส่งเข้าครัว',
         PREPARING:       'เริ่มจัดเตรียม',
         READY:           'พร้อมรับ',
         SERVED:          'ส่งมอบลูกค้า',
-        COMPLETED:       'ปิดรายการ',
-        CANCELLED:       'ยกเลิกออเดอร์',
-        VOIDED:          'ยกเลิกบิล',
-        REFUNDED:        'คืนเงิน',
+        COMPLETED:       'ปิดเป็น "เสร็จ"',
+        // ยกเลิก 3 แบบ — ชื่อปุ่มบอกผลกับเงินให้ชัด พนักงานไม่ต้องรู้ศัพท์ void/refund
+        CANCELLED:       'ยกเลิก (ยังไม่ได้รับเงิน)',
+        VOIDED:          'ยกเลิกบิลผิด/ซ้ำ',
+        REFUNDED:        'ยกเลิก + คืนเงินลูกค้า',
     };
 
     /**

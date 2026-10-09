@@ -16,6 +16,7 @@ const CashierPage = {
         const k = CFKpi.summary();
         const shift = CFStore.openShift();
         this.renderShiftAlert(shift);
+        this.renderDevAlert();
         const me = CFAuth.getUser();
 
         document.getElementById('cashierSub').textContent =
@@ -35,8 +36,8 @@ const CashierPage = {
             </div>`;
 
         document.getElementById('kpiStrip').innerHTML =
-            kpi('banknote', CFApp.int(k.waitingCash), 'รอรับเงินสด', k.waitingCash > 3, 'cash') +
-            kpi('search-check', CFApp.int(k.paymentReview), 'รอตรวจสอบการชำระ', k.paymentReview > 0, 'review') +
+            kpi('banknote', CFApp.int(k.waitingCash), 'รอจ่าย · เงินสด', k.waitingCash > 3, 'cash') +
+            kpi('search-check', CFApp.int(k.paymentReview), 'เช็กสลิป', k.paymentReview > 0, 'review') +
             kpi('bell-ring', CFApp.int(k.ready), 'พร้อมรับ', false, 'ready') +
             kpi('wallet', CFApp.baht(k.cash), 'เงินสดรอบนี้');
 
@@ -299,6 +300,29 @@ const CashierPage = {
             <span style="flex:1"><strong>ยังไม่ได้เปิดรอบการขาย</strong> — คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกดเปิดรอบ</span>
             <button class="btn btn-primary btn-sm" onclick="location.href='closing.html'">
                 <i data-lucide="unlock" class="icon-sm"></i> เปิดรอบ</button>
+        </div>`;
+    },
+
+    /**
+     * ตู้ / จอครัว / จอคิว ที่ทำงานอยู่วันนี้แล้วเงียบไปเกิน 5 นาที → แถบเตือน
+     * (เครื่องที่ยังไม่เปิดตั้งแต่เช้า หรือปิดไปตั้งแต่เมื่อวาน ไม่เตือน — ไม่งั้นแถบค้างตลอด)
+     * เครื่องพิมพ์พิมพ์ไม่ออกมีแถบแดงของตัวเองอยู่แล้ว (printAlert)
+     */
+    renderDevAlert() {
+        const el = document.getElementById('devAlert');
+        if (!el) return;
+        const now = Date.now();
+        const silent = CFStore.all('devices').filter((d) => ['KIOSK', 'KDS', 'DISPLAY'].includes(d.type) && d.paired &&
+            d.lastSeen && d.status !== 'ONLINE' &&
+            now - new Date(d.lastSeen).getTime() > 5 * 60000 && now - new Date(d.lastSeen).getTime() < 12 * 3600000);
+        el.hidden = !silent.length;
+        if (!silent.length) return;
+        const e = CFApp.esc;
+        el.innerHTML = `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <i data-lucide="wifi-off" class="icon-sm"></i>
+            <span style="flex:1"><strong>${silent.map((d) => e(d.name)).join(', ')}</strong> ไม่ตอบสนอง
+                ตั้งแต่ ${silent.map((d) => CFApp.time(d.lastSeen)).join(', ')} — ตรวจว่าเครื่องเปิดอยู่และต่อ Wi-Fi ร้าน</span>
+            <a class="btn btn-outline btn-sm" href="dashboard.html?devices=1">ดูอุปกรณ์</a>
         </div>`;
     },
 
@@ -693,8 +717,11 @@ const CashierPage = {
                 <div class="td-sub" style="margin-bottom:10px">${e(o.kioskId)} · ${CFApp.dateTime(o.createdAt)}</div>
                 ${this._itemsHtml(orderId)}`,
             footerHtml: `
-                <button class="btn btn-outline" onclick="CFDocs.previewReceipt('${o.id}')">
+                ${CFDocs.canReceipt(o) ? `<button class="btn btn-outline" onclick="CFDocs.previewReceipt('${o.id}')">
                     <i data-lucide="printer" class="icon-sm"></i> ใบเสร็จ
+                </button>` : ''}
+                <button class="btn btn-outline" onclick="CashierPage.reprintTicket('${o.id}')" title="ออกที่เครื่องพิมพ์เคาน์เตอร์">
+                    <i data-lucide="ticket" class="icon-sm"></i> บัตรคิวซ้ำ
                 </button>
                 ${next.includes('SERVED') ? `<button class="btn btn-primary" onclick="CashierPage.serve('${o.id}')">
                     <i data-lucide="hand-platter" class="icon-sm"></i> ส่งมอบลูกค้า</button>` : ''}`,
@@ -702,7 +729,26 @@ const CashierPage = {
         });
     },
 
+    /** พิมพ์บัตรคิวซ้ำที่เครื่องเคาน์เตอร์ (กระดาษติดที่ตู้ / ลูกค้าทำหาย) */
+    async reprintTicket(orderId) {
+        try {
+            const r = await CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/queue-ticket', {});
+            showToast('ส่งบัตรคิว (สำเนา) ไปที่ ' + ((r.printer && r.printer.name) || 'เครื่องพิมพ์') + ' แล้ว', 'success');
+        } catch (err) {
+            showToast(err.message || 'พิมพ์บัตรคิวไม่สำเร็จ', 'error', 5000);
+        }
+    },
+
     async serve(orderId) {
+        const o = CFStore.byId('orders', orderId);
+        // ถามก่อน — ส่งมอบแล้วออเดอร์ปิดรายการทันที กดพลาดออเดอร์อื่นแล้วย้อนไม่ได้
+        const ok = await Drawer.confirm({
+            title: 'ส่งมอบให้ลูกค้า?',
+            message: (o ? o.orderNo + ' · ' + CFApp.baht(o.total) : orderId),
+            lines: ['ตรวจเลขคิวบนบัตรของลูกค้าให้ตรงก่อน', 'ส่งมอบแล้วออเดอร์ปิดรายการ (หายจากแท็บพร้อมรับ)'],
+            confirmText: 'ส่งมอบ', cancelText: 'ยกเลิก', danger: false,
+        });
+        if (!ok) return;
         // ต้องรอ SERVED สำเร็จก่อน — ยิง COMPLETED ตามไปทันทีจะถูกปฏิเสธเพราะสถานะยังไม่ขยับ
         if (await CFOrders.transition(orderId, 'SERVED')) {
             await CFOrders.transition(orderId, 'COMPLETED');
@@ -716,6 +762,7 @@ const CashierPage = {
         CFAlerts.start('cashier');
         this.refreshPrintAlert();
         setInterval(() => this.refreshPrintAlert(), 15000);
+        setInterval(() => this.renderDevAlert(), 30000);   // เครื่องเงียบเกิน 5 นาทีขึ้นเองแม้ไม่มีข้อมูลใหม่
 
         // เติมตัวเลือกสถานะในช่องค้นหา
         document.getElementById('searchStatus').innerHTML +=
@@ -723,8 +770,19 @@ const CashierPage = {
 
         this.render();
         CFStore.subscribe(() => this.render());
+
+        // มาจากหน้าจัดการออเดอร์ (?order=…) — เปิดหน้ารับเงิน/ตรวจสลิปของออเดอร์นั้นเลย แล้วลบพารามิเตอร์ทิ้ง
+        // ไม่งั้นกดรีเฟรชแล้ว drawer เด้งซ้ำ
+        const want = new URLSearchParams(location.search).get('order');
+        if (want) {
+            history.replaceState(null, '', location.pathname);
+            if (CFStore.byId('orders', want)) setTimeout(() => this.open(want), 200);
+            else showToast('ไม่พบออเดอร์นี้ในรายการของแคชเชียร์', 'error', 4000);
+        }
     },
 };
 
 window.CashierPage = CashierPage;
-CFBoot.ready(() => CashierPage.boot());
+// หน้าจัดการออเดอร์โหลดไฟล์นี้ด้วย เพื่อใช้ drawer รับเงินสด / ตรวจสอบการชำระ / สแกนสลิป ตัวเดียวกัน
+// — บูตหน้าแคชเชียร์เฉพาะตอนอยู่หน้าแคชเชียร์จริง (มีพื้นที่รายการออเดอร์)
+CFBoot.ready(() => { if (document.getElementById('orderArea')) CashierPage.boot(); });

@@ -5,6 +5,7 @@
  *   node D:\cafeflow\ops\install-autostart.js --remove   ถอน
  *
  * ลงทะเบียน Task Scheduler ชื่อ "CafeFlow" (เมื่อ login + หน่วง 30 วิ) → เรียก run-cafeflow.ps1
+ * และ "CafeFlow Backup" ทุกคืน 23:30 → ops/backup.js (เครื่องปิดตอนนั้น = ทำตอนเปิดครั้งถัดไป)
  *
  * ทำไมเป็น Node ไม่ใช่ PowerShell: แอนตี้ไวรัสจับสคริปต์ PowerShell ที่ตั้งตัวเองให้เปิดอัตโนมัติว่าเป็นมัลแวร์
  *   (บล็อก install-autostart.ps1 / start-cafeflow.ps1 จน git อ่านไม่ได้ และลบทางลัดใน Startup ทิ้งเงียบ ๆ — 08/10/2569)
@@ -20,6 +21,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const TASK = 'CafeFlow';
+const BACKUP_TASK = 'CafeFlow Backup';
 const SCRIPT = path.join(__dirname, 'run-cafeflow.ps1');
 // ทางลัดของวิธีเดิม — ลบทิ้งทั้งตอนตั้งและถอน กันเปิดซ้อน
 const OLD_LNK = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'CafeFlow.lnk');
@@ -50,7 +52,8 @@ try {
 
 if (process.argv.includes('--remove')) {
     const r = schtasks(['/Delete', '/TN', TASK, '/F']);
-    console.log(r.code === 0 ? 'ถอนการเปิดอัตโนมัติแล้ว' : 'ไม่มีการตั้งเปิดอัตโนมัติอยู่แล้ว');
+    schtasks(['/Delete', '/TN', BACKUP_TASK, '/F']);
+    console.log(r.code === 0 ? 'ถอนการเปิดอัตโนมัติ (และสำรองข้อมูลอัตโนมัติ) แล้ว' : 'ไม่มีการตั้งเปิดอัตโนมัติอยู่แล้ว');
     process.exit(0);
 }
 
@@ -104,3 +107,50 @@ fs.rmSync(file, { force: true });
 if (r.code !== 0) fail('ลงทะเบียน Task Scheduler ไม่สำเร็จ', r.out);
 
 console.log(`ตั้งแล้ว: Task Scheduler → ${TASK} (ทำงานทุกครั้งที่ ${user} login)`);
+
+/* ── สำรองข้อมูลทุกคืน — ฮาร์ดดิสก์เสียทีเดียว ยอดขายกับเมนูหายหมดถ้าไม่มีไฟล์สำรอง ──
+   StartWhenAvailable: ร้านปิดเครื่องก่อน 23:30 → สำรองตอนเปิดเครื่องวันรุ่งขึ้นแทน (ไม่ข้ามวัน)
+   เรียก node ตรง ๆ (ไม่ผ่าน PowerShell — แอนตี้ไวรัสไม่ชอบ) · ซ่อนหน้าต่าง */
+const backupXml = `<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>CafeFlow — สำรองฐานข้อมูลและภาพสลิปทุกคืน (เก็บย้อนหลัง 30 วัน ที่ backup\)</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-01-01T23:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>${xmlEsc(user)}</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
+    <Hidden>true</Hidden>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>${xmlEsc(process.execPath)}</Command>
+      <Arguments>${xmlEsc('"' + path.join(__dirname, 'backup.js') + '" --reason=nightly')}</Arguments>
+      <WorkingDirectory>${xmlEsc(path.resolve(__dirname, '..'))}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+`;
+const bfile = path.join(os.tmpdir(), `cafeflow-backup-task-${process.pid}.xml`);
+fs.writeFileSync(bfile, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(backupXml, 'utf16le')]));
+const br = schtasks(['/Create', '/TN', BACKUP_TASK, '/XML', bfile, '/F']);
+fs.rmSync(bfile, { force: true });
+if (br.code !== 0) fail('ลงทะเบียนงานสำรองข้อมูลไม่สำเร็จ', br.out);
+console.log(`ตั้งแล้ว: Task Scheduler → ${BACKUP_TASK} (ทุกคืน 23:30 · เก็บที่ backup\)`);

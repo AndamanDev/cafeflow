@@ -20,6 +20,7 @@ const QRCode = require('qrcode');
 const SHARED = path.resolve(__dirname, '..', '..', '..', 'shared');
 const { CFEmv } = require(path.join(SHARED, 'cf-emv.js'));
 const { CFSlip } = require(path.join(SHARED, 'cf-slip.js'));
+const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
 
 const { publish } = require('./stream');
 const { audit, touch, ApiError, settingsOf } = require('./orders');
@@ -254,9 +255,20 @@ function registerPayments(app, deps) {
     const { pool, tx, branchId } = deps;
     const { context, handle } = deps.helpers;
 
+    /**
+     * ใครออก/ดู QR ได้ — คีออสก์ที่จับคู่แล้ว (ลูกค้าเป็นคนกด ไม่ต้องล็อกอิน) หรือพนักงานที่รับเงินได้
+     * เดิมไม่ตรวจเลย: เครื่องไหนก็ได้ใน Wi-Fi ร้านสั่งออก QR ให้ออเดอร์ใดก็ได้ และสถานะออเดอร์เปลี่ยนตาม
+     */
+    const requireQrCaller = (ctx) => {
+        if (ctx.device && ctx.device.kind === 'KIOSK') return;
+        if (ctx.user && CFPerms.can(ctx.user.role, 'PAY_RECEIVE')) return;
+        throw new ApiError(ctx.user ? 403 : 401, 'ออก QR ได้เฉพาะคีออสก์ที่จับคู่แล้ว หรือพนักงานที่รับเงิน');
+    };
+
     /** ออก QR — คีออสก์เรียกได้โดยไม่ต้องล็อกอิน (ลูกค้าเป็นคนกด) */
     app.post('/api/orders/:id/qr', handle(async (req) => {
         const ctx = await context(req);
+        requireQrCaller(ctx);
         const out = await tx((c) => issueQr(c, branchId(), req.params.id, ctx));
 
         // ส่ง SVG ไปเลย เบราว์เซอร์จึงไม่ต้องมีไลบรารี QR
@@ -270,6 +282,7 @@ function registerPayments(app, deps) {
 
     /** ดูใบที่ยังใช้ได้ — คีออสก์รีเฟรชแล้วต้องได้ใบเดิม ไม่ใช่ออกใบใหม่ */
     app.get('/api/orders/:id/qr', handle(async (req) => {
+        requireQrCaller(await context(req));
         const r = await deps.query(
             `SELECT q.* FROM payment_qr q JOIN cf_order o ON o.id = q.order_id
               WHERE q.order_id = $1 AND o.branch_id = $2

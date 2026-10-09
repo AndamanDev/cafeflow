@@ -103,7 +103,11 @@ body.cf-display {
     display: flex; align-items: center; gap: 1.2vmin; flex-wrap: wrap;
     font-size: 3vmin; font-weight: 800; color: var(--d-text);
 }
-.cfd-col-title small { font-size: 1.8vmin; font-weight: 600; color: var(--d-muted); }
+/* ภาษาอังกฤษขึ้นบรรทัดสองเสมอ — เดิมหัวสั้นอยู่บรรทัดเดียว หัวยาวตกบรรทัด สองคอลัมน์สูงไม่เท่ากัน */
+.cfd-col-title small {
+    flex-basis: 100%; padding-left: 2.8vmin; margin-top: -.6vmin;
+    font-size: 1.8vmin; font-weight: 600; color: var(--d-muted);
+}
 .cfd-dot { width: 1.6vmin; height: 1.6vmin; border-radius: 50%; flex-shrink: 0; background: var(--d-amber); }
 .cfd-col-count {
     font-size: 2.2vmin; font-weight: 800; padding: .4vmin 1.6vmin; border-radius: 999px;

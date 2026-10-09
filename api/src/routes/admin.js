@@ -6,6 +6,8 @@
 'use strict';
 const path = require('path');
 const SHARED = path.resolve(__dirname, '..', '..', '..', 'shared');
+const ROOT_DIR = path.resolve(__dirname, '..', '..', '..');
+const fs = require('fs');
 const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
 const { CF_STATUS } = require(path.join(SHARED, 'cf-consts.js'));
 
@@ -443,8 +445,36 @@ function registerAdmin(app, deps) {
         requirePerm(ctx, 'SHIFT_CLOSE');
         const out = await tx((c) => closeShift(c, branchId(), req.params.id, req.body || {}, ctx));
         publish(branchId(), { entity: 'shifts', op: 'update', id: req.params.id });
+        runBackup('shift-close');           // ยอดของรอบที่เพิ่งปิดอยู่ในไฟล์สำรองทันที — ไม่รอถึงคืนนี้
         return out;
     }));
+
+    /** สำรองล่าสุดเมื่อไหร่ — หน้าภาพรวมเตือนถ้านานเกิน 2 วัน หรือยังไม่เคยสำรอง */
+    app.get('/api/backup/status', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'SHIFT_CLOSE');
+        const dir = process.env.CF_BACKUP_DIR || path.join(ROOT_DIR, 'backup');
+        let last = null;
+        try {
+            for (const f of fs.readdirSync(dir)) {
+                if (!/^cafeflow-.*\.dump$/.test(f)) continue;
+                const t = fs.statSync(path.join(dir, f)).mtimeMs;
+                if (!last || t > last.t) last = { t, file: f };
+            }
+        } catch { /* ยังไม่มีโฟลเดอร์ */ }
+        return { lastAt: last ? new Date(last.t).toISOString() : null, file: last ? last.file : null };
+    }));
+}
+
+/** สั่งสำรองข้อมูลเบื้องหลัง (ops/backup.js) — ไม่รอ ไม่ทำให้คำสั่งของผู้ใช้ช้า · พังก็แค่เขียน log */
+function runBackup(reason) {
+    try {
+        const { spawn } = require('child_process');
+        spawn(process.execPath, [path.join(ROOT_DIR, 'ops', 'backup.js'), '--reason=' + reason],
+            { cwd: ROOT_DIR, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    } catch (err) {
+        console.warn('[backup] สั่งสำรองไม่ได้:', err.message);
+    }
 }
 
 module.exports = { registerAdmin, saveProduct, archiveProduct, saveSettings, closeShift, openShift };

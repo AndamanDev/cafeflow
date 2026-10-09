@@ -36,25 +36,46 @@
     };
     const CF_SERVE_ORDER = ['HOT', 'ICED', 'FRAPPE', 'STD'];
 
-    /** ป้ายสถานะภาษาไทย + สีชิปของ design system */
-    const CF_STATUS = {
-        DRAFT:           { label: 'ร่าง',            chip: 'sip-chip-muted' },
-        ORDER_CONFIRMED: { label: 'ยืนยันออเดอร์',    chip: 'sip-chip-muted' },
-        WAITING_CASH:    { label: 'รอชำระเงินสด',     chip: 'sip-chip-active' },
-        WAITING_PAYMENT: { label: 'รอชำระ QR',        chip: 'sip-chip-active' },
-        PAYMENT_TIMEOUT: { label: 'QR หมดเวลา',       chip: 'sip-chip-danger' },
-        PAYMENT_REVIEW:  { label: 'รอตรวจสอบการชำระ', chip: 'sip-chip-danger' },
-        PAYMENT_FAILED:  { label: 'ชำระไม่สำเร็จ',    chip: 'sip-chip-danger' },
-        PAID:            { label: 'ชำระแล้ว',         chip: 'sip-chip-success' },
-        SENT_TO_KITCHEN: { label: 'ส่งเข้าครัวแล้ว',  chip: 'sip-chip-progress' },
-        PREPARING:       { label: 'กำลังจัดเตรียม',   chip: 'sip-chip-progress' },
-        READY:           { label: 'พร้อมรับ',         chip: 'sip-chip-success' },
-        SERVED:          { label: 'ส่งมอบแล้ว',       chip: 'sip-chip-success' },
-        COMPLETED:       { label: 'เสร็จสิ้น',        chip: 'sip-chip-muted' },
-        CANCELLED:       { label: 'ยกเลิก',           chip: 'sip-chip-danger' },
-        VOIDED:          { label: 'ยกเลิกบิล',        chip: 'sip-chip-danger' },
-        REFUNDED:        { label: 'คืนเงิน',          chip: 'sip-chip-danger' },
+    /**
+     * กลุ่มสถานะ — คำที่พนักงานพูดกันหน้าร้าน (6 คำ) · สีชิปตามกลุ่ม ไม่ใช่ตามสถานะย่อย
+     * สถานะจริงในระบบยังมีครบ 16 ตัว (CF_FLOW) แต่ทุกหน้าจอขึ้นต้นด้วยชื่อกลุ่มเสมอ
+     * พนักงานพูด "A012 กำลังทำ" ผู้จัดการเปิดดูเห็น "กำลังทำ · กำลังเตรียม" — คำแรกตรงกันทุกครั้ง
+     */
+    const CF_STATUS_GROUPS = [
+        { key: 'pay',    label: 'รอจ่าย',    chip: 'sip-chip-active',   statuses: ['DRAFT', 'ORDER_CONFIRMED', 'WAITING_CASH', 'WAITING_PAYMENT'] },
+        { key: 'check',  label: 'เช็กสลิป',   chip: 'sip-chip-danger',   statuses: ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'PAYMENT_FAILED'] },
+        { key: 'making', label: 'กำลังทำ',    chip: 'sip-chip-progress', statuses: ['PAID', 'SENT_TO_KITCHEN', 'PREPARING'] },
+        { key: 'ready',  label: 'พร้อมรับ',   chip: 'sip-chip-success',  statuses: ['READY'] },
+        { key: 'done',   label: 'เสร็จ',      chip: 'sip-chip-muted',    statuses: ['SERVED', 'COMPLETED'] },
+        { key: 'void',   label: 'ยกเลิก',     chip: 'sip-chip-danger',   statuses: ['CANCELLED', 'VOIDED', 'REFUNDED'] },
+    ];
+
+    /** รายละเอียดต่อท้ายชื่อกลุ่ม ('' = ชื่อกลุ่มอย่างเดียวพอ) */
+    const CF_STATUS_SUB = {
+        DRAFT:           'ร่าง',
+        ORDER_CONFIRMED: 'เพิ่งสั่ง',
+        WAITING_CASH:    'เงินสด',
+        WAITING_PAYMENT: 'QR',
+        PAYMENT_REVIEW:  'รอตรวจ',
+        PAYMENT_TIMEOUT: 'QR หมดเวลา',
+        PAYMENT_FAILED:  'ไม่ผ่าน',
+        PAID:            'รับเงินแล้ว',
+        SENT_TO_KITCHEN: 'ยังไม่เริ่ม',
+        PREPARING:       'กำลังเตรียม',
+        READY:           '',
+        SERVED:          'ส่งมอบแล้ว',
+        COMPLETED:       '',
+        CANCELLED:       'ไม่ได้รับเงิน',
+        VOIDED:          'บิลผิด/ซ้ำ',
+        REFUNDED:        'คืนเงินแล้ว',
     };
+
+    /** ป้ายสถานะ: label = "กลุ่ม · รายละเอียด" · group = ชื่อกลุ่มอย่างเดียว (ที่แคบ) · chip = สีของกลุ่ม */
+    const CF_STATUS = {};
+    CF_STATUS_GROUPS.forEach((g) => g.statuses.forEach((s) => {
+        const sub = CF_STATUS_SUB[s];
+        CF_STATUS[s] = { label: sub ? g.label + ' · ' + sub : g.label, group: g.label, groupKey: g.key, sub, chip: g.chip };
+    }));
 
     /** รูปแบบการรับสินค้า — ป้าย/ภาพอยู่ที่เดียว หน้าอื่นจะได้ไม่เขียนสตริงซ้ำ */
     const CF_DINING = {
@@ -155,7 +176,7 @@
     ];
 
     return {
-        CF_STATIONS, CF_SERVE, CF_SERVE_ORDER, CF_STATUS,
+        CF_STATIONS, CF_SERVE, CF_SERVE_ORDER, CF_STATUS, CF_STATUS_GROUPS,
         CF_DINING, CF_DINING_MODES, CF_DINING_MODE,
         CF_KIOSK_DEFAULTS, CF_KIOSK_SIZES, CF_DISPLAY_DEFAULTS,
         CF_DAY_START_DEFAULT, CFDay,

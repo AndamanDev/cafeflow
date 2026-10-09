@@ -17,7 +17,7 @@ const SHARED = path.resolve(__dirname, '..', '..', '..', 'shared');
 const { CFFlow } = require(path.join(SHARED, 'cf-flow.js'));
 const { CFPricing } = require(path.join(SHARED, 'cf-pricing.js'));
 const { CFRulesCore } = require(path.join(SHARED, 'cf-rules.js'));
-const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
+const { CFPerms, CF_PERMS } = require(path.join(SHARED, 'cf-perms.js'));
 const { CFDay } = require(path.join(SHARED, 'cf-consts.js'));
 
 const { publish } = require('./stream');
@@ -516,7 +516,18 @@ async function renderKitchenSlip(c, branchId, order, station) {
 }
 
 /** วาดใบเสร็จ — ออกที่เครื่องของเคาน์เตอร์ ไม่ผูกสถานีครัว */
+/** ออกใบเสร็จได้เฉพาะออเดอร์ที่ชำระเงินแล้วจริง (ยังไม่ถูกยกเลิก/คืนเงิน) */
+const RECEIPT_OK = ['PAID', 'SENT_TO_KITCHEN', 'PREPARING', 'READY', 'SERVED', 'COMPLETED'];
+
 async function renderReceipt(c, branchId, o) {
+    // ใบเสร็จรับเงิน = หลักฐานว่าร้านได้รับเงินแล้ว — ออเดอร์ที่ยังไม่จ่าย/ยกเลิก/คืนเงิน ห้ามออก
+    // (เดิมกดออกได้ทุกสถานะ ลูกค้าเอาใบเสร็จของออเดอร์ที่ไม่ได้จ่ายไปอ้างได้) — ตรวจที่นี่ครอบคลุม
+    // พิมพ์จริง · พรีวิว · ใบเสร็จอัตโนมัติ ในจุดเดียว
+    if (!RECEIPT_OK.includes(o.status)) {
+        throw new ApiError(409, o.status === 'REFUNDED' || o.status === 'VOIDED' || o.status === 'CANCELLED'
+            ? 'ออเดอร์นี้ถูกยกเลิก/คืนเงินแล้ว — ออกใบเสร็จไม่ได้'
+            : 'ออเดอร์นี้ยังไม่ได้ชำระเงิน — ออกใบเสร็จไม่ได้');
+    }
     const { receipt } = require('../print/raster');
     const escpos = require('../print/escpos');
     const { printerFor } = require('../print/worker');
@@ -683,6 +694,29 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         if (!CFPerms.can(ctx.user.role, key)) throw new ApiError(403, 'บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้');
     }
 
+    /**
+     * สิทธิ์เปลี่ยนสถานะของพนักงาน — ตรวจที่เซิร์ฟเวอร์ ไม่ใช่แค่ซ่อนปุ่มในหน้าจอ
+     * (เดิมตรวจแค่ PAID → บัญชีครัว/ผู้ชมยิง API ยกเลิกหรือคืนเงินได้)
+     *   ยกเลิกบิลที่จ่ายแล้ว / คืนเงิน  = เงินออกจากร้าน → ผู้จัดการขึ้นไป (PAY_OVERRIDE เต็ม ไม่ใช่ LIMITED)
+     *   ขั้นตอนครัว (ส่งเข้าครัว → พร้อม → ส่งมอบ) = ครัว หรือ คนรับเงิน (แคชเชียร์ส่งมอบ/ปิดรอบไล่สถานะ)
+     *   ที่เหลือ (รับเงิน ยกเลิกออเดอร์ที่ยังไม่จ่าย ชำระไม่สำเร็จ ปิดรายการ) = คนรับเงิน
+     */
+    function requireStatusPerm(ctx, to) {
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        const role = ctx.user.role;
+        if (['VOIDED', 'REFUNDED'].includes(to)) {
+            // ค่าดิบในตาราง ต้องเป็น true เท่านั้น — 'LIMITED' ของแคชเชียร์ไม่นับ
+            // (CFPerms.permission/can แปลง 'LIMITED' เป็นทำได้ — เคยพลาดตรงนี้จนแคชเชียร์ยกเลิกบิลได้)
+            if (!(CF_PERMS[role] && CF_PERMS[role].PAY_OVERRIDE === true)) {
+                throw new ApiError(403, 'ยกเลิกบิลที่จ่ายแล้ว / คืนเงิน ต้องเป็นผู้จัดการ');
+            }
+            return;
+        }
+        const kitchenStep = ['SENT_TO_KITCHEN', 'PREPARING', 'READY', 'SERVED'].includes(to);
+        if (CFPerms.can(role, 'PAY_RECEIVE') || (kitchenStep && CFPerms.can(role, 'KITCHEN'))) return;
+        throw new ApiError(403, 'บัญชีนี้ไม่มีสิทธิ์เปลี่ยนเป็นสถานะนี้');
+    }
+
     const handle = (fn) => async (req, reply) => {
         try {
             return await fn(req, reply);
@@ -735,8 +769,8 @@ function registerOrders(app, { pool, tx, query, branchId }) {
             if (!KIOSK_ALLOWED.includes(to)) {
                 throw new ApiError(403, 'คีออสก์เปลี่ยนสถานะนี้ไม่ได้ — ต้องให้พนักงานทำ');
             }
-        } else if (to === 'PAID') {
-            requirePerm(ctx, 'PAY_RECEIVE');
+        } else {
+            requireStatusPerm(ctx, to);
         }
 
         const out = await tx((c) =>
@@ -968,6 +1002,39 @@ function registerOrders(app, { pool, tx, query, branchId }) {
                 orderId: o.id, deviceId: printer.id, docType: 'PAYMENT_TICKET', paperWidth: width, payload,
             });
             return { printed: true, jobId, printer: printerInfo(printer) };
+        });
+    }));
+
+    /**
+     * พิมพ์บัตรคิวซ้ำ (แคชเชียร์) — กระดาษติดที่ตู้ / ลูกค้าทำบัตรหาย
+     * ออกที่เครื่องของเคาน์เตอร์ (ลูกค้ายืนอยู่ตรงนั้น) ไม่ใช่ที่ตู้ — ตู้ที่เสียบ USB เซิร์ฟเวอร์สั่งพิมพ์ไม่ถึงอยู่แล้ว
+     * มีคำว่า "สำเนา" กำกับ · ไม่จำกัดจำนวนครั้ง
+     */
+    app.post('/api/orders/:id/queue-ticket', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'PAY_RECEIVE');
+        return tx(async (c) => {
+            const o = await loadOrder(c, req.params.id);
+            const { printerFor, enqueue } = require('../print/worker');
+            const printer = await printerFor(c, branchId(), null);
+            if (!printer) throw new ApiError(409, 'ยังไม่ได้ตั้งเครื่องพิมพ์ของเคาน์เตอร์');
+            const kind = ['PAID', 'SENT_TO_KITCHEN', 'PREPARING', 'READY', 'SERVED', 'COMPLETED'].includes(o.status) ? 'PAID'
+                : o.status === 'WAITING_CASH' ? 'CASH' : o.status === 'PAYMENT_REVIEW' ? 'REVIEW' : 'TIMEOUT';
+            const { kioskTicket } = require('../print/raster');
+            const escpos = require('../print/escpos');
+            const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId()])).rows[0];
+            const width = printer.paper_width || '80mm';
+            const doc = kioskTicket({ order: o, items: await itemsForStation(c, o.id, null), branch, kind, width,
+                                      dots: printer.print_dots, settings: await settingsOf(c, branchId()), copy: true });
+            const jobId = await enqueue(c, branchId(), {
+                orderId: o.id, deviceId: printer.id, docType: 'PAYMENT_TICKET', paperWidth: width,
+                payload: escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height }),
+            });
+            await audit(c, branchId(), {
+                eventType: 'PRINT', orderId: o.id, actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
+                deviceId: ctx.deviceId, ip: ctx.ip, payload: { docType: 'QUEUE_TICKET_COPY', jobId },
+            });
+            return { ok: true, jobId, printer: printerInfo(printer) };
         });
     }));
 
