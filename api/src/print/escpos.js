@@ -58,13 +58,19 @@ function raster(bits, width, height, bandHeight = 255) {
     return Buffer.concat(out);
 }
 
+/**
+ * จัดกึ่งกลาง (ESC a 1) — มีผลกับ GS v 0 ด้วย
+ * บิตแมปแคบกว่าหัวพิมพ์จริง (ตั้งความละเอียด/ขนาดกระดาษไม่ตรงรุ่น) จะได้ไม่ชิดซ้ายแล้วเว้นขวาโล่ง
+ */
+const center = () => Buffer.from([ESC, 0x61, 0x01]);
+
 /** ประกอบงานพิมพ์หนึ่งใบให้พร้อมส่งเข้าเครื่อง */
 function document({ bitmap, width, height, openDrawer = false, feedLines = 0 }) {
-    const parts = [init(), raster(bitmap, width, height)];
+    const parts = [init(), center(), raster(bitmap, width, height)];
     if (feedLines > 0) parts.push(feed(feedLines));
     if (openDrawer) parts.push(kickDrawer());
     parts.push(cut());
     return Buffer.concat(parts);
 }
 
-module.exports = { init, feed, cut, kickDrawer, raster, document };
+module.exports = { init, center, feed, cut, kickDrawer, raster, document };

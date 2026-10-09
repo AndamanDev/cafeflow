@@ -27,6 +27,10 @@ function compact(obj) {
 
 const iso = (d) => (d instanceof Date ? d.toISOString() : d || null);
 const num = (v) => (v == null ? null : Number(v));
+// คอลัมน์ date — pg คืนเป็น Date เที่ยงคืนตามเวลาเครื่อง ต้องอ่านแบบ local ไม่งั้นวันเลื่อนไปหนึ่งวัน
+const ymd = (d) => (d instanceof Date
+    ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+    : d || null);
 
 /* ── แปลงทีละแถว ───────────────────────────────────────────── */
 
@@ -131,7 +135,7 @@ function toShift(r) {
 /** ออเดอร์ — เวลา 10 คอลัมน์ยุบกลับเป็น ts map และสถานีกลับเป็น stationStatus map */
 function toOrder(r) {
     return {
-        id: r.id, orderNo: r.order_no, shiftId: r.shift_id,
+        id: r.id, orderNo: r.order_no, shiftId: r.shift_id, businessDate: ymd(r.business_date),
         createdAt: iso(r.created_at), kioskId: r.kiosk_id, cashierId: r.cashier_id,
         diningOption: r.dining_option, status: r.status, prevStatus: r.prev_status,
         paymentMethod: r.payment_method,

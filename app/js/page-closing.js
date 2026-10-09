@@ -242,7 +242,12 @@ const ClosingPage = {
         CFDocs.previewClosing(shift.id);
     },
 
-    /** เปิดรอบเอง — ใช้เมื่อยังไม่มีรอบเปิด (ปกติปิดรอบแล้วระบบเปิดรอบใหม่ให้เอง) */
+    toggleReopen() {
+        this.state.reopen = !this.state.reopen;
+        document.getElementById('reopenToggle').classList.toggle('is-on', this.state.reopen);
+    },
+
+    /** เปิดรอบ — ทุกเช้าก่อนขาย (ปิดรอบแบบปิดร้านแล้วระบบไม่เปิดรอบใหม่ให้) */
     async openShift() {
         const el = document.getElementById('openingCash');
         const v = el.value.trim();
@@ -312,13 +317,14 @@ const ClosingPage = {
                 'นับได้จริง ' + CFApp.baht(actual),
                 (diff === 0 ? 'เงินสดตรงพอดี' : (diff < 0 ? 'ขาด ' : 'เกิน ') + CFApp.baht(Math.abs(diff))),
             ],
-            note: 'ระบบจะเปิดรอบใหม่ให้อัตโนมัติ',
+            note: this.state.reopen
+                ? 'เปลี่ยนกะ — ระบบเปิดรอบใหม่ให้ทันที เงินตั้งต้น ' + CFApp.baht(actual)
+                : 'ปิดร้าน — คีออสก์จะไม่รับออเดอร์จนกว่าจะกด "เปิดรอบ" อีกครั้ง',
             confirmText: 'ปิดรอบ', danger: true,
         });
         if (!ok) return;
 
-        // ปิดรอบ + เปิดรอบใหม่ อยู่ในทรานแซกชันเดียวกันฝั่งเซิร์ฟเวอร์
-        // ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้จนกว่าจะมีคนเข้าไปแก้ฐาน
+        // เปลี่ยนกะ: ปิดรอบ + เปิดรอบใหม่ อยู่ในทรานแซกชันเดียวกันฝั่งเซิร์ฟเวอร์
         // ★ ล็อกปุ่มระหว่างรอ — กดซ้ำตอนจอยังไม่อัปเดต = ปิดรอบใหม่ที่ระบบเพิ่งเปิดให้ทันที (รอบว่างซ้อนหลายรอบ)
         if (this._closing) return;
         this._closing = true;
@@ -326,12 +332,16 @@ const ClosingPage = {
         btn.disabled = true;
         try {
             const res = await CFStore.cmd('post',
-                '/api/shifts/' + encodeURIComponent(shift.id) + '/close', { actualCash: actual });
+                '/api/shifts/' + encodeURIComponent(shift.id) + '/close',
+                { actualCash: actual, reopen: !!this.state.reopen });
             this.state.actual = null;
             const el2 = document.getElementById('actualCash');
             if (el2) el2.value = '';
-            showToast('ปิดรอบเรียบร้อย — เปิดรอบ ' + res.nextShift + ' ให้แล้ว' +
-                      (res.carriedOver ? ' · ยกออเดอร์ที่ยังไม่ชำระไป ' + res.carriedOver + ' ออเดอร์' : ''), 'success', 4000);
+            this.state.reopen = false;
+            document.getElementById('reopenToggle').classList.remove('is-on');
+            showToast(res.nextShift
+                ? 'ปิดรอบเรียบร้อย — เปิดรอบ ' + res.nextShift + ' ให้แล้ว'
+                : 'ปิดรอบเรียบร้อย — คีออสก์หยุดรับออเดอร์ · พรุ่งนี้กด "เปิดรอบ" ก่อนขาย', 'success', 5000);
         } catch (err) {
             showToast(err.message || 'ปิดรอบไม่สำเร็จ', 'error', 5000);
         } finally {

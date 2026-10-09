@@ -43,7 +43,17 @@
             <h3><i data-lucide="receipt" class="mi"></i> ออเดอร์</h3>
             <span class="ds-pane-count" id="listCount">0</span>
         </div>
-        <div class="ds-pane-tools">
+        <div class="ds-pane-tools" style="display:grid;gap:8px">
+            <div class="flex gap-sm">
+                <select class="sip-select" id="daySelect" style="flex:1" onchange="OrdersPage.setDay(this.value)">
+                    <option value="today">วันนี้</option>
+                    <option value="yesterday">เมื่อวาน</option>
+                    <option value="pick">เลือกวัน…</option>
+                </select>
+                <input type="date" class="sip-input" id="dayPick" style="flex:1;display:none"
+                       onchange="OrdersPage.loadDay(this.value)">
+            </div>
+            <div class="ds-note" id="dayInfo"></div>
             <select class="sip-select" id="groupSelect" onchange="OrdersPage.setGroup(this.value)">
                 <option value="recent">เรียง: ใหม่ล่าสุด</option>
                 <option value="oldest">เรียง: เก่าสุด</option>

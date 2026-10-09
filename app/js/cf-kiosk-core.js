@@ -1757,7 +1757,37 @@ const CFKiosk = {
         if (this._ticketed[orderId]) return;
         this._ticketed[orderId] = true;
         CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/kiosk-ticket', { kind })
+            .then((r) => { if (r && r.local && r.image) this.printLocal(r.image, r.dots); })
             .catch((err) => console.warn('[kiosk] พิมพ์ใบรับออเดอร์ไม่สำเร็จ', err));
+    },
+
+    /**
+     * เครื่องพิมพ์ USB ที่เสียบตัวตู้ — เบราว์เซอร์พิมพ์ภาพที่เซิร์ฟเวอร์วาดให้
+     * ต้องเปิด Edge ด้วย --kiosk-printing (ops/kiosk-edge.bat) ไม่งั้นหน้าต่างพิมพ์จะโผล่บังลูกค้า
+     * ภาพวาดที่ 203 dpi ≈ 8 จุด/มม. → กว้างเท่ากระดาษจริง ไม่ย่อขยาย
+     */
+    printLocal(src, dots) {
+        const old = document.getElementById('cfkPrintFrame');
+        if (old) old.remove();
+        const f = document.createElement('iframe');
+        f.id = 'cfkPrintFrame';
+        f.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden';
+        document.body.appendChild(f);
+        const mm = Math.round((dots || 576) / 8);
+        const d = f.contentDocument;
+        d.open();
+        d.write(`<!doctype html><html><head><style>
+            @page { margin: 0; }
+            html, body { margin: 0; padding: 0; }
+            img { display: block; width: ${mm}mm; }
+        </style></head><body><img id="t"></body></html>`);
+        d.close();
+        const img = d.getElementById('t');
+        img.onload = () => {
+            try { f.contentWindow.focus(); f.contentWindow.print(); }
+            catch (err) { console.warn('[kiosk] สั่งพิมพ์ไม่ได้', err); }
+        };
+        img.src = src;
     },
 
     startDone(sec) {

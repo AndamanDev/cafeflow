@@ -1,7 +1,9 @@
 /** CafeFlow — จัดการออเดอร์ (3-pane) */
 const OrdersPage = {
 
-    state: { filter: 'all', q: '', group: 'recent', selectedId: null, tab: 'items', slipStation: null },
+    // day = null คือวันทำการปัจจุบัน · ใส่ 'YYYY-MM-DD' = ดูวันก่อน (ดึงจากเซิร์ฟเวอร์ไว้ใน dayList)
+    state: { filter: 'all', q: '', group: 'recent', selectedId: null, tab: 'items', slipStation: null,
+             day: null, dayList: null, dayNote: '' },
 
     FILTERS: [
         { key: 'all',     label: 'ทั้งหมด',  test: () => true },
@@ -15,12 +17,66 @@ const OrdersPage = {
     /* ══════════════════════════════════════════════════════
        LIST
        ══════════════════════════════════════════════════════ */
+    /* ── วันทำการ — เวลาเริ่มวันตั้งที่ หน้าภาพรวม › ข้อมูลร้าน (คิดแบบเดียวกับเซิร์ฟเวอร์ผ่าน CFDay) ── */
+    startHour() { return CFDay.startHourOf(CFStore.settings()); },
+    today() { return CFDay.businessDate(Date.now(), this.startHour()); },
+    dayText(ymd) { return CFApp.date(ymd + 'T12:00:00+07:00'); },
+
+    /**
+     * ออเดอร์ที่หน้านี้ดูอยู่
+     * วันนี้ = ของวันทำการนี้ + ใบที่ยังไม่จบจากวันก่อน (ต้องมีคนจัดการ ห้ามหายไปจากจอ)
+     * ไม่ใช่ "24 ชม.ล่าสุด" — ไม่งั้น A001 ของเมื่อวานกับวันนี้ปนกัน
+     */
+    base() {
+        // ผลค้นจากเซิร์ฟเวอร์ (มีเฉพาะตอนพิมพ์คำค้น) ครอบคลุมย้อนหลังทุกวัน
+        if (this.state.found) return this.state.found;
+        if (this.state.day) return this.state.dayList || [];
+        const today = this.today();
+        return CFStore.all('orders').filter((o) =>
+            !o.businessDate || o.businessDate === today || !CFFlow.isTerminal(o.status));
+    },
+
+    setDay(v) {
+        const pick = document.getElementById('dayPick');
+        pick.style.display = v === 'pick' ? '' : 'none';
+        if (v === 'today') {
+            this.state.day = null; this.state.dayList = null; this.state.dayNote = '';
+            this.render();
+        } else if (v === 'yesterday') {
+            const d = new Date(this.today() + 'T12:00:00Z');
+            d.setUTCDate(d.getUTCDate() - 1);
+            this.loadDay(d.toISOString().slice(0, 10));
+        } else {
+            pick.max = this.today();
+            if (pick.value) this.loadDay(pick.value);
+        }
+    },
+
+    async loadDay(day) {
+        if (!day) return;
+        if (day === this.today()) { document.getElementById('daySelect').value = 'today'; this.setDay('today'); return; }
+        this.state.day = day;
+        this.state.dayList = null;
+        this.state.dayNote = 'กำลังโหลด…';
+        this.render();
+        try {
+            const res = await CFApi.get('/api/orders/search?limit=1000&day=' + encodeURIComponent(day));
+            if (this.state.day !== day) return;          // เปลี่ยนวันไปแล้วระหว่างรอ
+            this.state.dayList = res.orders;
+            this.state.dayNote = res.total > res.orders.length
+                ? `${res.total} รายการ · แสดง ${res.orders.length} รายการแรก` : '';
+        } catch (err) {
+            if (this.state.day !== day) return;
+            this.state.dayList = [];
+            this.state.dayNote = 'โหลดออเดอร์ของวันนั้นไม่ได้';
+        }
+        this.render();
+    },
+
     filtered() {
         const f = this.FILTERS.find((x) => x.key === this.state.filter) || this.FILTERS[0];
         const q = this.state.q.trim().toLowerCase();
-
-        // ผลค้นจากเซิร์ฟเวอร์ (มีเฉพาะตอนพิมพ์คำค้น) ครอบคลุมย้อนหลังเกินหน้าต่าง cache
-        const base = this.state.found ? this.state.found : CFStore.all('orders');
+        const base = this.base();
 
         let list = base.filter((o) =>
             f.test(o) && (!q || this.state.found ||
@@ -63,11 +119,16 @@ const OrdersPage = {
 
     render() {
         const e = CFApp.esc;
-        const all = CFStore.all('orders');
+        const all = this.base();
         const list = this.filtered();
+        const today = this.today();
 
         document.getElementById('listCount').textContent =
-            this.state.searchNote || (list.length + ' รายการ');
+            this.state.searchNote || this.state.dayNote || (list.length + ' รายการ');
+        const hh = String(this.startHour()).padStart(2, '0') + ':00';
+        document.getElementById('dayInfo').textContent = this.state.found
+            ? 'ผลค้นหาจากทุกวัน'
+            : `วันทำการ ${this.dayText(this.state.day || today)} · เริ่ม ${hh} น.`;
 
         document.getElementById('pillTabs').innerHTML = this.FILTERS.map((f) => `
             <button class="ds-pilltab ${f.key === this.state.filter ? 'active' : ''}"
@@ -81,6 +142,8 @@ const OrdersPage = {
                 <div class="ds-list-card-top">
                     <span class="ds-list-card-name">${e(o.orderNo)}</span>
                     <span class="flex gap-sm" style="align-items:center">
+                        ${!this.state.day && !this.state.found && o.businessDate && o.businessDate < today
+                            ? `<span class="sip-chip sip-chip-muted">ค้างจาก ${e(this.dayText(o.businessDate))}</span>` : ''}
                         ${CFApp.diningChip(o.diningOption)}
                         ${CFApp.statusChip(o.status)}
                     </span>
@@ -458,10 +521,16 @@ const OrdersPage = {
 
     boot() {
         CFApp.boot({ page: 'orders' });
-        const first = CFStore.all('orders')[0];
+        const first = this.filtered()[0];
         if (first) this.state.selectedId = first.id;
         this.render();
         CFStore.subscribe(() => this.render());
+        // เปิดหน้าค้างข้ามเวลาเริ่มวัน (เช่น ตี 4) — สลับไปวันทำการใหม่เอง
+        this._day = this.today();
+        setInterval(() => {
+            const t = this.today();
+            if (t !== this._day) { this._day = t; if (!this.state.day) this.render(); }
+        }, 60000);
     },
 };
 

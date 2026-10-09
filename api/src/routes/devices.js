@@ -128,6 +128,8 @@ async function printerFields(c, branchId, body, cur) {
 
     const conn = pick('conn', (cur && cur.printer_conn) || 'NETWORK');
     if (!['NETWORK', 'USB'].includes(conn)) throw new ApiError(400, 'การเชื่อมต่อต้องเป็น LAN หรือ USB');
+    // USB + ผูกคีออสก์ = เสียบที่ตัวตู้ — เบราว์เซอร์บนตู้พิมพ์เอง เซิร์ฟเวอร์ไม่ต้องรู้ชื่อเครื่อง
+    const kioskPick = pick('kiosk', cur ? cur.serves_kiosk : null) || null;
 
     let host = null, port = 9100, usb = null;
     if (conn === 'NETWORK') {
@@ -137,7 +139,7 @@ async function printerFields(c, branchId, body, cur) {
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
             throw new ApiError(400, 'พอร์ตต้องเป็นตัวเลข 1–65535 (ปกติคือ 9100)');
         }
-    } else {
+    } else if (!kioskPick) {
         usb = String(pick('usb', cur && cur.printer_usb) || '').trim();
         if (!usb) throw new ApiError(400, 'ต้องเลือกเครื่องพิมพ์ USB');
         if (process.platform !== 'win32' && !isLinuxDevice(usb)) {
@@ -146,14 +148,12 @@ async function printerFields(c, branchId, body, cur) {
     }
 
     // พิมพ์ให้คีออสก์ตัวไหน — ผูกคีออสก์แล้วไม่ผูกสถานี (เครื่องนี้พิมพ์แค่ใบรับออเดอร์ของตู้นั้น)
-    const kiosk = pick('kiosk', cur ? cur.serves_kiosk : null) || null;
+    const kiosk = kioskPick;
     if (kiosk) {
         const k = await c.query(
             `SELECT id FROM device WHERE id = $1 AND branch_id = $2 AND kind = 'KIOSK'`, [kiosk, branchId]);
         if (!k.rows.length) throw new ApiError(400, 'ไม่พบคีออสก์ที่เลือก');
     }
-    // USB ต้องเสียบที่เครื่องเซิร์ฟเวอร์ — เสียบที่ตู้คีออสก์แล้วเซิร์ฟเวอร์สั่งพิมพ์ไม่ได้
-    if (kiosk && conn === 'USB') throw new ApiError(400, 'เครื่องพิมพ์ของคีออสก์ต้องต่อแบบ LAN / IP');
     const station = kiosk ? null : (pick('station', cur ? cur.assigned_station : null) || null);
     if (station && !STATIONS.includes(station)) throw new ApiError(400, 'ส่วนที่พิมพ์ไม่ถูกต้อง');
 
@@ -356,6 +356,35 @@ function registerDevices(app, deps) {
         const out = await tx((c) => savePrinter(c, ctx, req.params.id, false, req.body || {}));
         publish(branchId(), { entity: 'devices', op: 'update', id: req.params.id });
         return out;
+    }));
+
+    /**
+     * พิมพ์ทดสอบ — ใช้ค่าในฟอร์ม (ยังไม่บันทึกก็ได้) ปรับความละเอียด/กระดาษแล้วกดซ้ำได้ทันที
+     * ส่งตรงไม่ผ่านคิว: คนกดยืนรออยู่หน้าเครื่อง ต้องรู้ผลเดี๋ยวนั้น และใบทดสอบไม่ต้องลองซ้ำหรือตกเครื่องสำรอง
+     */
+    app.post('/api/printers/test', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'MENU_EDIT');
+        const body = Object.assign({}, req.body || {});
+        if (!String(body.name || '').trim()) body.name = 'เครื่องพิมพ์';
+        const f = await tx((c) => printerFields(c, branchId(), body, null));
+        if (f.conn === 'USB' && f.kiosk) {
+            throw new ApiError(400, 'เครื่องนี้เสียบที่ตู้คีออสก์ — เซิร์ฟเวอร์สั่งพิมพ์ไม่ถึง ทดสอบโดยสั่งออเดอร์ที่ตู้');
+        }
+
+        const { testPage } = require('../print/raster');
+        const escpos = require('../print/escpos');
+        const { targetOf, sendTo } = require('../print/worker');
+        const doc = testPage({ name: f.name, width: f.paper, dots: f.dots,
+                               conn: f.conn === 'USB' ? 'USB · ' + f.usb : `LAN · ${f.host}:${f.port}` });
+        const target = targetOf({ printer_conn: f.conn, printer_host: f.host, printer_port: f.port,
+                                  printer_usb: f.usb, name_th: f.name }, false);
+        try {
+            await sendTo(target, escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height }));
+        } catch (err) {
+            throw new ApiError(502, 'ส่งไปเครื่องพิมพ์ไม่ได้: ' + (err.message || err));
+        }
+        return { ok: true, dots: doc.width };
     }));
 
     /** เลิกจับคู่ — เครื่องหาย ถูกขโมย หรือย้ายไปใช้ที่อื่น */

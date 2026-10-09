@@ -10,7 +10,7 @@ const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
 const { CF_STATUS } = require(path.join(SHARED, 'cf-consts.js'));
 
 const { publish } = require('./stream');
-const { audit, touch, ApiError, businessDate } = require('./orders');
+const { audit, touch, ApiError, businessDateFor } = require('./orders');
 
 const SERVE_TYPES = ['HOT', 'ICED', 'FRAPPE', 'STD'];
 const STATIONS = ['BAR', 'KITCHEN', 'BAKERY', 'DESSERT'];
@@ -126,6 +126,9 @@ async function saveSettings(c, branchId, body, ctx) {
         if (key === 'displayHighlightSec' && !(Number.isInteger(value) && value >= 3 && value <= 60)) {
             throw new ApiError(400, 'เวลาสลับเมนูแนะนำต้องเป็น 3–60 วินาที');
         }
+        if (key === 'dayStartHour' && !(Number.isInteger(value) && value >= 0 && value <= 12)) {
+            throw new ApiError(400, 'เวลาเริ่มวันทำการต้องเป็น 00:00–12:00');
+        }
         if (key === 'displayTicker' && (typeof value !== 'string' || value.trim().length > 200)) {
             throw new ApiError(400, 'ข้อความประกาศยาวได้ไม่เกิน 200 ตัวอักษร');
         }
@@ -169,7 +172,7 @@ async function saveSettings(c, branchId, body, ctx) {
  * ไม่ touch/audit ให้ — ผู้เรียกเป็นคนบันทึก เพราะเหตุผลต่างกัน
  */
 async function insertShift(c, branchId, openingCash, ctx) {
-    const bdate = businessDate();
+    const bdate = await businessDateFor(c, branchId);
     const n = Number((await c.query(
         'SELECT count(*)::int AS n FROM shift WHERE branch_id = $1 AND business_date = $2',
         [branchId, bdate])).rows[0].n) + 1;
@@ -194,8 +197,8 @@ async function insertShift(c, branchId, openingCash, ctx) {
 }
 
 /**
- * เปิดรอบเอง — ใช้ตอนยังไม่มีรอบเปิดอยู่เลย (ร้านเพิ่งติดตั้ง / ล้างข้อมูลทดสอบ)
- * ปกติไม่ต้องใช้ เพราะปิดรอบแล้วระบบเปิดรอบใหม่ให้ทันที
+ * เปิดรอบ — ทุกเช้าก่อนขาย (ปิดรอบตอนปิดร้านแล้วระบบไม่เปิดรอบใหม่ให้)
+ * และตอนร้านเพิ่งติดตั้ง / ล้างข้อมูลทดสอบ
  */
 async function openShift(c, branchId, body, ctx) {
     const cash = Number(body.openingCash);
@@ -221,8 +224,10 @@ async function openShift(c, branchId, body, ctx) {
 }
 
 /**
- * ปิดรอบแล้วเปิดรอบใหม่ — ต้องอยู่ในทรานแซกชันเดียวกัน
- * ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้จนกว่าจะมีคนเข้าไปแก้ฐาน
+ * ปิดรอบ — ค่าเริ่มต้นปิดอย่างเดียว (ปิดร้าน) แบบที่ POS ส่วนใหญ่ทำ:
+ *   พรุ่งนี้เช้าพนักงานเปิดรอบเอง กรอกเงินทอนใหม่ → รอบตรงกับวันขายจริง และหลังปิดร้านคีออสก์ไม่รับออเดอร์
+ * body.reopen = true (เปลี่ยนกะ) → เปิดรอบใหม่ต่อทันทีในทรานแซกชันเดียวกัน เงินตั้งต้น = เงินที่นับได้
+ *   ถ้าปิดสำเร็จแต่เปิดใหม่ล้ม ร้านจะขายต่อไม่ได้ จึงต้องอยู่ทรานแซกชันเดียวกัน
  *
  * expected_cash ถูก snapshot ไว้ตอนปิด ไม่คำนวณใหม่ทีหลัง — ไม่งั้นแก้ออเดอร์
  * ย้อนหลังแล้วส่วนต่างของรอบที่ปิดไปแล้วขยับตาม ซึ่งอธิบายกับเจ้าของร้านไม่ได้
@@ -262,8 +267,10 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
                 actual_cash = $3, expected_cash = $4 WHERE id = $1`,
         [shiftId, ctx.actorUserId || null, actual, expected]);
 
-    // เปิดรอบใหม่ทันที เงินตั้งต้นคือเงินที่นับได้จริง
-    const { id: newId, carried } = await insertShift(c, branchId, actual, ctx);
+    // เปลี่ยนกะ — เปิดรอบใหม่ทันที เงินตั้งต้นคือเงินที่นับได้จริง
+    const reopen = body.reopen === true;
+    const { id: newId, carried } = reopen
+        ? await insertShift(c, branchId, actual, ctx) : { id: null, carried: [] };
 
     await audit(c, branchId, {
         eventType: 'SHIFT_CLOSE', actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
@@ -272,7 +279,7 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
         payload: { shiftId, expected, actual, cashSales: cash, nextShift: newId, carriedOver: carried },
     });
     await touch(c, branchId, 'shifts', shiftId, 'update');
-    await touch(c, branchId, 'shifts', newId, 'insert');
+    if (newId) await touch(c, branchId, 'shifts', newId, 'insert');
     for (const id of carried) await touch(c, branchId, 'orders', id, 'update');
 
     return { ok: true, closed: shiftId, expected, actual,

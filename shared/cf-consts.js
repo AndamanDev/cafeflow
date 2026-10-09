@@ -85,6 +85,25 @@
      * ค่าเริ่มต้นของคีออสก์ — ประกาศที่เดียว ใช้ทั้งหน้าคีออสก์และหน้าตั้งค่าหลังบ้าน
      * อ่านผ่านตัว merge เสมอ ฐานข้อมูลเก่าที่ยังไม่มีคีย์จึงไม่พัง
      */
+    /**
+     * วันทำการ ไม่ใช่วันปฏิทิน — ร้านปิดหลังเที่ยงคืนได้ ออเดอร์ตี 1 จึงยังเป็นยอดของ "เมื่อวาน"
+     * ร้านตั้งเวลาเริ่มวันเองได้ (ค่า dayStartHour 0–12) · เลขออเดอร์ A001 เริ่มใหม่ทุกวันทำการ
+     * คิดตามเวลาไทยเสมอ ไม่ขึ้นกับนาฬิกาของเครื่องที่เรียก
+     */
+    const CF_DAY_START_DEFAULT = 4;
+    const CFDay = {
+        startHourOf(settings) {
+            const h = settings ? Number(settings.dayStartHour) : NaN;
+            return Number.isInteger(h) && h >= 0 && h <= 12 ? h : CF_DAY_START_DEFAULT;
+        },
+        businessDate(now, startHour) {
+            const h = startHour == null ? CF_DAY_START_DEFAULT : startHour;
+            const local = new Date(new Date(now || Date.now()).getTime() + 7 * 3600 * 1000);   // Asia/Bangkok
+            if (local.getUTCHours() < h) local.setUTCDate(local.getUTCDate() - 1);
+            return local.toISOString().slice(0, 10);
+        },
+    };
+
     const CF_KIOSK_DEFAULTS = {
         kioskOrientation: 'PORTRAIT',   // PORTRAIT | LANDSCAPE
         kioskScale: 1,                  // จอ 21" ใช้ 1.25 · 32" ใช้ 0.95
@@ -117,5 +136,6 @@
         CF_STATIONS, CF_SERVE, CF_SERVE_ORDER, CF_STATUS,
         CF_DINING, CF_DINING_MODES, CF_DINING_MODE,
         CF_KIOSK_DEFAULTS, CF_KIOSK_SIZES, CF_DISPLAY_DEFAULTS,
+        CF_DAY_START_DEFAULT, CFDay,
     };
 });

@@ -18,6 +18,7 @@ const { CFFlow } = require(path.join(SHARED, 'cf-flow.js'));
 const { CFPricing } = require(path.join(SHARED, 'cf-pricing.js'));
 const { CFRulesCore } = require(path.join(SHARED, 'cf-rules.js'));
 const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
+const { CFDay } = require(path.join(SHARED, 'cf-consts.js'));
 
 const { publish } = require('./stream');
 const { currentUser } = require('./auth');
@@ -34,16 +35,16 @@ class ApiError extends Error {
     }
 }
 
-/**
- * วันทำการ ไม่ใช่วันปฏิทิน
- * ร้านปิดหลังเที่ยงคืนได้ ออเดอร์ตี 1 จึงยังเป็นยอดของ "เมื่อวาน"
- * ตัดวันที่ตี 4 ตามที่ร้านกาแฟส่วนใหญ่ใช้
- */
-function businessDate(now) {
-    const d = new Date(now || Date.now());
-    const local = new Date(d.getTime() + 7 * 3600 * 1000);   // Asia/Bangkok
-    if (local.getUTCHours() < 4) local.setUTCDate(local.getUTCDate() - 1);
-    return local.toISOString().slice(0, 10);
+/** วันทำการ — ตรรกะอยู่ที่ CFDay (shared/cf-consts.js) ให้หน้าจอคิดตรงกับเซิร์ฟเวอร์ */
+function businessDate(now, startHour) {
+    return CFDay.businessDate(now, startHour);
+}
+
+/** วันทำการตามเวลาเริ่มวันที่ร้านตั้งไว้ (ค่าตั้ง dayStartHour · ไม่ตั้ง = ตี 4) */
+async function businessDateFor(c, branchId, now) {
+    const r = await c.query(
+        "SELECT value FROM app_setting WHERE branch_id = $1 AND key = 'dayStartHour'", [branchId]);
+    return businessDate(now, CFDay.startHourOf({ dayStartHour: r.rows.length ? r.rows[0].value : null }));
 }
 
 /** เขียน audit — ต้องอยู่ในทรานแซกชันเดียวกับสิ่งที่มันบันทึกเสมอ */
@@ -182,7 +183,7 @@ async function createOrder(c, branchId, input, ctx) {
     }
 
     /* ── ออกเลขออเดอร์แบบ atomic ── */
-    const bdate = businessDate();
+    const bdate = await businessDateFor(c, branchId);
     const seq = await c.query(
         `INSERT INTO order_seq (branch_id, business_date, last_no) VALUES ($1, $2, 1)
          ON CONFLICT (branch_id, business_date)
@@ -892,6 +893,21 @@ function registerOrders(app, { pool, tx, query, branchId }) {
             const items = await itemsForStation(c, o.id, null);
             const width = printer.paper_width || '80mm';
             const doc = kioskTicket({ order: o, items, branch, kind, width, dots: printer.print_dots });
+
+            // USB = เสียบที่ตัวตู้ — เซิร์ฟเวอร์ส่งไม่ถึง ส่งภาพกลับให้เบราว์เซอร์บนตู้พิมพ์เอง
+            // (Edge เปิดด้วย --kiosk-printing → ออกเครื่องพิมพ์หลักของ Windows ไม่ถามซ้ำ)
+            // บันทึกเป็น DONE ไว้กันพิมพ์ซ้ำ — worker ไม่หยิบ เพราะไม่ใช่ QUEUED
+            if (printer.printer_conn === 'USB') {
+                const { bitsToPng } = require('../print/raster');
+                const png = bitsToPng(doc.bitmap, doc.width, doc.height);
+                const r = await c.query(
+                    `INSERT INTO print_job (branch_id, order_id, device_id, doc_type, paper_width, status, printed_at)
+                     VALUES ($1,$2,$3,'PAYMENT_TICKET',$4,'DONE',now()) RETURNING id`,
+                    [branchId(), o.id, printer.id, width]);
+                return { printed: true, local: true, jobId: r.rows[0].id, dots: doc.width,
+                         image: 'data:image/png;base64,' + png.toString('base64') };
+            }
+
             const payload = escpos.document({ bitmap: doc.bitmap, width: doc.width, height: doc.height });
             const jobId = await enqueue(c, branchId(), {
                 orderId: o.id, deviceId: printer.id, docType: 'PAYMENT_TICKET', paperWidth: width, payload,
@@ -978,9 +994,9 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         return { ok: true };
     }));
 
-    return { context, requirePerm, handle, audit, touch, ApiError, businessDate, settingsOf };
+    return { context, requirePerm, handle, audit, touch, ApiError, businessDate, businessDateFor, settingsOf };
 }
 
 module.exports = { registerOrders, createOrder, transition, setStationReady,
                    queueKitchenSlip, itemsForStation,
-                   audit, touch, ApiError, businessDate, settingsOf };
+                   audit, touch, ApiError, businessDate, businessDateFor, settingsOf };

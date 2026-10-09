@@ -365,7 +365,12 @@ function registerReports(app, deps) {
 
         const where = ['o.branch_id = $1'];
         const args = [branchId()];
-        const { from, to, status, q } = req.query;
+        const { from, to, status, q, day } = req.query;
+        // ดูทั้งวันทำการ (หน้าจัดการออเดอร์ › เลือกวัน) — ตรงกับวันที่ออกเลขออเดอร์ ไม่ใช่วันปฏิทิน
+        if (day) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day))) throw new ApiError(400, 'วันที่ไม่ถูกต้อง');
+            args.push(String(day)); where.push(`o.business_date = $${args.length}`);
+        }
         if (from) { args.push(from); where.push(`o.created_at >= $${args.length}`); }
         if (to) { args.push(to); where.push(`o.created_at < $${args.length}`); }
         if (status) {
@@ -379,13 +384,15 @@ function registerReports(app, deps) {
                 SELECT 1 FROM order_item i WHERE i.order_id = o.id
                    AND i.name_snapshot ILIKE $${args.length}))`);
         }
-        const limit = Math.min(parseInt(req.query.limit || '50', 10) || 50, 200);
+        // ดูทั้งวันได้ถึง 1000 ใบ — ร้านขายดีวันหนึ่งเกิน 200 ได้
+        const limit = Math.min(parseInt(req.query.limit || '50', 10) || 50, day ? 1000 : 200);
         const offset = Math.max(0, parseInt(req.query.offset || '0', 10) || 0);
         args.push(limit, offset);
 
         const rows = await query(
             `SELECT o.id, o.order_no, o.status, o.total, o.payment_method, o.dining_option,
                     o.created_at, o.paid_at, o.completed_at, o.kiosk_id, o.shift_id,
+                    to_char(o.business_date, 'YYYY-MM-DD') AS bdate,
                     (SELECT count(*)::int FROM order_item i WHERE i.order_id = o.id) AS item_count
                FROM cf_order o WHERE ${where.join(' AND ')}
                ORDER BY o.created_at DESC
@@ -401,7 +408,7 @@ function registerReports(app, deps) {
                 id: o.id, orderNo: o.order_no, status: o.status, total: n(o.total),
                 paymentMethod: o.payment_method, diningOption: o.dining_option,
                 createdAt: o.created_at, paidAt: o.paid_at, completedAt: o.completed_at,
-                kioskId: o.kiosk_id, shiftId: o.shift_id, itemCount: o.item_count,
+                kioskId: o.kiosk_id, shiftId: o.shift_id, itemCount: o.item_count, businessDate: o.bdate,
             })),
         };
     }));

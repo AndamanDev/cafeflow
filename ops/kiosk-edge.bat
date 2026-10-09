@@ -10,6 +10,11 @@ rem        trust *only* the shop server. Needed for scanning slips.
 rem   --use-fake-ui-for-media-stream
 rem        Grant camera permission automatically - nobody stands at the
 rem        kiosk to click "Allow".
+rem   --kiosk-printing
+rem        Print the queue ticket straight to the Windows *default* printer
+rem        with no dialog. Plug the USB receipt printer into this machine,
+rem        set it as default (turn off "Let Windows manage my default
+rem        printer") and set its paper size to 80mm / receipt in the driver.
 rem   --user-data-dir
 rem        Separate profile just for the kiosk. The flag above only works
 rem        with its own profile, and it keeps staff logins out of the kiosk.
@@ -24,4 +29,5 @@ start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" ^
   --no-first-run ^
   --user-data-dir="%LOCALAPPDATA%\CafeFlowKiosk" ^
   --unsafely-treat-insecure-origin-as-secure=%SERVER% ^
-  --use-fake-ui-for-media-stream
+  --use-fake-ui-for-media-stream ^
+  --kiosk-printing

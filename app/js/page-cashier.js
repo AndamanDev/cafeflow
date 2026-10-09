@@ -15,6 +15,7 @@ const CashierPage = {
         this.refreshSlipOcr();
         const k = CFKpi.summary();
         const shift = CFStore.openShift();
+        this.renderShiftAlert(shift);
         const me = CFAuth.getUser();
 
         document.getElementById('cashierSub').textContent =
@@ -281,6 +282,23 @@ const CashierPage = {
             this._cash.busy = false;
             if (btn && document.body.contains(btn)) btn.disabled = false;
         }
+    },
+
+    /**
+     * แถบเตือนยังไม่เปิดรอบ — ปิดรอบตอนปิดร้านแล้วระบบไม่เปิดรอบใหม่ให้
+     * ลืมกดเปิดตอนเช้า = คีออสก์รับออเดอร์ไม่ได้ทั้งร้าน จึงต้องเห็นชัดตั้งแต่เปิดหน้า
+     */
+    renderShiftAlert(shift) {
+        const el = document.getElementById('shiftAlert');
+        if (!el) return;
+        el.hidden = !!shift;
+        if (shift) return;
+        el.innerHTML = `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <i data-lucide="lock" class="icon-sm"></i>
+            <span style="flex:1"><strong>ยังไม่ได้เปิดรอบการขาย</strong> — คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกดเปิดรอบ</span>
+            <button class="btn btn-primary btn-sm" onclick="location.href='closing.html'">
+                <i data-lucide="unlock" class="icon-sm"></i> เปิดรอบ</button>
+        </div>`;
     },
 
     /* ── §16 ตรวจสอบ / ยืนยันการชำระแทน ────────────────── */

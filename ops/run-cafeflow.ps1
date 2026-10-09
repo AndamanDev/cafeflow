@@ -62,6 +62,31 @@ Log '── เริ่มเปิดระบบ ──'
 
 # ── 1. Docker Desktop ────────────────────────────────────────────
 function DockerUp { docker info *> $null; return ($LASTEXITCODE -eq 0) }
+
+# ไม่ให้หน้าต่าง Docker Desktop เด้งขึ้นทุกครั้งที่เปิด — ตรงกับติ๊ก
+# Settings › General › "Open Docker Dashboard when Docker Desktop starts" ออก
+# รุ่นใหม่เก็บใน settings-store.json (OpenUIOnStartupDisabled) รุ่นเก่า settings.json (openUIOnStartupDisabled)
+# แก้เป็นข้อความตรง ๆ ไม่ผ่าน ConvertTo-Json (PS 5.1 จัดรูป JSON ใหม่จนเพี้ยน) · เขียน UTF-8 ไม่มี BOM — Docker อ่าน BOM ไม่ได้
+# ต้องทำตอน Docker ยังไม่เปิด ไม่งั้น Docker เขียนค่าของมันทับ
+function DockerQuiet {
+    foreach ($f in "$env:APPDATA\Docker\settings-store.json", "$env:APPDATA\Docker\settings.json") {
+        if (-not (Test-Path $f)) { continue }
+        try {
+            $key = if ($f -like '*settings-store.json') { 'OpenUIOnStartupDisabled' } else { 'openUIOnStartupDisabled' }
+            $txt = [IO.File]::ReadAllText($f)
+            if ($txt -match "`"$key`"\s*:\s*true") { continue }
+            if ($txt -match "`"$key`"\s*:\s*false") {
+                $new = $txt -replace "(`"$key`"\s*:\s*)false", '${1}true'
+            } elseif ($txt -match '^\s*\{\s*\}\s*$') {
+                $new = "{ `"$key`": true }"
+            } else {
+                $new = $txt -replace '^\s*\{', "{`n  `"$key`": true,"
+            }
+            [IO.File]::WriteAllText($f, $new, (New-Object System.Text.UTF8Encoding $false))
+            Log "ปิดหน้าต่าง Docker ตอนเปิด ($key)"
+        } catch { Log "!! ตั้งให้ Docker ไม่โชว์หน้าต่างไม่ได้: $($_.Exception.Message)" }
+    }
+}
 Retry 'Docker' {
     param($n)
     if (DockerUp) { return $true }
@@ -78,7 +103,7 @@ Retry 'Docker' {
         Start-Sleep -Seconds 5
         $running = $null
     }
-    if (-not $running) { Log "เปิด Docker Desktop: $exe"; Start-Process $exe }
+    if (-not $running) { DockerQuiet; Log "เปิด Docker Desktop: $exe"; Start-Process $exe -WindowStyle Minimized }
     WaitFor { DockerUp } 180
 } | Out-Null
 

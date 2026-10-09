@@ -384,10 +384,12 @@ const DashPage = {
     kioskName(id) { const k = CFStore.byId('devices', id); return k ? k.name : id; },
 
     printerReady(p) {
+        if (p.conn === 'USB' && p.kioskId) return true;     // เสียบที่ตู้ — ตู้พิมพ์เอง
         return p.conn === 'USB' ? !!p.printerUsb : !!p.printerHost;
     },
 
     printerConnText(p) {
+        if (p.conn === 'USB' && p.kioskId) return 'USB · เสียบที่ตู้คีออสก์';
         if (p.conn === 'USB') return 'USB · ' + (p.printerUsb || 'ยังไม่ได้เลือก');
         return p.printerHost ? 'LAN · ' + p.printerHost + ':' + (p.printerPort || 9100) : 'LAN · ยังไม่ได้ใส่ IP';
     },
@@ -514,7 +516,8 @@ const DashPage = {
             active: p ? p.active !== false : true,
         };
         const e = CFApp.esc;
-        const others = this.printers().filter((x) => x.id !== (p && p.id) && x.active !== false);
+        // เครื่องของคีออสก์เป็นเครื่องสำรองไม่ได้ — ไม่งั้นสลิปครัวไปโผล่ที่ตู้หน้าร้าน
+        const others = this.printers().filter((x) => x.id !== (p && p.id) && x.active !== false && !x.kioskId);
         const station = p && !p.kioskId ? p.assignedStation || '' : '';
         const paper = p ? p.paperWidth || '80mm' : '80mm';
         const dots = p ? p.printDots || null : null;
@@ -552,7 +555,11 @@ const DashPage = {
                 </div>
 
                 <div id="pUsb">
-                    <div class="sip-field">
+                    <div class="ds-note" id="pUsbKiosk" style="display:none;margin-bottom:12px">
+                        เสียบเครื่องพิมพ์ที่ <strong>ตัวตู้คีออสก์</strong> แล้วตั้งให้เป็นเครื่องพิมพ์หลัก (Default) ของ Windows ที่ตู้
+                        · เปิดตู้ด้วย <code>kiosk-edge.bat</code> ตัวใหม่ (มี --kiosk-printing) ตู้จะพิมพ์บัตรคิวเองโดยไม่ถาม
+                    </div>
+                    <div class="sip-field" id="pUsbServer">
                         <label class="sip-label">เลือกเครื่องพิมพ์ USB</label>
                         <div class="flex gap-md">
                             <select class="sip-select" id="pUsbSel" style="flex:1"
@@ -571,11 +578,11 @@ const DashPage = {
 
                 <div class="sip-field">
                     <label class="sip-label">ใช้พิมพ์ของส่วน</label>
-                    <select class="sip-select" id="pStation">
+                    <select class="sip-select" id="pStation" onchange="DashPage.pConn(DashPage._pd.conn)">
                         <option value="" ${station ? '' : 'selected'}>ใบเสร็จ / เคาน์เตอร์ (และส่วนที่ไม่มีเครื่องของตัวเอง)</option>
                         ${Object.keys(CF_STATIONS).map((st) => `<option value="${st}" ${station === st ? 'selected' : ''}>
                             ${e(CFApp.stationLabel(st))}</option>`).join('')}
-                        ${this.kiosks().length ? `<optgroup label="ใบรับออเดอร์ของคีออสก์ (ต้องเป็นเครื่องพิมพ์ LAN)">
+                        ${this.kiosks().length ? `<optgroup label="บัตรคิวของคีออสก์">
                             ${this.kiosks().map((k) => `<option value="KIOSK:${e(k.id)}" ${p && p.kioskId === k.id ? 'selected' : ''}>
                                 ${e(k.name)} (${e(k.id)})</option>`).join('')}
                         </optgroup>` : ''}
@@ -622,6 +629,9 @@ const DashPage = {
                 </div>` : ''}`,
             footerHtml: `
                 <button class="btn btn-outline" onclick="DashPage.openPrinters()">กลับ</button>
+                <button class="btn btn-outline" id="pTestBtn" onclick="DashPage.testPrinter()">
+                    <i data-lucide="printer" class="icon-sm"></i> พิมพ์ทดสอบ
+                </button>
                 <button class="btn btn-primary" onclick="DashPage.savePrinter()">
                     <i data-lucide="save" class="icon-sm"></i> บันทึก
                 </button>`,
@@ -636,6 +646,11 @@ const DashPage = {
         });
         document.getElementById('pNet').style.display = v === 'NETWORK' ? '' : 'none';
         document.getElementById('pUsb').style.display = v === 'USB' ? '' : 'none';
+        // USB + คีออสก์ = เสียบที่ตัวตู้ ไม่ต้องเลือกเครื่องจากเซิร์ฟเวอร์
+        const atKiosk = /^KIOSK:/.test((document.getElementById('pStation') || {}).value || '');
+        document.getElementById('pUsbKiosk').style.display = atKiosk ? '' : 'none';
+        document.getElementById('pUsbServer').style.display = atKiosk ? 'none' : '';
+        if (atKiosk) return;
         if (v === 'USB' && this._pd.usbList === null) this.loadUsb();
         else this.renderUsb();
     },
@@ -673,7 +688,40 @@ const DashPage = {
         }
     },
 
+    /**
+     * พิมพ์ทดสอบด้วยค่าในฟอร์มตอนนี้ (ยังไม่ต้องบันทึก) — ใบทดสอบมีกรอบเต็มความกว้างที่ตั้งไว้
+     * ดูกรอบแล้วปรับความละเอียด/กระดาษ กดซ้ำได้จนตรง ค่อยบันทึก
+     */
+    async testPrinter() {
+        const body = this.printerBody();
+        if (!body) return;
+        const btn = document.getElementById('pTestBtn');
+        btn.disabled = true;
+        try {
+            await CFApi.post('/api/printers/test', body);
+            showToast('ส่งใบทดสอบแล้ว — ดูกรอบรอบใบ: ต้องเห็นครบทั้งซ้ายและขวา', 'success', 6000);
+        } catch (err) {
+            showToast(err.message || 'พิมพ์ทดสอบไม่สำเร็จ', 'error', 6000);
+        } finally {
+            btn.disabled = false;
+        }
+    },
+
     async savePrinter() {
+        const body = this.printerBody();
+        if (!body) return;
+        try {
+            if (this._pd.id) await CFStore.cmd('PATCH', '/api/printers/' + encodeURIComponent(this._pd.id), body);
+            else await CFStore.cmd('POST', '/api/printers', body);
+            showToast('บันทึกเครื่องพิมพ์แล้ว', 'success');
+            this.openPrinters();
+        } catch (err) {
+            showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000);
+        }
+    },
+
+    /** อ่านฟอร์มเครื่องพิมพ์ — null = กรอกไม่ครบ (แจ้งแล้ว) · ใช้ทั้งบันทึกและพิมพ์ทดสอบ */
+    printerBody() {
         const d = this._pd;
         const val = (id) => (document.getElementById(id) || {}).value;
         const body = {
@@ -688,26 +736,16 @@ const DashPage = {
             fallbackId: val('pFallback') || null,
             active: d.active,
         };
-        if (!body.name) { showToast('ต้องตั้งชื่อเครื่องพิมพ์', 'error'); return; }
+        if (!body.name) { showToast('ต้องตั้งชื่อเครื่องพิมพ์', 'error'); return null; }
         if (d.conn === 'NETWORK') {
             body.host = (val('pHost') || '').trim();
             body.port = parseInt(val('pPort'), 10) || 9100;
-            if (!body.host) { showToast('ต้องใส่ IP ของเครื่องพิมพ์', 'error'); return; }
-        } else {
+            if (!body.host) { showToast('ต้องใส่ IP ของเครื่องพิมพ์', 'error'); return null; }
+        } else if (!body.kiosk) {
             body.usb = d.usb;
-            if (!body.usb) { showToast('ต้องเลือกเครื่องพิมพ์ USB', 'error'); return; }
-            // USB ต้องเสียบที่เครื่องเซิร์ฟเวอร์ — เสียบที่ตู้คีออสก์แล้วเซิร์ฟเวอร์สั่งพิมพ์ไม่ได้
-            if (body.kiosk) { showToast('เครื่องพิมพ์ของคีออสก์ต้องต่อแบบ LAN / IP', 'error', 5000); return; }
+            if (!body.usb) { showToast('ต้องเลือกเครื่องพิมพ์ USB', 'error'); return null; }
         }
-
-        try {
-            if (d.id) await CFStore.cmd('PATCH', '/api/printers/' + encodeURIComponent(d.id), body);
-            else await CFStore.cmd('POST', '/api/printers', body);
-            showToast('บันทึกเครื่องพิมพ์แล้ว', 'success');
-            this.openPrinters();
-        } catch (err) {
-            showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000);
-        }
+        return body;
     },
 
     /* ══════════════════════════════════════════════════════
@@ -1072,6 +1110,17 @@ const DashPage = {
                 </div>
                 ${field('shTax', 'เลขประจำตัวผู้เสียภาษี (13 หลัก · ไม่มีเว้นว่างได้)', s.taxId, 'inputmode="numeric"')}
                 ${field('shPp', 'พร้อมเพย์ของร้าน (เบอร์โทร 10 หลัก หรือเลข 13 หลัก)', s.promptpayId, 'inputmode="numeric"')}
+                <div class="sip-field">
+                    <label class="sip-label">เริ่มนับเลขออเดอร์ใหม่ (A001) ทุกวัน เวลา</label>
+                    <select class="sip-select" id="shDayStart">
+                        ${Array.from({ length: 13 }, (_, h) => `<option value="${h}" ${CFDay.startHourOf(s) === h ? 'selected' : ''}>
+                            ${String(h).padStart(2, '0')}:00 น.${h === CF_DAY_START_DEFAULT ? ' (ค่าเริ่มต้น)' : ''}</option>`).join('')}
+                    </select>
+                    <div class="ds-note" style="margin-top:4px">
+                        ออเดอร์ก่อนเวลานี้นับเป็นยอดของเมื่อวาน (ร้านปิดหลังเที่ยงคืนได้) · หน้าจัดการออเดอร์แสดงตามวันทำการนี้
+                        · มีผลตั้งแต่ออเดอร์ถัดไป — ถ้าเปลี่ยนระหว่างวัน เลขออเดอร์อาจนับต่อจากวันก่อน
+                    </div>
+                </div>
                 <div class="ds-section-label" style="margin-top:8px">บัญชีที่รับเงิน — ใช้ตรวจว่าสลิปโอนเข้าร้านจริง</div>
                 ${field('shAccName', 'ชื่อบัญชีผู้รับเงิน (ตามที่ขึ้นบนสลิป เช่น ชื่อร้าน หรือชื่อเจ้าของบัญชี)', s.shopAccountName)}
                 ${field('shAccNos', 'เลขบัญชีธนาคารอื่นที่รับเงิน (ถ้ามี คั่นด้วยจุลภาค)', s.shopAccountNos, 'inputmode="numeric"')}
@@ -1094,7 +1143,8 @@ const DashPage = {
         const body = { shopName: v('shName'), address: v('shAddr'),
                        taxId: digits(v('shTax')), promptpayId: digits(v('shPp')),
                        shopAccountName: v('shAccName'),
-                       shopAccountNos: v('shAccNos').split(',').map(digits).filter(Boolean).join(', ') };
+                       shopAccountNos: v('shAccNos').split(',').map(digits).filter(Boolean).join(', '),
+                       dayStartHour: parseInt(v('shDayStart'), 10) };
         if (!body.shopName) { showToast('ต้องใส่ชื่อร้าน', 'error'); return; }
         if (body.taxId && body.taxId.length !== 13) { showToast('เลขผู้เสียภาษีต้องมี 13 หลัก', 'error'); return; }
         if (body.promptpayId && ![10, 13].includes(body.promptpayId.length)) {

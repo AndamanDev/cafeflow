@@ -88,6 +88,15 @@
                        placeholder="0.00" oninput="ClosingPage.onCash(this.value)">
             </div>
             <div id="diffBox"></div>
+            <div class="sip-field" style="margin-top:10px">
+                <button type="button" class="ds-toggle" id="reopenToggle" onclick="ClosingPage.toggleReopen()">
+                    <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> เปิดรอบใหม่ต่อทันที (เปลี่ยนกะ)
+                </button>
+                <div class="ds-note" style="margin-top:4px">
+                    ปิดร้าน: ไม่ต้องเปิด — พรุ่งนี้เช้าค่อยกด "เปิดรอบ" แล้วกรอกเงินทอน ·
+                    เปลี่ยนกะกลางวัน: เปิดไว้ รอบใหม่ใช้เงินที่นับได้เป็นเงินตั้งต้น
+                </div>
+            </div>
         </div>
     </div>
 

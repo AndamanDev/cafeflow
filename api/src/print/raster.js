@@ -415,5 +415,55 @@ function bitsToPng(bits, width, height) {
     return canvas.toBuffer('image/png');
 }
 
-module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket,
+/* ══════════════════════════════════════════════════════════════════
+   ใบทดสอบเครื่องพิมพ์ — ตอนติดตั้ง ไม่ต้องสั่งออเดอร์จริง
+   กรอบรอบใบ = ความกว้างที่ตั้งไว้พอดี ดูกรอบก็รู้ว่าตั้งขนาดกระดาษ/ความละเอียดถูกไหม
+   ไม้บรรทัดด้านบนขีดละ 1 มม. ไว้วัดว่าขาด/เกินไปกี่มม.
+   ══════════════════════════════════════════════════════════════════ */
+function testPage({ name, conn, width = '80mm', dots }) {
+    const W = dots || WIDTH[width] || WIDTH['80mm'];
+    const narrow = W < 500;
+    const dpi = (W === 512 || W === 360) ? 180 : 203;
+    const base = narrow ? 19 : 22;
+    const s = createSheet(W);
+
+    s.gap(46);                                               // ที่ของไม้บรรทัด
+    s.line('ทดสอบเครื่องพิมพ์', { size: narrow ? 26 : 30, bold: true, align: 'center' });
+    s.line(name || '—', { size: base, align: 'center' });
+    s.rule();
+    s.row('กระดาษ', width === '58mm' ? '58 มม.' : '80 มม.', { size: base });
+    s.row('ความละเอียด', `${dpi} dpi · ${W} จุด`, { size: base });
+    s.row('ต่อแบบ', conn || '—', { size: base });
+    s.rule({ dashed: true });
+    s.wrap('ดูกรอบสี่เหลี่ยมรอบใบนี้', { size: base, bold: true });
+    s.wrap('ถูก: เห็นเส้นกรอบครบทั้งซ้ายและขวา ห่างขอบกระดาษไม่เกิน 4 มม.', { size: base - 2, hang: 'ถูก: ' });
+    s.wrap('ผิด: เส้นกรอบด้านขวาขาดหาย = ตั้งกว้างเกิน เลือกความละเอียด 180 dpi (หรือกระดาษ 58 มม.)',
+           { size: base - 2, hang: 'ผิด: ' });
+    s.wrap('ผิด: นอกกรอบเหลือที่ว่างเกิน 4 มม. = ตั้งแคบไป เลือก 203 dpi (หรือกระดาษ 80 มม.)',
+           { size: base - 2, hang: 'ผิด: ' });
+    s.rule({ dashed: true });
+    s.wrap('ภาษาไทยต้องอ่านออก สระและวรรณยุกต์ไม่หลุด: น้ำแข็ง ผู้ใหญ่ กิ่งก้าน ฤๅษี', { size: base - 2 });
+    s.line('0123456789 ฿1,234.50', { size: base, bold: true });
+    s.line(dateTime(Date.now()), { size: 16, align: 'center' });
+    s.gap(6);
+
+    const { canvas, height } = s.render();
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#000';
+    // กรอบหนา 3 จุด ชิดขอบภาพพอดี — ขาดด้านไหนแปลว่าเกินหัวพิมพ์ด้านนั้น
+    c.fillRect(0, 0, W, 3); c.fillRect(0, height - 3, W, 3);
+    c.fillRect(0, 0, 3, height); c.fillRect(W - 3, 0, 3, height);
+    // ไม้บรรทัด: ขีดสั้นทุก 1 มม. ยาวทุก 5 มม. ตัวเลขทุก 10 มม.
+    const perMm = dpi / 25.4;
+    c.font = `14px "${fontFamily()}"`;
+    for (let mm = 0; mm * perMm < W; mm++) {
+        const x = Math.round(mm * perMm);
+        const h = mm % 10 === 0 ? 22 : mm % 5 === 0 ? 15 : 8;
+        c.fillRect(x, 3, 2, h);
+        if (mm % 10 === 0 && mm && x + 26 < W) c.fillText(String(mm), x + 3, 24);   // เลขที่ล้นขอบไม่วาด
+    }
+    return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
+}
+
+module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket, testPage,
                    closingSlip, fontFamily };
