@@ -17,7 +17,10 @@
    ============================================================ */
 
 (function () {
-    const CDN = 'https://unpkg.com/lucide@latest';
+    // Lucide เก็บในเครื่อง (vendor/lucide.min.js · เวอร์ชันล็อกไว้ 1.53.0) — เดิมดึง unpkg@latest:
+    // ร้านไม่มีเน็ต ไอคอนหายทุกหน้า และ @latest อาจเปลี่ยนเองจนไอคอนบางตัวหาย
+    const SELF = document.currentScript && document.currentScript.src;
+    const CDN = SELF ? new URL('../vendor/lucide.min.js', SELF).href : '/design-system-2/vendor/lucide.min.js';
     let loading = null;
 
     /** โหลด Lucide จาก CDN ถ้ายังไม่มี (คืน Promise) */

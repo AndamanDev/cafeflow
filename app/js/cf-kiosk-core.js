@@ -1350,18 +1350,8 @@ const CFKiosk = {
             this._cam = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
             });
-            // โฟกัสต่อเนื่อง — มือถือลูกค้าอยู่ใกล้กล้องแค่ 20–30 ซม. กล้องที่ล็อกโฟกัสไกลจะเบลอเสมอ
-            // กล้องราคาถูกหลายรุ่นไม่มีตัวเลือกนี้ (ปฏิเสธเงียบ ๆ) — ไม่เป็นไร ใช้ต่อได้
-            const track = this._cam.getVideoTracks()[0];
-            const caps = track && track.getCapabilities ? track.getCapabilities() : {};
-            if (caps.focusMode && caps.focusMode.includes('continuous')) {
-                track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
-            }
-            // จอมือถือมีแสงในตัว กล้องมักรับแสงเกินจนพื้นขาวของสลิปกลืนตัวหนังสือ — ลดลงราว 1 สต็อป
-            if (caps.exposureCompensation && caps.exposureCompensation.min < 0) {
-                const ev = Math.max(caps.exposureCompensation.min, -1);
-                track.applyConstraints({ advanced: [{ exposureCompensation: ev }] }).catch(() => {});
-            }
+            // โฟกัสใกล้ + ลดแสง (เฉพาะกล้องที่รองรับ) — รายละเอียดใน CFApp.tuneCamera
+            console.info('[kiosk] กล้อง', CFApp.tuneCamera(this._cam));
         } catch (err) {
             console.warn('[kiosk] เปิดกล้องไม่ได้', err);
             this.camMsg(this.t('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', 'Could not open the camera — please ask our staff at the counter'), true);
@@ -1371,9 +1361,7 @@ const CFKiosk = {
         video.srcObject = this._cam;
         await video.play().catch(() => {});
 
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        let lastHint = 0;
+        let lastHint = 0, tick = 0;
         // หมดเวลาแล้วส่งให้พนักงานดูแทน — ไม่ปล่อยให้ลูกค้ายืนงงหน้าเครื่อง
         this._paused = false;
         this.resetScanDeadline();
@@ -1387,14 +1375,9 @@ const CFKiosk = {
             if (this._submitting || !video.videoWidth) return;
             if (this._paused) return;                         // กำลังดูภาพที่ถ่าย รอลูกค้าตัดสินใจ
             if (Date.now() > this._deadline) { this.stopCam(); this.qrTimeout(); return; }
-            // ย่อภาพก่อนถอดรหัส — เร็วขึ้นหลายเท่า และ QR บนจอมือถือยังใหญ่พอ
-            const scale = Math.min(1, 800 / video.videoWidth);
-            canvas.width = Math.round(video.videoWidth * scale);
-            canvas.height = Math.round(video.videoHeight * scale);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-            if (!code || !code.data) { this.liveHint(canvas); return; }
+            // สลับอ่านทั้งภาพ (ย่อ) กับกลางภาพความละเอียดเต็ม — เดิมย่ออย่างเดียว QR สลิปเล็กจนอ่านไม่ออก
+            const code = CFApp.qrFromVideo(video, tick++);
+            if (!code.data) { if (code.full) this.liveHint(code.canvas); return; }
 
             const slip = CFSlip.parse(code.data);
             if (!slip.ok) {

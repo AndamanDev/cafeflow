@@ -550,6 +550,7 @@ const CashierPage = {
             return;
         }
         if (!document.getElementById('slipCamVideo')) { this.stopSlipCam(); return; }   // ปิด drawer ไประหว่างรอ
+        console.info('[cashier] กล้อง', CFApp.tuneCamera(this._slipCam));
         video.srcObject = this._slipCam;
         await video.play().catch(() => {});
         document.getElementById('slipCamWrap').hidden = false;
@@ -557,10 +558,12 @@ const CashierPage = {
         if (label) label.textContent = 'ปิดกล้อง';
         this.slipScanMsg('กำลังมองหา QR บนสลิป…');
 
+        let tick = 0;
         this._slipScan = setInterval(() => {
             if (this._slipBusy || !video.videoWidth) return;
             // jsQR อ่าน QR ที่กลับด้านได้เอง — เว็บแคมที่กลับภาพมาก็สแกนติด
-            const payload = this._decodeQr(this._slipCanvas(video, 800));
+            // สลับทั้งภาพ (ย่อ) กับกลางภาพความละเอียดเต็ม (CFApp.qrFromVideo) — QR สลิปเล็ก ย่ออย่างเดียวอ่านไม่ออก
+            const payload = CFApp.qrFromVideo(video, tick++).data;
             if (!payload) return;
             if (!CFSlip.parse(payload).ok) {
                 this.slipScanMsg('QR นี้ไม่ใช่สลิป — ให้ลูกค้าเปิดหน้าสลิปหลังโอนเงินสำเร็จ', true);

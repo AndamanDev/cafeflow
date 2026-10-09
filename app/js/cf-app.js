@@ -221,6 +221,62 @@ const CFApp = {
 
     stationLabel(st) { return (CF_STATIONS[st] || {}).label || st; },
 
+    /**
+     * อ่าน QR สลิปจากกล้องหนึ่งเฟรม — ใช้ร่วมกันทั้งคีออสก์และแคชเชียร์
+     * สลับสองแบบทีละเฟรม (tick คู่/คี่):
+     *   คู่ = ทั้งภาพย่อกว้าง 800 — มือถือยกมาใกล้ QR ใหญ่ อยู่ตรงไหนของภาพก็เจอ
+     *   คี่ = กลางภาพ 60% ความละเอียดเต็มของกล้อง — QR บนสลิปเล็ก (~1/5 ของสลิป)
+     *         ย่อทั้งภาพแล้วเหลือจุดละไม่ถึง 2 px อ่านไม่ออก
+     * ทดสอบจำลองบนเฟรม 1920×1080: แบบย่ออย่างเดียวต้องให้ QR ใหญ่ ≥180 px (มือถือแทบชิดกล้อง)
+     * แบบกลางภาพอ่านได้ตั้งแต่ 50 px (ภาพคม) / 100 px (ภาพเบลอ)
+     * คืน { data, canvas, full } — canvas ของเฟรมทั้งภาพ (full=true) ใช้วัดแสงสะท้อน/ความคมต่อได้
+     */
+    qrFromVideo(video, tick) {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (!vw || !window.jsQR) return { data: null };
+        const c = this._qrCanvas || (this._qrCanvas = document.createElement('canvas'));
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        const full = tick % 2 === 0 || vw < 1000;          // กล้องความละเอียดต่ำ ครอปไม่ได้อะไรเพิ่ม
+        if (full) {
+            const s = Math.min(1, 800 / vw);
+            c.width = Math.round(vw * s); c.height = Math.round(vh * s);
+            ctx.drawImage(video, 0, 0, c.width, c.height);
+        } else {
+            const cw = Math.round(vw * 0.6), ch = Math.round(vh * 0.6);
+            const s = Math.min(1, 1200 / cw);                  // กล้อง 4K — ไม่ต้องใหญ่กว่านี้ ช้าเปล่า ๆ
+            c.width = Math.round(cw * s); c.height = Math.round(ch * s);
+            ctx.drawImage(video, (vw - cw) / 2, (vh - ch) / 2, cw, ch, 0, 0, c.width, c.height);
+        }
+        const img = ctx.getImageData(0, 0, c.width, c.height);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+        return { data: code && code.data ? code.data : null, canvas: c, full };
+    },
+
+    /**
+     * ปรับกล้องสำหรับอ่านจอมือถือที่ยื่นมาห่าง ~25 ซม. (ทำได้แค่กับกล้องที่รองรับ — ไม่รองรับก็เงียบ ๆ)
+     *   โฟกัส: มีออโต้ต่อเนื่องใช้อันนั้น · ไม่มีแต่ตั้งเองได้ → ล็อกระยะใกล้ 25 ซม.
+     *          (เว็บแคมส่วนใหญ่ตั้งโฟกัสไว้ไกล มือถือที่อยู่ใกล้จึงเบลอเสมอ)
+     *   แสง: จอมือถือสว่างในตัว กล้องมักรับแสงเกินจนพื้นขาวกลืนตัวหนังสือ — ลดลงราว 1 สต็อป
+     * คืนสรุปสั้น ๆ ไว้ log ดูว่ากล้องรุ่นนี้ทำอะไรได้บ้าง
+     */
+    tuneCamera(stream) {
+        const track = stream && stream.getVideoTracks()[0];
+        const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+        const set = (c) => track.applyConstraints({ advanced: [c] }).catch(() => {});
+        const done = [];
+        if (caps.focusMode && caps.focusMode.includes('continuous')) {
+            set({ focusMode: 'continuous' }); done.push('focus=auto');
+        } else if (caps.focusMode && caps.focusMode.includes('manual') && caps.focusDistance) {
+            const d = Math.min(caps.focusDistance.max, Math.max(caps.focusDistance.min, 0.25));
+            set({ focusMode: 'manual', focusDistance: d }); done.push('focus=near ' + d);
+        } else done.push('focus=fixed');
+        if (caps.exposureCompensation && caps.exposureCompensation.min < 0) {
+            set({ exposureCompensation: Math.max(caps.exposureCompensation.min, -1) }); done.push('ev=-1');
+        }
+        const st = track && track.getSettings ? track.getSettings() : {};
+        return (st.width || '?') + 'x' + (st.height || '?') + ' ' + done.join(' ');
+    },
+
     /** สีชิปประจำสถานี — ให้จำได้ด้วยสายตาทั้งแอป */
     stationChip(st) {
         const cls = { BAR: 'sip-chip-progress', KITCHEN: 'sip-chip-active', BAKERY: 'sip-chip-amber', DESSERT: 'sip-chip-ack' }[st] || 'sip-chip-muted';

@@ -11,7 +11,8 @@
    ⚠️ ต้องโหลดเป็นไฟล์แรกเสมอ
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+/* ฟอนต์เก็บในเครื่อง (เดิมดึงจาก Google — ร้านไม่มีเน็ต หน้าจอค้างรอจน timeout) */
+@import url('../vendor/fonts.css');
 
 :root {
 
