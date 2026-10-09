@@ -56,6 +56,7 @@ const CF_MENU = [
             { href: 'menu.html', label: 'รายการสินค้า', icon: 'coffee' },
             { sep: true },
             { section: 'ข้อมูลอ้างอิง' },
+            { href: 'menu.html#categories', label: 'หมวดหมู่', icon: 'listChecks' },
             { href: 'menu.html#groups', label: 'กลุ่มตัวเลือก (Modifier)', icon: 'listChecks' },
         ],
     },

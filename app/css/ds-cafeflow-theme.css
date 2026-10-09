@@ -168,12 +168,17 @@
 .mc-logo-sub    { color: var(--text-muted); }
 .mc-nav-sep     { background: var(--brand-border); }
 
-.mc-nav-dd-btn  { color: var(--text-muted); font-weight: 600; }
+.mc-nav-dropdown { margin-left: 8px; }
+/* ปุ่มเมนูแบบ dropdown (หน้างาน · เมนูและสินค้า · ตั้งค่า · ผู้ใช้) หน้าตาเดียวกับลิงก์เดี่ยว (ภาพรวม · ปิดรอบ)
+   — มีกรอบทุกปุ่ม เดิมไม่มีกรอบ แถบเมนูดูเป็นสองแบบปนกัน */
+.mc-nav-dd-btn  {
+    color: var(--text-muted); font-weight: 600; background: #fff;
+    border: var(--hairline) solid var(--brand-border); padding: 6px 12px;
+}
 .mc-nav-dd-btn:hover,
 .mc-nav-dropdown.open .mc-nav-dd-btn   { background: var(--brand-bg); color: #111; }
 .mc-nav-dropdown.active .mc-nav-dd-btn {
-    background: var(--primary-bg); color: var(--primary-dark);
-    border-bottom: 2px solid var(--primary);
+    background: var(--primary-bg); color: var(--primary-dark); border-color: var(--primary-border);
 }
 .mc-caret { opacity: .5; }
 
@@ -196,7 +201,8 @@
 }
 
 .mc-nav-clock    { color: var(--text-muted); }
-.mc-nav-user-chip{ background: #fff; border: var(--hairline) solid var(--brand-border); }
+.mc-nav-user-chip{ background: #fff; border: var(--hairline) solid var(--brand-border); border-radius: 8px; padding: 3px 12px 3px 4px; }
+.mc-nav-avatar   { border-radius: 6px; }
 .mc-nav-avatar   { background: var(--primary); color: #fff; }
 .mc-nav-username { color: #111; }
 .mc-nav-userrole { color: var(--text-muted); }
@@ -389,3 +395,26 @@
     border-radius: 8px;
 }
 .login-footer { color: var(--text-light); }
+
+/* ── แถบเมนูบน: ทุกกล่องสูงเท่ากัน 34px (ลิงก์ · ปุ่มเมนู · ชื่อผู้ใช้ · ออกจากระบบ) ──
+   เดิมสูง 33 / 31 / 38 / 29 — กล่องชื่อผู้ใช้ใหญ่กว่าเพื่อน ดูไม่เป็นชุดเดียวกัน */
+.mc-nav-link, .mc-nav-dd-btn, .mc-nav-user-chip, .mc-btn-logout {
+    height: 34px; box-sizing: border-box;
+}
+.mc-nav-user-chip { padding: 0 12px 0 5px; gap: 7px; }
+.mc-nav-avatar    { width: 24px; height: 24px; font-size: 11px; }
+.mc-nav-user-meta { line-height: 1.15; }
+.mc-nav-username  { font-size: 12px; }
+.mc-nav-userrole  { font-size: 10px; }
+.mc-btn-logout    { display: inline-flex; align-items: center; }
+
+/* ── กล่องตัวเลข (KPI) แนวนอน: ไอคอนซ้าย · ตัวเลข+ป้ายขวา ──
+   เดิมไอคอนอยู่บนตัวเลข กล่องสูง ~140px แต่มีข้อมูลเดียว — ดันเนื้อหาจริงลงไปครึ่งจอ (แคชเชียร์ · ปิดรอบ · เมนู) */
+.sip-kpi {
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+    column-gap: 14px; align-items: center; padding: 14px 18px;
+}
+.sip-kpi .sip-kpi-icon  { grid-row: 1 / span 2; margin: 0; width: 44px; height: 44px; padding: 10px; border-radius: 12px; }
+.sip-kpi .sip-kpi-value { font-size: 26px; line-height: 1.1; align-self: end; }
+.sip-kpi .sip-kpi-label { align-self: start; }
+.sip-kpi.critical .sip-kpi-value { color: var(--status-danger); }

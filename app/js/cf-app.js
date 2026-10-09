@@ -357,7 +357,7 @@ const CFRules = (function () {
     return {
         groupsFor:   (s, c) => CFRulesCore.groupsFor(s, c, data()),
         hiddenFor:   (s, c) => CFRulesCore.hiddenFor(s, c, data()),
-        optionsOf:   (g)    => CFRulesCore.optionsOf(g, data()),
+        optionsOf:   (g, includeOff) => CFRulesCore.optionsOf(g, data(), includeOff),
         defaultsFor: (s, c) => CFRulesCore.defaultsFor(s, c, data()),
         validate:    (s, c, mods) => CFRulesCore.validate(s, c, mods, data()),
     };

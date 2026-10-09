@@ -45,35 +45,74 @@ async function saveProduct(c, branchId, id, body, ctx) {
         [body.categoryId, branchId]);
     if (!cat.rows.length) throw new ApiError(400, 'ไม่พบหมวดสินค้า');
 
+    // ช่วงเวลาขาย — ทั้งคู่หรือไม่ใส่เลย (ขายทั้งวัน) · "HH:MM" · ข้ามเที่ยงคืนได้ (20:00–02:00)
+    const hhmm = (v) => (v == null || v === '' ? null : String(v).trim());
+    const availFrom = hhmm(body.availFrom), availTo = hhmm(body.availTo);
+    if ((availFrom == null) !== (availTo == null)) throw new ApiError(400, 'ช่วงเวลาขายต้องใส่ทั้งเวลาเริ่มและเวลาเลิก');
+    for (const t of [availFrom, availTo]) {
+        if (t != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new ApiError(400, 'เวลาต้องเป็นแบบ 07:00');
+    }
+    if (availFrom != null && availFrom === availTo) throw new ApiError(400, 'เวลาเริ่มกับเวลาเลิกต้องไม่เท่ากัน');
+
+    // สต็อก — null = ไม่นับ · 0 = หมด (ตั้งหมดวันนี้ให้เอง) · มากกว่า 0 = ขายได้ (ล้าง "หมด")
+    let stock = body.stockQty === undefined || body.stockQty === null || body.stockQty === '' ? null : Number(body.stockQty);
+    if (stock != null && !(Number.isInteger(stock) && stock >= 0 && stock <= 100000)) {
+        throw new ApiError(400, 'จำนวนสต็อกต้องเป็นจำนวนเต็ม 0 ขึ้นไป');
+    }
+    let soldOut = !!body.soldOut;
+    if (stock === 0) soldOut = true;
+
+    const desc = (v) => { const t = String(v == null ? '' : v).trim().slice(0, 200); return t || null; };
+
     const isNew = !id;
     const pid = id || ('P-' + Date.now().toString(36).toUpperCase());
+    const fields = [body.categoryId, body.groupTh || null, name, body.nameEn || null,
+                    body.imageUrl || null, body.artKey || null, station,
+                    body.active !== false, soldOut, !!body.recommended,
+                    desc(body.descriptionTh), desc(body.descriptionEn), stock, availFrom, availTo];
 
     if (isNew) {
+        // สินค้าใหม่ต่อท้ายหมวด — เลื่อนลำดับทีหลังได้
         await c.query(
             `INSERT INTO product (id, branch_id, category_id, group_th, name_th, name_en,
-                                  image_url, art_key, station, active, sold_out, recommended)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-            [pid, branchId, body.categoryId, body.groupTh || null, name, body.nameEn || null,
-             body.imageUrl || null, body.artKey || null, station,
-             body.active !== false, !!body.soldOut, !!body.recommended]);
+                                  image_url, art_key, station, active, sold_out, recommended,
+                                  description_th, description_en, stock_qty, avail_from, avail_to, sort)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
+                     (SELECT COALESCE(max(sort), 0) + 10 FROM product WHERE branch_id = $2 AND category_id = $3))`,
+            [pid, branchId, ...fields]);
     } else {
         const r = await c.query(
             `UPDATE product SET category_id = $3, group_th = $4, name_th = $5, name_en = $6,
                     image_url = $7, art_key = $8, station = $9, active = $10,
-                    sold_out = $11, recommended = $12, updated_at = now()
+                    sold_out = $11, recommended = $12, description_th = $13, description_en = $14,
+                    stock_qty = $15, avail_from = $16, avail_to = $17, updated_at = now()
               WHERE id = $1 AND branch_id = $2 AND deleted_at IS NULL RETURNING id`,
-            [pid, branchId, body.categoryId, body.groupTh || null, name, body.nameEn || null,
-             body.imageUrl || null, body.artKey || null, station,
-             body.active !== false, !!body.soldOut, !!body.recommended]);
+            [pid, branchId, ...fields]);
         if (!r.rows.length) throw new ApiError(404, 'ไม่พบสินค้า');
+    }
+
+    // ต้นทุนต่อแบบเสิร์ฟ — ไม่ส่งมา (ผู้ใช้ที่ไม่เห็นต้นทุน) = คงของเดิม
+    let costs = null;
+    if (body.costs && typeof body.costs === 'object') {
+        costs = {};
+        for (const [k, v] of Object.entries(body.costs)) {
+            if (v == null || v === '') continue;
+            const n = Number(v);
+            if (!(n >= 0)) throw new ApiError(400, `ต้นทุนแบบ "${k}" ต้องเป็น 0 ขึ้นไป`);
+            costs[k] = n;
+        }
+    } else if (!isNew) {
+        costs = {};
+        for (const r of (await c.query('SELECT serve_type, cost FROM product_price WHERE product_id = $1 AND cost IS NOT NULL',
+            [pid])).rows) costs[r.serve_type] = Number(r.cost);
     }
 
     // ราคา: ลบทิ้งแล้วใส่ใหม่ ในทรานแซกชันเดียว — สถานะกลางไม่มีใครเห็น
     await c.query('DELETE FROM product_price WHERE product_id = $1', [pid]);
     for (const [serve, price] of Object.entries(prices)) {
         await c.query(
-            'INSERT INTO product_price (product_id, serve_type, price) VALUES ($1,$2,$3)',
-            [pid, serve, price]);
+            'INSERT INTO product_price (product_id, serve_type, price, cost) VALUES ($1,$2,$3,$4)',
+            [pid, serve, price, costs && costs[serve] != null ? costs[serve] : null]);
     }
 
     await audit(c, branchId, {
@@ -334,6 +373,8 @@ function registerAdmin(app, deps) {
         await tx(async (c) => {
             const r = await c.query(
                 `UPDATE modifier_group SET name_th = $3,
+                        name_en = CASE WHEN $7::boolean THEN $8 ELSE name_en END,
+                        active = COALESCE($9, active), sort = COALESCE($10, sort),
                         type = COALESCE($4, type), required = COALESCE($5, required),
                         max_select = CASE
                             WHEN COALESCE($4, type) = 'SINGLE' THEN NULL     -- เลือกได้ 1 อยู่แล้ว
@@ -343,7 +384,11 @@ function registerAdmin(app, deps) {
                   WHERE id = $1 AND branch_id = $2 RETURNING id`,
                 [req.params.id, branchId(), name,
                  b.type === 'SINGLE' || b.type === 'MULTI' ? b.type : null,
-                 typeof b.required === 'boolean' ? b.required : null, max]);
+                 typeof b.required === 'boolean' ? b.required : null, max,
+                 // ไม่ส่ง = คงเดิม (ฟอร์มเก่าที่ส่งแค่ชื่อ/รูปแบบยังใช้ได้)
+                 b.nameEn !== undefined, b.nameEn ? String(b.nameEn).trim().slice(0, 60) || null : null,
+                 typeof b.active === 'boolean' ? b.active : null,
+                 Number.isInteger(b.sort) ? b.sort : null]);
             if (!r.rows.length) throw new ApiError(404, 'ไม่พบกลุ่มตัวเลือก');
             await audit(c, branchId(), {
                 eventType: 'PRODUCT_UPDATE', actorKind: ctx.actorKind,

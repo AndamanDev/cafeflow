@@ -19,6 +19,8 @@
     'use strict';
 
     const arr = (x) => (Array.isArray(x) ? x : []);
+    // ปิดใช้งาน (active=false) = หายจากคีออสก์และตัวตรวจ แต่ยังอยู่ในบิลเก่า · ไม่มีคีย์ active = ใช้งาน (ข้อมูลรุ่นเก่า)
+    const on = (x) => x && x.active !== false;
 
     /** กลุ่มตัวเลือกที่ต้องแสดง สำหรับสินค้า + แบบเสิร์ฟหนึ่ง ๆ */
     function groupsFor(serveType, categoryId, data) {
@@ -31,7 +33,7 @@
             .sort((a, b) => a.sort - b.sort)
             .map((r) => groups.find((g) => g.id === r.groupId))
             .filter((g) => {
-                if (!g || seen[g.id]) return false;
+                if (!on(g) || seen[g.id]) return false;
                 seen[g.id] = true;
                 return true;
             });
@@ -41,12 +43,13 @@
     function hiddenFor(serveType, categoryId, data) {
         const shown = {};
         groupsFor(serveType, categoryId, data).forEach((g) => { shown[g.id] = true; });
-        return arr((data || {}).modifierGroups).filter((g) => !shown[g.id]);
+        return arr((data || {}).modifierGroups).filter((g) => on(g) && !shown[g.id]);
     }
 
-    function optionsOf(groupId, data) {
+    /** ตัวเลือกของกลุ่ม — includeOff = รวมตัวที่ปิดใช้งาน (ใช้ในหน้าจัดการเมนูเท่านั้น) */
+    function optionsOf(groupId, data, includeOff) {
         return arr((data || {}).modifierOptions)
-            .filter((o) => o.groupId === groupId)
+            .filter((o) => o.groupId === groupId && (includeOff || on(o)))
             .sort((a, b) => a.sort - b.sort);
     }
 

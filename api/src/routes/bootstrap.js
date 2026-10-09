@@ -42,10 +42,12 @@ async function buildSnapshot(c, branchId, opts) {
     const categories = await q('SELECT * FROM category WHERE branch_id = $1 ORDER BY sort', [branchId]);
     // ราคายุบกลับเป็น sparse map ตรงนี้ — สินค้าที่ไม่มีแถวราคาเลยได้ {} ซึ่งถูกต้อง
     const products = await q(
-        `SELECT p.*, COALESCE(pp.prices, '{}'::jsonb) AS prices
+        `SELECT p.*, COALESCE(pp.prices, '{}'::jsonb) AS prices, pp.costs,
+                to_char(p.avail_from, 'HH24:MI') AS avail_from_s, to_char(p.avail_to, 'HH24:MI') AS avail_to_s
            FROM product p
            LEFT JOIN LATERAL (
-               SELECT jsonb_object_agg(serve_type, price) AS prices
+               SELECT jsonb_object_agg(serve_type, price) AS prices,
+                      jsonb_object_agg(serve_type, cost) FILTER (WHERE cost IS NOT NULL) AS costs
                  FROM product_price WHERE product_id = p.id
            ) pp ON true
           WHERE p.branch_id = $1 AND p.deleted_at IS NULL
@@ -110,7 +112,7 @@ async function buildSnapshot(c, branchId, opts) {
 
     // ตัวเลขรายงานคิดที่เซิร์ฟเวอร์แล้วแนบมาด้วย — หน้าเว็บจึงอ่านได้แบบ synchronous
     // และไม่ต้องคำนวณเองจาก cache ที่มีแค่ 24 ชั่วโมง (ซึ่งจะผิดแบบเงียบ ๆ)
-    const reports = await snapshotReports(c, branchId);
+    const reports = await snapshotReports(c, branchId, !!(opts && opts.withCost));
 
     const rev = Number((await q("SELECT last_value FROM global_rev"))[0].last_value);
 
@@ -123,7 +125,8 @@ async function buildSnapshot(c, branchId, opts) {
         // เครื่องที่ค้างหน้าขอรหัสจับคู่อยู่ตอนนี้ — require ตอนเรียก กัน require วนกับ devices.js
         deviceWaits: require('./devices').waitingList(),
         categories: categories.map(S.toCategory),
-        products: products.map(S.toProduct),
+        // ต้นทุนส่งเฉพาะคนที่แก้ราคาได้ — คีออสก์/แคชเชียร์/ครัวไม่ต้องรู้ (เปิด devtools ที่ตู้ก็ไม่เห็น)
+        products: products.map((r) => S.toProduct(r, !!(opts && opts.withCost))),
         modifierGroups: groups.map(S.toGroup),
         modifierOptions: options.map(S.toOption),
         modifierRules: rules.map(S.toRule),

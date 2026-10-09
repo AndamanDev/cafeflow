@@ -70,16 +70,35 @@
         </button>
     </div>
 
+    <!-- ขั้น 1: ออเดอร์ที่ยังไม่จบ (ทุกรอบ ทุกวัน) — ขวางการปิดรอบ จึงอยู่บนสุด · ซ่อนเองเมื่อไม่มี -->
+    <div class="section-card" id="pendingCard" hidden>
+        <div class="section-header">
+            <div class="section-title"><span class="cf-stepno">1</span> เคลียร์ออเดอร์ที่ยังไม่จบ <span id="pendingCount"></span></div>
+            <button class="btn btn-outline btn-sm" onclick="ClosingPage.clearAll()">
+                <i data-lucide="list-checks" class="icon-sm"></i> เคลียร์ทั้งหมด
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table compact">
+                <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th></th></tr></thead>
+                <tbody id="pendingRows"></tbody>
+            </table>
+        </div>
+        <div class="card-body">
+            <div class="ds-note" id="pendingNote"></div>
+        </div>
+    </div>
+
     <div class="ds-kpi-grid" id="kpiStrip"></div>
 
     <div class="cards-row">
         <div class="clinical-card">
-            <div class="card-title">สรุปยอดขาย (§27)</div>
+            <div class="card-title">สรุปยอดขาย</div>
             <table class="ds-table-grid" id="salesTable"></table>
         </div>
 
         <div class="clinical-card">
-            <div class="card-title">การควบคุมเงินสด</div>
+            <div class="card-title"><span class="cf-stepno">2</span> นับเงินในลิ้นชัก</div>
             <table class="ds-table-grid" id="cashTable"></table>
 
             <div class="sip-field" style="margin-top:6px">
@@ -97,25 +116,10 @@
                     เปลี่ยนกะกลางวัน: เปิดไว้ รอบใหม่ใช้เงินที่นับได้เป็นเงินตั้งต้น
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- ออเดอร์ที่ยังไม่จบ (ทุกรอบ ทุกวัน) — เคลียร์ก่อนปิดรอบ ซ่อนเองเมื่อไม่มี -->
-    <div class="section-card" id="pendingCard" hidden>
-        <div class="section-header">
-            <div class="section-title"><i data-lucide="clock" class="mi"></i> ออเดอร์ที่ยังไม่จบ <span id="pendingCount"></span></div>
-            <button class="btn btn-outline btn-sm" onclick="ClosingPage.clearAll()">
-                <i data-lucide="list-checks" class="icon-sm"></i> เคลียร์ทั้งหมด
+            <!-- ขั้น 3 อยู่ท้ายการ์ดนับเงิน — นับเสร็จกดต่อได้เลย ไม่ต้องเลื่อนกลับขึ้นไปหาปุ่มบนหัว -->
+            <button class="btn btn-primary cf-close-step" id="closeBtn2" onclick="ClosingPage.closeShift()">
+                <span class="cf-stepno">3</span> ปิดรอบ
             </button>
-        </div>
-        <div class="table-responsive">
-            <table class="data-table compact">
-                <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th></th></tr></thead>
-                <tbody id="pendingRows"></tbody>
-            </table>
-        </div>
-        <div class="card-body">
-            <div class="ds-note" id="pendingNote"></div>
         </div>
     </div>
 
@@ -125,7 +129,7 @@
         </div>
         <div class="table-responsive">
             <table class="data-table compact">
-                <thead><tr><th>#</th><th>สินค้า</th><th class="cf-right">จำนวน</th><th class="cf-right">ยอดเงิน</th></tr></thead>
+                <thead id="topHead"></thead>
                 <tbody id="topRows"></tbody>
             </table>
         </div>
@@ -133,7 +137,7 @@
 
     <div class="section-card">
         <div class="section-header">
-            <div class="section-title"><i data-lucide="file-spreadsheet" class="mi"></i> ไฟล์ส่งออก (§28)</div>
+            <div class="section-title"><i data-lucide="file-spreadsheet" class="mi"></i> ไฟล์ส่งออก</div>
         </div>
         <div class="card-body">
             <div class="ds-quick-nav" id="csvLinks"></div>

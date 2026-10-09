@@ -19,32 +19,52 @@ const DashPage = {
         // ไม่มีรอบเปิด = คีออสก์ไม่รับออเดอร์ — ชี้ทางไปเปิดรอบ
         document.getElementById('shiftLine').innerHTML =
             shift
-                ? e('รอบ ' + shift.id + ' · เปิดเมื่อ ' + CFApp.time(shift.openedAt) + ' · ' + CFApp.dateFull(shift.openedAt))
-                : 'ยังไม่เปิดรอบการขาย — คีออสก์ยังไม่รับออเดอร์ · <a href="closing.html">ไปเปิดรอบ</a>';
+                ? '<span class="cf-pill cf-pill-on">เปิดขายอยู่</span> ' +
+                  e('รอบ ' + shift.id + ' · เปิดเมื่อ ' + CFApp.time(shift.openedAt) + ' · ' + CFApp.dateFull(shift.openedAt))
+                : '<span class="cf-pill cf-pill-off">ยังไม่เปิดรอบ</span> คีออสก์ยังไม่รับออเดอร์ · <a href="closing.html">ไปเปิดรอบ</a>';
 
-        /* ── ยอดขาย ── */
-        const kpi = (icon, value, label, critical) => `
-            <div class="sip-kpi ${critical ? 'critical' : ''}">
-                <i data-lucide="${icon}" class="sip-kpi-icon icon-lg"></i>
-                <div class="sip-kpi-value">${value}</div>
-                <div class="sip-kpi-label">${label}</div>
+        /* ── ยอดขาย — ตัวเลขหลักใหญ่ แยกช่องทางชำระเป็นแถบสัดส่วน ── */
+        const total = k.cash + k.qr;
+        const cashPct = total ? Math.round(k.cash / total * 100) : 0;
+        document.getElementById('kpiSales').innerHTML = `
+            <div class="cf-sales-hero">
+                <div class="cf-sales-label"><i data-lucide="wallet" class="icon-sm"></i> ยอดขายรอบนี้</div>
+                <div class="cf-sales-value">${CFApp.baht(k.sales)}</div>
+                <div class="cf-sales-sub">
+                    <span><b>${CFApp.int(k.orderCount)}</b> ออเดอร์</span>
+                    <span>เฉลี่ย <b>${CFApp.baht(k.avgOrder)}</b> / บิล</span>
+                </div>
+            </div>
+            <div class="cf-sales-split">
+                <div class="cf-sales-label">ช่องทางชำระ</div>
+                <div class="cf-split-row"><span><i data-lucide="banknote" class="icon-sm"></i> เงินสด</span><b>${CFApp.baht(k.cash)}</b></div>
+                <div class="cf-split-row"><span><i data-lucide="qr-code" class="icon-sm"></i> QR / โอน</span><b>${CFApp.baht(k.qr)}</b></div>
+                <div class="cf-split-bar" title="เงินสด ${cashPct}% · QR ${total ? 100 - cashPct : 0}%">
+                    <div class="cf-split-cash" style="width:${cashPct}%"></div>
+                    <div class="cf-split-qr" style="width:${total ? 100 - cashPct : 0}%"></div>
+                </div>
             </div>`;
 
-        document.getElementById('kpiSales').innerHTML =
-            kpi('wallet',   CFApp.baht(k.sales),    'ยอดขายรอบนี้') +
-            kpi('receipt',  CFApp.int(k.orderCount),'จำนวนออเดอร์') +
-            kpi('calculator', CFApp.baht(k.avgOrder), 'เฉลี่ยต่อบิล') +
-            kpi('banknote', CFApp.baht(k.cash),     'เงินสด') +
-            kpi('qr-code',  CFApp.baht(k.qr),       'QR / โอน');
-
-        /* ── การปฏิบัติงาน ── */
-        document.getElementById('kpiOps').innerHTML =
-            kpi('hourglass', CFApp.int(k.waitingPay), 'รอชำระเงิน', k.waitingPay > 4) +
-            kpi('chef-hat',  CFApp.int(k.preparing),  'กำลังจัดเตรียม') +
-            kpi('bell-ring', CFApp.int(k.ready),      'พร้อมรับ') +
-            kpi('timer',     CFKpi.fmtSec(k.avgWaitSec), 'เวลารอชำระเฉลี่ย') +
-            kpi('flame',     CFKpi.fmtSec(k.avgPrepSec), 'เวลาจัดเตรียมเฉลี่ย') +
-            kpi('trending-up', k.throughput.toFixed(1), 'ออเดอร์ / ชม.');
+        /* ── ตอนนี้ในร้าน — งานค้าง (กดไปหน้าที่จัดการได้) + ความเร็ว ── */
+        const tile = (icon, value, label, tone, href) => `
+            <a class="cf-op-tile ${tone || ''}" ${href ? `href="${href}"` : ''}>
+                <span class="cf-op-ico"><i data-lucide="${icon}"></i></span>
+                <span class="cf-op-text"><span class="cf-op-value">${value}</span><span class="cf-op-label">${label}</span></span>
+            </a>`;
+        const stat = (icon, value, label) => `
+            <div class="cf-op-stat"><i data-lucide="${icon}" class="icon-sm"></i>
+                <span class="cf-op-label">${label}</span><b>${value}</b></div>`;
+        document.getElementById('kpiOps').innerHTML = `
+            <div class="cf-op-tiles">
+                ${tile('hourglass', CFApp.int(k.waitingPay), 'รอชำระเงิน', k.waitingPay > 4 ? 'danger' : k.waitingPay ? 'warn' : '', 'cashier.html')}
+                ${tile('chef-hat', CFApp.int(k.preparing), 'กำลังจัดเตรียม', k.preparing ? 'info' : '', 'kds.html')}
+                ${tile('bell-ring', CFApp.int(k.ready), 'พร้อมรับ', k.ready ? 'ok' : '', 'cashier.html')}
+            </div>
+            <div class="cf-op-stats">
+                ${stat('timer', CFKpi.fmtSec(k.avgWaitSec), 'รอชำระเฉลี่ย')}
+                ${stat('flame', CFKpi.fmtSec(k.avgPrepSec), 'จัดเตรียมเฉลี่ย')}
+                ${stat('trending-up', k.throughput.toFixed(1), 'ออเดอร์ / ชม.')}
+            </div>`;
 
         /* ── ภาระงานสถานี (§25) ── */
         document.getElementById('stationLoad').innerHTML = CFKpi.stationLoad().map((s) => {
@@ -72,19 +92,21 @@ const DashPage = {
             PAYMENT_TIMEOUT: 'warning',
         }[ev] || 'info');
 
-        document.getElementById('activity').innerHTML = CFStore.all('auditLogs').slice(0, 14).map((a) => {
+        // 10 รายการล่าสุดพอ — ดูย้อนหลังที่หน้าจัดการออเดอร์ › ประวัติ
+        document.getElementById('activity').innerHTML = CFStore.all('auditLogs').slice(0, 10).map((a) => {
             const o = a.orderId ? CFStore.byId('orders', a.orderId) : null;
             const isBad = ['CANCELLED', 'VOIDED', 'REFUNDED', 'PAYMENT_FAILED'].includes(a.newStatus);
             const v = isBad ? 'danger' : (a.newStatus === 'READY' ? 'success' : variant(a.eventType));
             const head = a.newStatus
                 ? (o ? o.orderNo + ' → ' : '') + CFApp.statusLabel(a.newStatus)
                 : (o ? o.orderNo + ' · ' : '') + this.eventLabel(a.eventType);
-            return `<div class="ds-timeline-item ${v}">
-                        <div class="flex flex-between gap-md">
-                            <strong>${e(head)}</strong>
-                            <span class="ds-timeline-time">${CFApp.timeSec(a.ts)}</span>
+            return `<div class="cf-act ${v}">
+                        <span class="cf-act-dot"></span>
+                        <div class="cf-act-body">
+                            <div class="cf-act-head">${e(head)}</div>
+                            <div class="cf-act-sub">${e(CFApp.actorName(a.actor))}${a.reason ? ' · ' + e(a.reason) : ''}</div>
                         </div>
-                        <div class="text-muted">${e(CFApp.actorName(a.actor))}${a.reason ? ' · ' + e(a.reason) : ''}</div>
+                        <span class="cf-act-time">${CFApp.time(a.ts)}</span>
                     </div>`;
         }).join('') || '<div class="ds-empty-sm">ยังไม่มีกิจกรรม</div>';
 
@@ -99,7 +121,8 @@ const DashPage = {
             PAYMENT_TIMEOUT: 'หมดเวลาชำระ', STATION_READY: 'สถานีพร้อม',
             PRINT: 'พิมพ์เอกสาร', STATUS_CHANGE: 'เปลี่ยนสถานะ',
             PRODUCT_UPDATE: 'แก้ไขสินค้า', SHIFT_CLOSE: 'ปิดรอบ',
-            DEVICE_UPDATE: 'ตั้งค่าอุปกรณ์',
+            DEVICE_UPDATE: 'ตั้งค่าอุปกรณ์', QR_ISSUED: 'ออก QR ชำระเงิน', SHIFT_OPEN: 'เปิดรอบ',
+            SETTINGS_UPDATE: 'แก้ค่าตั้ง', SLIP_REJECTED: 'ปฏิเสธสลิป', USER_PASSWORD: 'เปลี่ยนรหัสผ่าน',
         }[ev] || ev;
     },
 
@@ -196,7 +219,7 @@ const DashPage = {
     openDevices() {
         Drawer.open({
             title: 'อุปกรณ์ในเครือข่าย',
-            width: '620px',
+            width: '880px',
             contentHtml: `
                 <div class="sip-banner sip-banner-info" style="margin-bottom:12px">
                     <i data-lucide="info" class="icon-sm"></i>
@@ -433,7 +456,9 @@ const DashPage = {
             const where = p
                 ? `<div class="td-name">${e(p.name)}</div><div class="td-sub">${e(this.printerConnText(p))}</div>` +
                   (this.printerReady(p) ? '' : '<span class="status-badge danger">ตั้งค่าไม่ครบ</span>')
-                : '<span class="text-muted">ไม่พิมพ์ใบรับออเดอร์</span>';
+                : `<span class="text-muted">ยังไม่ได้ตั้งเครื่องพิมพ์บัตรคิว</span>
+                   <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.editPrinter(null, '${e(k.id)}')">
+                       <i data-lucide="plus" class="icon-sm"></i> ตั้งเครื่องพิมพ์ให้ตู้นี้</button>`;
             return `<tr>
                 <td><span class="sip-chip sip-chip-muted">ใบรับออเดอร์ · ${e(k.name)}</span></td>
                 <td>${where}</td>
@@ -505,12 +530,13 @@ const DashPage = {
     },
 
     /** ฟอร์มเพิ่ม (ไม่ส่ง id) หรือแก้ไขเครื่องพิมพ์ */
-    editPrinter(id) {
+    /** forKiosk = เพิ่มเครื่องพิมพ์บัตรคิวให้ตู้นั้น (ปุ่มลัดในแถวของตู้) — เลือกตู้และ USB ไว้ให้ */
+    editPrinter(id, forKiosk) {
         const p = id ? this.printers().find((x) => x.id === id) : null;
         if (id && !p) { showToast('ไม่พบเครื่องพิมพ์', 'error'); return; }
         this._pd = {
             id: p ? p.id : null,
-            conn: p ? (p.conn || 'NETWORK') : 'NETWORK',
+            conn: p ? (p.conn || 'NETWORK') : forKiosk ? 'USB' : 'NETWORK',
             usb: p ? p.printerUsb || '' : '',
             usbList: null,            // null = ยังไม่ได้โหลด
             active: p ? p.active !== false : true,
@@ -529,7 +555,7 @@ const DashPage = {
                 <div class="sip-field">
                     <label class="sip-label">ชื่อเครื่องพิมพ์</label>
                     <input class="sip-input" id="pName" placeholder="เช่น เครื่องพิมพ์บาร์"
-                           value="${e(p ? p.name : '')}">
+                           value="${e(p ? p.name : forKiosk ? 'เครื่องพิมพ์บัตรคิว ' + this.kioskName(forKiosk) : '')}">
                 </div>
 
                 <div class="sip-field">
@@ -579,11 +605,11 @@ const DashPage = {
                 <div class="sip-field">
                     <label class="sip-label">ใช้พิมพ์ของส่วน</label>
                     <select class="sip-select" id="pStation" onchange="DashPage.pConn(DashPage._pd.conn)">
-                        <option value="" ${station ? '' : 'selected'}>ใบเสร็จ / เคาน์เตอร์ (และส่วนที่ไม่มีเครื่องของตัวเอง)</option>
+                        <option value="" ${station || forKiosk ? '' : 'selected'}>ใบเสร็จ / เคาน์เตอร์ (และส่วนที่ไม่มีเครื่องของตัวเอง)</option>
                         ${Object.keys(CF_STATIONS).map((st) => `<option value="${st}" ${station === st ? 'selected' : ''}>
                             ${e(CFApp.stationLabel(st))}</option>`).join('')}
                         ${this.kiosks().length ? `<optgroup label="บัตรคิวของคีออสก์">
-                            ${this.kiosks().map((k) => `<option value="KIOSK:${e(k.id)}" ${p && p.kioskId === k.id ? 'selected' : ''}>
+                            ${this.kiosks().map((k) => `<option value="KIOSK:${e(k.id)}" ${(p ? p.kioskId : forKiosk) === k.id ? 'selected' : ''}>
                                 ${e(k.name)} (${e(k.id)})</option>`).join('')}
                         </optgroup>` : ''}
                     </select>

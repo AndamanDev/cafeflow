@@ -19,6 +19,7 @@ const { registerStream, publish } = require('./routes/stream');
 const { registerAuth } = require('./routes/auth');
 const { registerOrders } = require('./routes/orders');
 const { registerAdmin } = require('./routes/admin');
+const { registerCatalog, registerProductTools } = require('./routes/catalog');
 const { registerPayments } = require('./routes/payments');
 const { registerReports } = require('./routes/reports');
 const { registerMedia } = require('./routes/media');
@@ -141,7 +142,9 @@ app.get('/api/bootstrap', async (req, reply) => {
         // อ่านทั้งหมดเป็นภาพ ณ จุดเวลาเดียว — ไม่งั้นได้ออเดอร์ที่ยังไม่มีรายการสินค้า
         // เพราะมีคนสั่งของแทรกระหว่างที่เรากำลังไล่อ่านทีละตาราง
         await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-        const snap = await buildSnapshot(client, BRANCH_ID, { hours });
+        const { CFPerms } = require('../../shared/cf-perms.js');
+        const snap = await buildSnapshot(client, BRANCH_ID,
+            { hours, withCost: !!(user && CFPerms.can(user.role, 'PRICE_EDIT')) });
         await client.query('COMMIT');
         return snap;
     } catch (err) {
@@ -179,6 +182,8 @@ registerStream(app, () => BRANCH_ID);
 registerAuth(app, { query, branchId: () => BRANCH_ID });
 const helpers = registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
 registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
+registerCatalog(app, { tx, branchId: () => BRANCH_ID, helpers });
+registerProductTools(app, { tx, branchId: () => BRANCH_ID, helpers });
 registerPayments(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerReports(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerMedia(app, { query, branchId: () => BRANCH_ID, root: ROOT, helpers });

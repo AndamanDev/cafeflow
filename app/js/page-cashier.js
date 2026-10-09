@@ -88,25 +88,26 @@ const CashierPage = {
                 `<div class="td-sub">${i.qty} × ${e(i.nameSnapshot)}</div>`).join('');
             const more = items.length > 3 ? `<div class="td-sub">และอีก ${items.length - 3} รายการ</div>` : '';
 
-            return `<div class="sip-card sip-card-hover" onclick="CashierPage.open('${o.id}')">
-                <div class="flex flex-between gap-md" style="align-items:flex-start">
-                    <div>
-                        <div style="font-size:20px;font-weight:800">${e(o.orderNo)}</div>
-                        <div class="td-sub">${e(o.kioskId)} · ${CFApp.time(o.createdAt)}</div>
-                    </div>
-                    <div class="flex gap-sm" style="align-items:center">
-                        ${CFApp.diningChip(o.diningOption)}
-                        ${CFApp.statusChip(o.status)}
-                    </div>
+            // การ์ดเรียบแบบเดียวกับรายการหน้าจัดการออเดอร์: เลขคิว + ยอด · จุดสีสถานะ + เวลา · รายละเอียดตัวเล็ก
+            // — เดิมมีป้ายสี 4 อันต่อใบ (สถานะ · กินที่ร้าน · หมายเหตุ · QR) ดูรก
+            const st = CF_STATUS[o.status] || { label: o.status, chip: 'sip-chip-muted' };
+            const tone = { 'sip-chip-danger': 'danger', 'sip-chip-active': 'warn', 'sip-chip-success': 'ok',
+                           'sip-chip-progress': 'info' }[st.chip] || 'muted';
+            return `<div class="sip-card sip-card-hover cf-order-card" onclick="CashierPage.open('${o.id}')">
+                <div class="cf-oc-head">
+                    <span class="cf-oc-no">${e(o.orderNo)}</span>
+                    <span class="cf-oc-amt">${CFApp.baht(o.total)}</span>
+                </div>
+                <div class="cf-oc-meta">
+                    <span class="cf-lc-status ${tone}"><i></i>${e(st.label)}</span>
+                    <span class="cf-lc-time">${CFApp.time(o.createdAt)}</span>
+                </div>
+                <div class="cf-oc-sub">
+                    ${e(o.kioskId || '—')} · ${e((CF_DINING[o.diningOption] || CF_DINING.DINE_IN).label)} ·
+                    ${o.paymentMethod === 'CASH' ? 'เงินสด' : 'QR / โอน'}
                 </div>
                 ${this._reviewBadge(o)}
-                <div style="margin:10px 0">${lines}${more}</div>
-                <div class="flex flex-between" style="align-items:baseline">
-                    <span class="sip-chip ${o.paymentMethod === 'CASH' ? 'sip-chip-amber' : 'sip-chip-progress'}">
-                        ${o.paymentMethod === 'CASH' ? 'เงินสด' : 'QR'}
-                    </span>
-                    <span class="cf-amount-big" style="font-size:22px">${CFApp.baht(o.total)}</span>
-                </div>
+                <div class="cf-oc-items">${lines}${more}</div>
             </div>`;
         }).join('') + '</div>';
     },
@@ -118,17 +119,17 @@ const CashierPage = {
     _reviewBadge(o) {
         if (!['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status)) return '';
         const slip = CFStore.where('slips', (s) => s.orderId === o.id).slice(-1)[0];
+        // หมายเหตุเป็นบรรทัดข้อความมีไอคอน (พื้นอ่อนตามสี) ไม่ใช่ป้ายแคปซูลอีกอัน
+        const note = (cls, icon, text) =>
+            `<div class="cf-oc-note ${cls}"><i data-lucide="${icon}" class="icon-sm"></i><span>${text}</span></div>`;
         if (slip) {
             const bad = slip.verdict === 'FAIL';
-            return `<div style="margin-top:8px"><span class="sip-chip ${bad ? 'sip-chip-danger' : 'sip-chip-success'}">
-                <i data-lucide="${bad ? 'alert-octagon' : 'receipt'}" class="icon-sm"></i>
-                ${bad ? 'มีสลิป — ยอดหรือวันที่ไม่ตรง' : 'มีสลิปแล้ว — รอดูเงินเข้า'}</span></div>`;
+            return bad ? note('danger', 'alert-octagon', 'มีสลิป — ยอดหรือวันที่ไม่ตรง')
+                       : note('ok', 'receipt', 'มีสลิปแล้ว — รอดูเงินเข้า');
         }
         return o.status === 'PAYMENT_TIMEOUT'
-            ? `<div style="margin-top:8px"><span class="sip-chip sip-chip-muted">
-                <i data-lucide="timer-off" class="icon-sm"></i> QR หมดเวลา — ไม่มีสลิป อาจยังไม่ได้จ่าย</span></div>`
-            : `<div style="margin-top:8px"><span class="sip-chip sip-chip-amber">
-                <i data-lucide="hand" class="icon-sm"></i> ลูกค้าแจ้งพนักงาน — ไม่มีสลิป</span></div>`;
+            ? note('muted', 'timer-off', 'QR หมดเวลา — ไม่มีสลิป อาจยังไม่ได้จ่าย')
+            : note('warn', 'hand', 'ลูกค้าแจ้งพนักงาน — ไม่มีสลิป');
     },
 
     /**

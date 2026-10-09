@@ -72,7 +72,15 @@ const CFAlerts = {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cf-sound-toggle';
-        document.body.appendChild(b);
+        // อยู่บนแถบเมนูบน (ก่อนนาฬิกา) — เดิมลอยมุมซ้ายล่าง บังเนื้อหา (เช่นหมายเหตุในหน้าครัว)
+        // แถบเมนูอาจวาดทีหลัง → ลองหาซ้ำสั้น ๆ ไม่เจอก็ลอยแบบเดิม
+        const place = (tries) => {
+            const host = document.querySelector('.mc-nav-right');
+            if (host) { b.classList.add('in-nav'); host.insertBefore(b, host.firstChild); return; }
+            if (tries > 0) { setTimeout(() => place(tries - 1), 200); return; }
+            document.body.appendChild(b);
+        };
+        place(10);
         const paint = () => {
             const ctx = this.ctx;
             const locked = !ctx || ctx.state !== 'running';

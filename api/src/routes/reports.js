@@ -10,6 +10,7 @@
  */
 'use strict';
 const { ApiError } = require('./orders');
+const { CFPerms } = require('../../../shared/cf-perms.js');
 
 /** สถานะที่ถือว่าขายแล้ว — จ่ายเงินเรียบร้อยและยังไม่ถูกคืน */
 const SOLD = ['PAID', 'SENT_TO_KITCHEN', 'PREPARING', 'READY', 'SERVED', 'COMPLETED'];
@@ -82,7 +83,7 @@ async function summarize(c, branchId, { shiftId, from, to }) {
 }
 
 /** สินค้าขายดี — ใช้ในใบปิดรอบ */
-async function topProducts(c, branchId, { shiftId, from, to }, limit = 8) {
+async function topProducts(c, branchId, { shiftId, from, to }, limit = 8, withCost = false) {
     const where = ['o.branch_id = $1', 'o.status = ANY($2)'];
     const args = [branchId, SOLD];
     if (shiftId) { args.push(shiftId); where.push(`o.shift_id = $${args.length}`); }
@@ -93,14 +94,20 @@ async function topProducts(c, branchId, { shiftId, from, to }, limit = 8) {
     const r = await c.query(
         `SELECT i.product_id, i.name_snapshot AS name,
                 SUM(i.qty)::int AS qty,
-                SUM(i.qty * i.unit_price) AS amount
+                SUM(i.qty * i.unit_price) AS amount,
+                SUM(i.qty * i.unit_cost) AS cost,
+                bool_or(i.unit_cost IS NULL) AS cost_missing
            FROM order_item i JOIN cf_order o ON o.id = i.order_id
           WHERE ${where.join(' AND ')} AND i.item_status <> 'VOID'
           GROUP BY i.product_id, i.name_snapshot
           ORDER BY qty DESC LIMIT $${args.length}`, args);
 
-    return r.rows.map((x) => ({ productId: x.product_id, name: x.name,
-                                qty: x.qty, amount: n(x.amount) }));
+    // ต้นทุนส่งเฉพาะคนที่แก้ราคาได้ · บางแก้วยังไม่ได้ใส่ต้นทุน = cost null (ไม่เดากำไร)
+    return r.rows.map((x) => {
+        const out = { productId: x.product_id, name: x.name, qty: x.qty, amount: n(x.amount) };
+        if (withCost) out.cost = x.cost_missing ? null : n(x.cost);
+        return out;
+    });
 }
 
 /** ภาระงานแต่ละสถานี — นับตั๋วที่ยังไม่พร้อมของออเดอร์ที่อยู่ในสายการผลิต */
@@ -139,7 +146,7 @@ async function cashControl(c, branchId, shiftId) {
 }
 
 /** ก้อนรายงานที่แนบไปกับ snapshot — หน้าเว็บจึงอ่านได้แบบ synchronous */
-async function snapshotReports(c, branchId) {
+async function snapshotReports(c, branchId, withCost) {
     const open = (await c.query(
         "SELECT id FROM shift WHERE branch_id = $1 AND status = 'OPEN' LIMIT 1",
         [branchId])).rows[0];
@@ -148,7 +155,7 @@ async function snapshotReports(c, branchId) {
         shiftId,
         summary: await summarize(c, branchId, shiftId ? { shiftId } : {}),
         stationLoad: await stationLoad(c, branchId),
-        topProducts: await topProducts(c, branchId, shiftId ? { shiftId } : {}),
+        topProducts: await topProducts(c, branchId, shiftId ? { shiftId } : {}, 8, withCost),
         cashControl: shiftId ? await cashControl(c, branchId, shiftId) : null,
     };
 }
@@ -240,7 +247,7 @@ function registerReports(app, deps) {
             return {
                 shiftId: id,
                 summary: await summarize(c, branchId(), { shiftId: id }),
-                topProducts: await topProducts(c, branchId(), { shiftId: id }, 20),
+                topProducts: await topProducts(c, branchId(), { shiftId: id }, 20, !!(ctx.user && CFPerms.can(ctx.user.role, 'PRICE_EDIT'))),
                 cashControl: await cashControl(c, branchId(), id),
             };
         } finally { c.release(); }
@@ -257,7 +264,7 @@ function registerReports(app, deps) {
             return {
                 from, to,
                 summary: await summarize(c, branchId(), { from, to }),
-                topProducts: await topProducts(c, branchId(), { from, to }, 20),
+                topProducts: await topProducts(c, branchId(), { from, to }, 20, !!(ctx.user && CFPerms.can(ctx.user.role, 'PRICE_EDIT'))),
             };
         } finally { c.release(); }
     }));

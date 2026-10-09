@@ -96,6 +96,18 @@
             const h = settings ? Number(settings.dayStartHour) : NaN;
             return Number.isInteger(h) && h >= 0 && h <= 12 ? h : CF_DAY_START_DEFAULT;
         },
+        /**
+         * ขายช่วงเวลานี้อยู่ไหม — from/to เป็น "HH:MM" (เวลาไทย) · ไม่ตั้ง = ขายทั้งวัน
+         * from > to = ข้ามเที่ยงคืน (เช่น 20:00–02:00)
+         */
+        inWindow(from, to, now) {
+            if (!from || !to) return true;
+            const m = (s) => { const [h, mi] = String(s).split(':').map(Number); return h * 60 + (mi || 0); };
+            const local = new Date(new Date(now || Date.now()).getTime() + 7 * 3600 * 1000);
+            const cur = local.getUTCHours() * 60 + local.getUTCMinutes();
+            const a = m(from), b = m(to);
+            return a <= b ? cur >= a && cur < b : cur >= a || cur < b;
+        },
         businessDate(now, startHour) {
             const h = startHour == null ? CF_DAY_START_DEFAULT : startHour;
             const local = new Date(new Date(now || Date.now()).getTime() + 7 * 3600 * 1000);   // Asia/Bangkok

@@ -222,6 +222,8 @@ const CFKiosk = {
 
     /** ชื่อของ สินค้า / หมวด / ตัวเลือก — ไม่มีชื่ออังกฤษก็ใช้ชื่อไทย */
     nm(x) { return x ? ((this.state.lang === 'en' && x.nameEn) || x.nameTh || '') : ''; },
+    /** คำอธิบายสินค้าตามภาษา — ภาษาอังกฤษไม่มีก็ใช้ไทย */
+    desc(p) { return p ? ((this.state.lang === 'en' && p.descriptionEn) || p.descriptionTh || '') : ''; },
 
     serveLabel(k) {
         return this.t(CF_SERVE[k].label, { HOT: 'Hot', ICED: 'Iced', FRAPPE: 'Frappé', STD: 'Regular' }[k]);
@@ -290,7 +292,7 @@ const CFKiosk = {
        ══════════════════════════════════════════════════════ */
     screen_attract() {
         const e = CFApp.esc, s = CFStore.settings();
-        const picks = CFStore.where('products', (p) => p.active && !p.soldOut && p.recommended).slice(0, 6);
+        const picks = CFStore.where('products', (p) => this.onSale(p) && !p.soldOut && p.recommended).slice(0, 6);
         const tiles = picks.concat(picks)   // ต่อสองชุดให้ marquee วนไม่มีรอยต่อ
             .map((p) => `<div class="cfk-attract-tile">${CFKioskArt.tile(p, CFApp.serveTypesOf(p)[0])}</div>`)
             .join('');
@@ -392,7 +394,7 @@ const CFKiosk = {
        ══════════════════════════════════════════════════════ */
     screen_menu() {
         const cats = CFStore.all('categories').filter((c) =>
-            c.active && CFStore.all('products').some((p) => p.categoryId === c.id && p.active));
+            c.active && CFStore.all('products').some((p) => p.categoryId === c.id && this.onSale(p)));
         if (!this.state.cat || !cats.some((c) => c.id === this.state.cat)) {
             this.state.cat = cats.length ? cats[0].id : null;
         }
@@ -429,7 +431,7 @@ const CFKiosk = {
 
     gridHtml() {
         const e = CFApp.esc;
-        const list = CFStore.where('products', (p) => p.active && p.categoryId === this.state.cat);
+        const list = CFStore.where('products', (p) => this.onSale(p) && p.categoryId === this.state.cat);
 
         // จัดกลุ่มตามหัวข้อบนป้ายหน้าร้าน ลูกค้าจะหาเจอเหมือนตอนยืนดูป้าย
         const groups = [];
@@ -446,8 +448,13 @@ const CFKiosk = {
         `).join('');
     },
 
+    /** ขายอยู่ตอนนี้ — เปิดขาย และอยู่ในช่วงเวลาขาย (เมนูเช้า ฯลฯ) · หมดแล้วยังโชว์ (ขึ้นป้ายหมด) */
+    onSale(p) { return p.active && CFDay.inWindow(p.availFrom, p.availTo); },
+
     cardHtml(p) {
         const e = CFApp.esc;
+        // ของเหลือน้อย (นับสต็อก ≤ 5) — บอกลูกค้า ให้รีบตัดสินใจ และไม่ตกใจถ้าหมดตอนจ่าย
+        const low = !p.soldOut && p.stockQty != null && p.stockQty > 0 && p.stockQty <= 5;
         const serves = CFApp.serveTypesOf(p);
         const multi = serves.filter((k) => k !== 'STD').length > 1;
         const pills = serves.filter((k) => k !== 'STD')
@@ -456,6 +463,7 @@ const CFKiosk = {
         return `<button class="cfk-card" ${p.soldOut ? 'disabled' : `onclick="CFKiosk.openItem('${p.id}')"`}>
             ${p.recommended && !p.soldOut ? `<span class="cfk-badge cfk-badge-reco">${this.t('แนะนำ', 'Popular')}</span>` : ''}
             ${p.soldOut ? `<span class="cfk-badge cfk-badge-out">${this.t('สินค้าหมด', 'Sold out')}</span>` : ''}
+            ${low ? `<span class="cfk-badge cfk-badge-low">${this.t('เหลือ ' + p.stockQty, p.stockQty + ' left')}</span>` : ''}
             ${CFKioskArt.tile(p, serves[0])}
             <span class="cfk-card-body">
                 <span class="cfk-card-name">${e(this.nm(p))}</span>
@@ -596,6 +604,7 @@ const CFKiosk = {
                         <div class="cfk-item-head-text">
                             <div class="cfk-item-name">${e(this.nm(p))}</div>
                             ${alt ? `<div class="cfk-item-en">${e(alt)}</div>` : ''}
+                            ${this.desc(p) ? `<div class="cfk-item-desc">${e(this.desc(p))}</div>` : ''}
                         </div>
                         <div class="cfk-item-price">฿${CFApp.money(CFApp.priceOf(p, L.serveType) || 0)}</div>
                     </div>
@@ -823,7 +832,7 @@ const CFKiosk = {
 
     upsellPicks() {
         const inCart = new Set(this.state.cart.map((l) => l.productId));
-        const ok = (p) => p.active && !p.soldOut && !inCart.has(p.id);
+        const ok = (p) => this.onSale(p) && !p.soldOut && !inCart.has(p.id);
         let picks = CFStore.where('products', (p) => ok(p) && p.recommended);
         ['C-DESSERT', 'C-BAKERY'].forEach((c) => {
             if (picks.length < 4) {
@@ -1756,8 +1765,16 @@ const CFKiosk = {
         this._ticketed = this._ticketed || {};
         if (this._ticketed[orderId]) return;
         this._ticketed[orderId] = true;
-        CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/kiosk-ticket', { kind })
-            .then((r) => { if (r && r.local && r.image) this.printLocal(r.image, r.dots); })
+        // kioskId ส่งไปด้วย — ตู้ที่จับคู่แล้วเซิร์ฟเวอร์รู้เองจากเครื่อง แต่ตอนทดสอบหน้าตู้บนคอม
+        // ที่ล็อกอินเป็นพนักงาน (ยังไม่จับคู่) เซิร์ฟเวอร์ต้องรู้ว่าเป็นตู้ไหน ไม่งั้นบัตรคิวไม่ออกเงียบ ๆ
+        CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/kiosk-ticket',
+            { kind, kioskId: this.state.deviceId })
+            .then((r) => {
+                if (r && r.local && r.image) this.printLocal(r.image, r.dots);
+                else if (r && r.reason === 'no-printer') {
+                    console.info('[kiosk] ตู้ ' + this.state.deviceId + ' ยังไม่ได้ผูกเครื่องพิมพ์บัตรคิว — ตั้งที่ หน้าภาพรวม › เครื่องพิมพ์');
+                }
+            })
             .catch((err) => console.warn('[kiosk] พิมพ์ใบรับออเดอร์ไม่สำเร็จ', err));
     },
 

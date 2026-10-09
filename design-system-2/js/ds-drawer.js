@@ -81,11 +81,14 @@
         window.Drawer._currentOpts = snap.opts;
     }
 
+    // ผู้ใช้สั่งปิดเอง (กดนอก / ✕ / Esc) = ปิดทั้งหมดทีเดียว
+    // หน้าในแอปใช้ Drawer.open สลับหน้า (รายการ → แก้ไข → กลับ) ถ้าปิดทีละชั้น ต้องกดนอกรัว ๆ จนกว่าจะหมด
+    // ส่วน Drawer.close() ที่โค้ดเรียกหลังบันทึก ยังถอยทีละชั้นเหมือนเดิม (ซ้อนจริงต้องกลับไปหน้าก่อน)
     function onKey(e) {
         if (e.key !== 'Escape') return;
         const opts = window.Drawer._currentOpts;
         if (opts && opts.closeOnEsc === false) return;
-        window.Drawer.close();
+        window.Drawer.closeAll();
     }
 
     function bindClose() {
@@ -94,8 +97,15 @@
             if (!e.target.matches('[data-drawer-close]')) return;
             const opts = window.Drawer._currentOpts;
             if (e.target.classList.contains('drawer-overlay') && opts && opts.closeOnOverlay === false) return;
-            window.Drawer.close();
+            window.Drawer.closeAll();
         });
+    }
+
+    /** หัวข้อหลังผ่าน innerHTML — เทียบกับ snapshot ได้ตรง (เบราว์เซอร์จัดรูป HTML ใหม่) */
+    function normTitle(html) {
+        const el = document.createElement('div');
+        el.innerHTML = html || '';
+        return el.innerHTML;
     }
 
     function ensureConfirmRoot() {
@@ -119,7 +129,13 @@
             if (!this._bound) { bindClose(); this._bound = true; }
 
             // drawer เปิดอยู่แล้ว → ดันของเดิมเข้า stack (drawer ซ้อน drawer)
-            if (root.classList.contains('open')) STACK.push(snapshot());
+            // ยกเว้นหน้าที่จะเปิดอยู่ใน stack แล้ว = "กลับ" ไปหน้านั้น → ตัดชั้นที่อยู่เหนือมันทิ้ง ไม่ซ้อนเพิ่ม
+            if (root.classList.contains('open')) {
+                const t = normTitle(opts.title);
+                const back = STACK.findIndex((s) => s.title === t);
+                if (back >= 0) STACK.length = back;
+                else if (title.innerHTML !== t) STACK.push(snapshot());     // เปิดหน้าเดิมซ้ำ = แทนที่ ไม่ซ้อน
+            }
 
             panel.style.width  = opts.width || '';
             title.innerHTML    = opts.title || '';
@@ -164,6 +180,18 @@
                     this._currentOpts = null;
                 }
             }, 280);
+        },
+
+        /** ปิดทุกชั้น — onClose ของหน้าบนสุดยังยับยั้งได้ (เช่น ยังไม่บันทึก) */
+        closeAll() {
+            const opts = this._currentOpts;
+            if (typeof (opts && opts.onClose) === 'function') {
+                try { if (opts.onClose() === false) return; }
+                catch (e) { console.warn('Drawer onClose threw', e); }
+                this._currentOpts = Object.assign({}, opts, { onClose: null });   // ไม่ถามซ้ำใน close()
+            }
+            STACK.length = 0;
+            this.close();
         },
 
         setContent(html) { getEls().body.innerHTML = html || ''; },

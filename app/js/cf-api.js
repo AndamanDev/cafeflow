@@ -161,6 +161,7 @@
         post: (p, b, o) => request('POST', p, b, o),
         put:  (p, b, o) => request('PUT', p, b, o),
         patch:(p, b, o) => request('PATCH', p, b, o),
+        delete:(p, b, o) => request('DELETE', p, b, o),
 
         /** ก้อนข้อมูลตั้งต้น — รูปทรงดูที่ api/src/serialize/snapshot.js */
         bootstrap(hours) {

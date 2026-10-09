@@ -84,11 +84,13 @@ async function ruleData(c, branchId) {
     const r = (await c.query('SELECT * FROM modifier_rule WHERE branch_id = $1', [branchId])).rows;
     return {
         // maxSelect ต้องมาด้วย — ไม่งั้นตัวตรวจไม่เห็นเพดาน ยิง API ตรงก็เลือกท็อปปิ้งได้ไม่จำกัด
+        // active ต้องมาด้วย — ตัวตรวจกฎตัดกลุ่ม/ตัวเลือกที่ปิดใช้งาน ยิง API ตรงก็สั่งของที่ปิดไม่ได้
         modifierGroups: g.map((x) => ({ id: x.id, nameTh: x.name_th, type: x.type, required: x.required,
-                                        maxSelect: x.max_select == null ? null : Number(x.max_select) })),
+                                        maxSelect: x.max_select == null ? null : Number(x.max_select),
+                                        active: x.active })),
         modifierOptions: o.map((x) => ({
             id: x.id, groupId: x.group_id, nameTh: x.name_th, shortLabel: x.short_label,
-            priceDelta: Number(x.price_delta), isDefault: x.is_default, sort: x.sort })),
+            priceDelta: Number(x.price_delta), isDefault: x.is_default, sort: x.sort, active: x.active })),
         modifierRules: r.map((x) => ({
             id: x.id, serveType: x.serve_type, categoryId: x.category_id,
             groupId: x.group_id, sort: x.sort })),
@@ -127,9 +129,11 @@ async function createOrder(c, branchId, input, ctx) {
     let subtotal = 0;
     for (const [i, l] of cart.entries()) {
         const pr = await c.query(
-            `SELECT p.*, COALESCE(pp.prices, '{}'::jsonb) AS prices
+            `SELECT p.*, COALESCE(pp.prices, '{}'::jsonb) AS prices, pp.costs,
+                    to_char(p.avail_from, 'HH24:MI') AS avail_from_s, to_char(p.avail_to, 'HH24:MI') AS avail_to_s
                FROM product p
-               LEFT JOIN LATERAL (SELECT jsonb_object_agg(serve_type, price) AS prices
+               LEFT JOIN LATERAL (SELECT jsonb_object_agg(serve_type, price) AS prices,
+                                         jsonb_object_agg(serve_type, cost) FILTER (WHERE cost IS NOT NULL) AS costs
                                     FROM product_price WHERE product_id = p.id) pp ON true
               WHERE p.id = $1 AND p.branch_id = $2 AND p.deleted_at IS NULL`,
             [l.productId, branchId]);
@@ -138,6 +142,10 @@ async function createOrder(c, branchId, input, ctx) {
         if (!row.active) throw new ApiError(409, `"${row.name_th}" ปิดการขายอยู่`);
         // ผู้จัดการอาจกดปิดขายกลางคันตอนลูกค้ากำลังเลือก — ต้องตรวจซ้ำที่นี่
         if (row.sold_out) throw new ApiError(409, `"${row.name_th}" หมดแล้ว`);
+        // ขายเฉพาะช่วงเวลา (เช่นเมนูเช้า) — คีออสก์ซ่อนให้แล้ว แต่ลูกค้าอาจเปิดค้างข้ามเวลา
+        if (!CFDay.inWindow(row.avail_from_s, row.avail_to_s)) {
+            throw new ApiError(409, `"${row.name_th}" ขายเฉพาะ ${row.avail_from_s}–${row.avail_to_s} น.`);
+        }
 
         const prices = {};
         for (const [k, v] of Object.entries(row.prices || {})) prices[k] = Number(v);
@@ -170,10 +178,26 @@ async function createOrder(c, branchId, input, ctx) {
         const unitPrice = unitBase + modRows.reduce((s, m) => s + m.priceDelta, 0);
         subtotal += unitPrice * qty;
 
+        // ต้นทุน ณ วันที่ขาย (ไม่รวมท็อปปิ้ง) — แก้ต้นทุนทีหลัง กำไรย้อนหลังไม่เปลี่ยน
+        const cost = row.costs && row.costs[l.serveType] != null ? Number(row.costs[l.serveType]) : null;
         lines.push({
             lineNo: i + 1, productId: row.id, nameSnapshot: row.name_th,
-            serveType: l.serveType, qty, unitPrice, station: row.station, mods: modRows,
+            serveType: l.serveType, qty, unitPrice, station: row.station, mods: modRows, unitCost: cost,
         });
+    }
+
+    /* ── สต็อก: ล็อกเฉพาะสินค้าที่นับสต็อก เรียงตาม id (สองออเดอร์ล็อกลำดับเดียวกัน ไม่ deadlock) ── */
+    const need = {};
+    lines.forEach((l) => { need[l.productId] = (need[l.productId] || 0) + l.qty; });
+    const stocked = (await c.query(
+        `SELECT id, name_th, stock_qty FROM product
+          WHERE id = ANY($1) AND branch_id = $2 AND stock_qty IS NOT NULL ORDER BY id FOR UPDATE`,
+        [Object.keys(need), branchId])).rows;
+    for (const s of stocked) {
+        if (s.stock_qty < need[s.id]) {
+            throw new ApiError(409, s.stock_qty > 0
+                ? `"${s.name_th}" เหลือ ${s.stock_qty} ชิ้น` : `"${s.name_th}" หมดแล้ว`);
+        }
     }
 
     // client ส่งยอดที่มันคำนวณมาด้วยได้ — ไม่ตรงเมื่อไหร่แปลว่าคนละเวอร์ชันหรือถูกแก้
@@ -206,14 +230,22 @@ async function createOrder(c, branchId, input, ctx) {
          input.kioskId || null, input.diningOption === 'TAKE_AWAY' ? 'TAKE_AWAY' : 'DINE_IN',
          input.paymentMethod === 'QR' ? 'QR' : 'CASH', subtotal]);
 
+    // ตัดสต็อก — เหลือ 0 ตั้ง "หมดวันนี้" ให้เอง (คีออสก์เห็นทันทีหลัง refresh)
+    for (const s of stocked) {
+        await c.query(
+            `UPDATE product SET stock_qty = stock_qty - $2, sold_out = sold_out OR stock_qty - $2 = 0,
+                    updated_at = now() WHERE id = $1`, [s.id, need[s.id]]);
+        await touch(c, branchId, 'products', s.id, 'update');
+    }
+
     for (const l of lines) {
         const itemId = `${orderId}-I${l.lineNo}`;
         await c.query(
             `INSERT INTO order_item (id, order_id, line_no, product_id, name_snapshot,
-                                     serve_type, qty, unit_price, station, item_status)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'DRAFT')`,
+                                     serve_type, qty, unit_price, station, item_status, unit_cost)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'DRAFT',$10)`,
             [itemId, orderId, l.lineNo, l.productId, l.nameSnapshot, l.serveType,
-             l.qty, l.unitPrice, l.station]);
+             l.qty, l.unitPrice, l.station, l.unitCost]);
         for (const [j, m] of l.mods.entries()) {
             await c.query(
                 `INSERT INTO order_item_modifier (order_item_id, sort, group_id, option_id,
@@ -306,6 +338,27 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
         await settlePayment(c, branchId, o, opts, ctx);
         await sendToKitchen(c, branchId, o, ctx);
         await queueAutoReceipt(c, branchId, orderId, ctx);
+    }
+
+    // คืนสต็อก — ยกเลิกก่อนเข้าครัว (ของยังไม่ถูกทำ) · ส่งเข้าครัวแล้วหรือคืนเงินหลังเสิร์ฟ ไม่คืน
+    // ต้องอ่านรายการก่อนบรรทัดข้างล่างตั้ง VOID · ล็อกสินค้าเรียงตาม id เหมือนตอนตัด
+    if (['CANCELLED', 'VOIDED'].includes(newStatus) && !o.sent_at) {
+        const back = (await c.query(
+            `SELECT i.product_id, sum(i.qty)::int AS n FROM order_item i
+               JOIN product p ON p.id = i.product_id AND p.stock_qty IS NOT NULL
+              WHERE i.order_id = $1 AND i.item_status <> 'VOID'
+              GROUP BY i.product_id ORDER BY i.product_id`, [orderId])).rows;
+        if (back.length) {
+            await c.query('SELECT 1 FROM product WHERE id = ANY($1) ORDER BY id FOR UPDATE',
+                [back.map((b) => b.product_id)]);
+        }
+        for (const b of back) {
+            // "หมด" ที่ระบบตั้งเอง (สต็อกเป็น 0) ปลดให้ด้วย — "หมด" ที่ผู้จัดการกดเองตอนยังมีของ ไม่แตะ
+            await c.query(
+                `UPDATE product SET sold_out = CASE WHEN stock_qty = 0 THEN false ELSE sold_out END,
+                        stock_qty = stock_qty + $2, updated_at = now() WHERE id = $1`, [b.product_id, b.n]);
+            await touch(c, branchId, 'products', b.product_id, 'update');
+        }
     }
 
     // ยกเลิก / คืนเงิน → เอารายการออกจากบอร์ดครัว

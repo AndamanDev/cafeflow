@@ -46,6 +46,9 @@
             <div class="page-subtitle">จัดการสินค้า ราคา ตัวเลือก และสถานีครัวที่รับผิดชอบ</div>
         </div>
         <div class="section-actions">
+            <button class="btn btn-outline" onclick="MenuPage.openCategories()">
+                <i data-lucide="folder-tree" class="icon-sm"></i> หมวดหมู่
+            </button>
             <button class="btn btn-outline" onclick="MenuPage.openGroups()">
                 <i data-lucide="list-checks" class="icon-sm"></i> กลุ่มตัวเลือก
             </button>
@@ -67,13 +70,15 @@
                 <i data-lucide="list" class="mi"></i> รายการสินค้า
                 <span class="ds-pane-count" id="rowCount">0</span>
             </div>
-            <div class="section-actions">
-                <input class="sip-input" id="searchBox" style="max-width:220px"
+            <!-- ค้นหา + ตัวกรองแถวเดียว (เดิมตัวกรองตกลงไปใต้ช่องค้นหา) -->
+            <div class="section-actions cf-menu-tools">
+                <input class="sip-input" id="searchBox"
                        placeholder="ค้นหาชื่อสินค้า" oninput="MenuPage.setQuery(this.value)">
-                <div class="ds-chips" style="margin:0">
-                    <button class="ds-chip-toggle" id="fOnSale" onclick="MenuPage.toggleFilter('onSale')">เฉพาะที่เปิดขาย</button>
-                    <button class="ds-chip-toggle" id="fSoldOut" onclick="MenuPage.toggleFilter('soldOut')">เฉพาะสินค้าหมด</button>
-                </div>
+                <button class="ds-chip-toggle" id="fOnSale" onclick="MenuPage.toggleFilter('onSale')">เฉพาะที่เปิดขาย</button>
+                <button class="ds-chip-toggle" id="fSoldOut" onclick="MenuPage.toggleFilter('soldOut')">เฉพาะสินค้าหมด</button>
+                <button class="btn btn-outline btn-sm" data-role-gate="ADMIN MANAGER" onclick="MenuPage.openBulkPrice()"
+                        title="ปรับราคาสินค้าที่แสดงในตารางตอนนี้ทีเดียว">
+                    <i data-lucide="tags" class="icon-sm"></i> ปรับราคาหลายรายการ</button>
             </div>
         </div>
         <div class="table-responsive">

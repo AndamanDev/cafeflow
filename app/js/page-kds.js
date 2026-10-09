@@ -22,7 +22,8 @@ const KdsPage = {
 
         /* ── หัวสถานีที่เลือก ── */
         const st = this.state.station;
-        document.getElementById('stIcon').textContent = st.charAt(0);
+        // ไอคอนของสถานี — เดิมเป็นตัวแรกของรหัส ("B") ไม่ได้บอกอะไร
+        document.getElementById('stIcon').innerHTML = `<i data-lucide="${CF_STATIONS[st].icon}"></i>`;
         document.getElementById('stName').textContent = CF_STATIONS[st].label;
         document.getElementById('stChip').textContent = counts[st] + ' ใบ';
         document.getElementById('stWarn').textContent =

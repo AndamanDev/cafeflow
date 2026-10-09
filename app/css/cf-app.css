@@ -96,7 +96,7 @@
    3. KDS — บอร์ดการ์ดต่อสถานี
    ══════════════════════════════════════════════════════════ */
 .cf-kds-board {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));   /* 230 แคบจน "(คั่วกลาง-เข้ม)" ตกบรรทัด */
     gap: 12px; padding: 16px;
 }
 .cf-kds-card {
@@ -208,6 +208,7 @@
 .cf-sound-toggle.is-locked { background: #FEF3E2; border-color: #F2B35C; color: #8A5A00; animation: cf-pulse 1.6s ease-in-out infinite; }
 .cf-sound-toggle.is-off { color: #6B7280; }
 @keyframes cf-pulse { 50% { box-shadow: 0 0 0 6px rgba(242,179,92,.25); } }
+.cf-sound-toggle.in-nav { position: static; height: 34px; padding: 0 12px; border-radius: 8px; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .cf-sound-toggle.is-locked { animation: none; } }
 
 /* ── ภาพเต็มจอในหน้าเดิม (CFApp.showImage) ── */
@@ -231,3 +232,283 @@
 .cf-slip-parties { margin-top: 6px; border-collapse: collapse; font-size: 13px; }
 .cf-slip-parties th { text-align: left; font-weight: 600; padding: 2px 12px 2px 0; white-space: nowrap; opacity: .8; }
 .cf-slip-parties td { padding: 2px 0; }
+
+/* ══════════════════════════════════════════════════════════
+   เนื้อหาใน drawer — อ่านง่าย ไม่ตกบรรทัดแปลก ๆ
+   ══════════════════════════════════════════════════════════ */
+/* กล่องหมายเหตุเป็น flex ใน design system → <strong>/<code> กลางประโยคกลายเป็นคอลัมน์แยก
+   ข้อความไหลเป็นย่อหน้าธรรมดา ไอคอนนำหน้าอยู่ในบรรทัดเดียวกับข้อความ */
+.ds-note, .ds-warn, .ds-block { display: block; line-height: 1.6; }
+.ds-note > svg, .ds-warn > svg, .ds-block > svg,
+.ds-note > i, .ds-warn > i, .ds-block > i { display: inline-block; vertical-align: -3px; margin-right: 6px; }
+.ds-note code { font-size: .92em; background: var(--brand-border); padding: 1px 5px; border-radius: 4px; }
+
+/* ชิปและป้ายสถานะเป็นคำเดียว ห้ามหักกลางป้าย ("บาร์ / เครื่อง / ดื่ม") */
+.sip-chip, .status-badge { white-space: nowrap; }
+.drawer-body .td-sub { white-space: nowrap; }
+
+.drawer-body { line-height: 1.55; }
+.drawer-body .sip-field { margin-bottom: 16px; }
+.drawer-body .sip-field > .ds-note { margin-bottom: 0; }
+
+/* หัวข้อกลุ่ม — เส้นคั่น + ตัวเข้ม แยกส่วนในฟอร์มยาวให้เห็นชัด */
+.drawer-body .ds-section-label {
+    margin: 22px 0 10px; padding-top: 14px; border-top: 1px solid var(--brand-border);
+    font-size: 14px; font-weight: 700; color: var(--text-primary); letter-spacing: 0;
+}
+.drawer-body .ds-section-label:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* สวิตช์เปิด/ปิด — ข้อความเป็นป้ายของตัวเลือก ต้องอ่านง่ายเท่าป้ายช่องกรอก ไม่ใช่ตัวเล็กสีเขียว */
+.drawer-body .ds-toggle { font-size: 14px; font-weight: 600; gap: 10px; padding: 4px 0; color: var(--text-primary); text-align: left; }
+.drawer-body .ds-toggle.is-on { color: var(--text-primary); }
+.drawer-body .ds-toggle-track { width: 36px; height: 20px; }
+.drawer-body .ds-toggle-knob { width: 16px; height: 16px; }
+.drawer-body .ds-toggle.is-on .ds-toggle-knob { transform: translateX(16px); }
+
+/* ── การ์ดออเดอร์หน้าแคชเชียร์ — กว้างพอสำหรับป้ายสถานะ สูงเท่ากันทั้งแถว ยอดเงินชิดล่าง ── */
+.cf-order-grid { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.cf-order-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cf-oc-head, .cf-oc-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cf-oc-no { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.cf-oc-meta .td-sub { white-space: nowrap; }
+.cf-oc-items { margin: 2px 0 4px; }
+.cf-order-card { gap: 6px; }
+.cf-oc-amt { font-size: 20px; font-weight: 800; color: #111; font-variant-numeric: tabular-nums; }
+.cf-oc-sub { font-size: 13px; color: var(--text-muted); }
+.cf-oc-items { margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed var(--brand-border); }
+/* หมายเหตุการชำระ — บรรทัดข้อความพื้นอ่อน ตัดบรรทัดได้ */
+.cf-oc-note { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border-radius: 8px;
+              font-size: 13px; font-weight: 600; line-height: 1.4; background: var(--brand-bg); color: var(--text-secondary); }
+.cf-oc-note svg { flex-shrink: 0; margin-top: 2px; }
+.cf-oc-note.warn   { background: var(--status-warning-soft); color: var(--status-warning-strong); }
+.cf-oc-note.danger { background: var(--status-danger-soft);  color: var(--status-danger-strong); }
+.cf-oc-note.ok     { background: var(--primary-bg);          color: var(--primary-dark); }
+
+/* ── รายการออเดอร์ (แถบซ้าย หน้าจัดการออเดอร์) — การ์ดเรียบ ไม่มีป้ายสีอัดกัน ── */
+.cf-lc {
+    position: relative; padding: 11px 14px 11px 16px; margin: 0 8px 6px; border-radius: 10px; cursor: pointer;
+    background: #fff; border: var(--hairline) solid var(--brand-border);
+}
+.cf-lc:hover  { border-color: var(--brand-border-strong); }
+.cf-lc.active { border-color: var(--primary); background: var(--primary-bg); box-shadow: inset 3px 0 0 var(--primary); }
+.cf-lc.carried::before {          /* ค้างจากวันก่อน — แถบเหลืองซ้าย */
+    content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0;
+    background: var(--status-warning);
+}
+.cf-lc.active.carried::before { display: none; }
+.cf-lc-r1, .cf-lc-r2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cf-lc-no  { font-size: 16px; font-weight: 800; color: #111; }
+.cf-lc-amt { font-size: 15px; font-weight: 700; color: #111; font-variant-numeric: tabular-nums; }
+.cf-lc-r2  { margin-top: 3px; }
+.cf-lc-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; min-width: 0;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-lc-status i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text-light); }
+.cf-lc-status.danger { color: var(--status-danger-strong); }  .cf-lc-status.danger i { background: var(--status-danger); }
+.cf-lc-status.warn   { color: var(--status-warning-strong); } .cf-lc-status.warn i   { background: var(--status-warning); }
+.cf-lc-status.ok     { color: var(--primary-dark); }          .cf-lc-status.ok i     { background: var(--primary); }
+.cf-lc-status.info   { color: #1E5BC6; }                      .cf-lc-status.info i   { background: var(--blue); }
+.cf-lc-status.muted  { color: var(--text-muted); }
+.cf-lc-time { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.cf-lc-r3   { margin-top: 4px; font-size: 12.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-lc-time.carry { color: var(--status-warning-strong); font-weight: 700; }
+
+/* ── หัวรายละเอียดออเดอร์ ── */
+.ds-context-avatar svg { width: 24px; height: 24px; }
+.ds-context-avatar.cf-av-away { background: var(--status-warning-soft); color: var(--status-warning-strong); }
+/* กล่อง "ต้องตรวจสอบ" — สถานะเป็นคำเดียว ห้ามหักกลางคำ */
+.ds-context-aside .ds-alert-card { padding: 10px 14px; }
+.ds-context-aside .ds-alert-card .ac-body { flex: 0 1 auto; }
+.ds-context-aside .ds-alert-card strong { white-space: nowrap; font-size: 15px; }
+.ds-context-aside .ds-alert-card .ac-label { font-size: 11px; }
+
+/* ══════════════════════════════════════════════════════════
+   หน้าภาพรวม (dashboard) — ยอดขายใหญ่สุด → งานค้างตอนนี้ → กิจกรรม | สถานี/ตั้งค่า
+   ══════════════════════════════════════════════════════════ */
+.cf-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; margin-right: 6px; vertical-align: 1px; }
+.cf-pill-on  { background: var(--primary-bg); color: var(--primary-dark); }
+.cf-pill-off { background: var(--status-danger-soft); color: var(--status-danger-strong); }
+
+.cf-dash-label { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin: 4px 0 10px; }
+
+/* ยอดขาย */
+.cf-dash-sales { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 22px; }
+.cf-sales-hero, .cf-sales-split {
+    background: #fff; border: var(--hairline) solid var(--brand-border); border-radius: 14px; padding: 20px 24px;
+}
+.cf-sales-hero { background: linear-gradient(135deg, #fff 55%, var(--primary-bg)); }
+.cf-sales-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--text-muted); }
+.cf-sales-value { font-size: 44px; font-weight: 800; line-height: 1.15; margin: 6px 0 10px; color: #111; font-variant-numeric: tabular-nums; }
+.cf-sales-sub { display: flex; gap: 22px; flex-wrap: wrap; font-size: 14px; color: var(--text-secondary); }
+.cf-sales-sub b { color: #111; font-size: 16px; }
+.cf-split-row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 15px; }
+.cf-split-row span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+.cf-split-row b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.cf-split-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--brand-border); margin-top: 16px; }
+.cf-split-cash { background: var(--status-warning); }
+.cf-split-qr   { background: var(--blue); }
+
+/* ตอนนี้ในร้าน */
+.cf-dash-ops { margin-bottom: 22px; }
+.cf-op-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.cf-op-tile {
+    display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-radius: 14px;
+    background: #fff; border: var(--hairline) solid var(--brand-border); color: inherit; text-decoration: none;
+}
+.cf-op-tile[href]:hover { border-color: var(--brand-border-strong); background: var(--brand-bg); }
+.cf-op-ico {
+    width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--brand-bg); color: var(--text-muted);
+}
+.cf-op-ico svg { width: 22px; height: 22px; }
+.cf-op-text { display: flex; flex-direction: column; }
+.cf-op-value { font-size: 30px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cf-op-label { font-size: 13px; color: var(--text-muted); }
+.cf-op-tile.warn   .cf-op-ico { background: var(--status-warning-soft); color: var(--status-warning-strong); }
+.cf-op-tile.danger { border-color: var(--status-danger); background: #fff7f7; }
+.cf-op-tile.danger .cf-op-ico { background: var(--status-danger-soft); color: var(--status-danger); }
+.cf-op-tile.danger .cf-op-value { color: var(--status-danger); }
+.cf-op-tile.info   .cf-op-ico { background: var(--blue-bg); color: var(--blue); }
+.cf-op-tile.ok     .cf-op-ico { background: var(--primary-bg); color: var(--primary-dark); }
+.cf-op-stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; padding: 0 4px; font-size: 14px; color: var(--text-secondary); }
+.cf-op-stat { display: inline-flex; align-items: center; gap: 6px; }
+.cf-op-stat b { color: #111; font-variant-numeric: tabular-nums; }
+
+/* สองคอลัมน์ล่าง */
+.cf-dash-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.cf-dash-main .section-card { margin-bottom: 0; }
+.cf-dash-side { display: flex; flex-direction: column; gap: 16px; }
+.cf-dash-side .clinical-card { margin-bottom: 0; }
+
+.cf-activity { display: flex; flex-direction: column; }
+.cf-act { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-light); }
+.cf-act:last-child { border-bottom: 0; }
+.cf-act-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; background: var(--blue); }
+.cf-act.success .cf-act-dot { background: var(--primary); }
+.cf-act.warning .cf-act-dot { background: var(--status-warning); }
+.cf-act.danger  .cf-act-dot { background: var(--status-danger); }
+.cf-act-body { flex: 1; min-width: 0; }
+.cf-act-head { font-weight: 700; font-size: 14px; }
+.cf-act-sub  { font-size: 12.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-act-time { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+.cf-dash-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cf-tool {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px;
+    background: #fff; border: var(--hairline) solid var(--brand-border); font: inherit; font-size: 14px; font-weight: 600;
+    color: #111; cursor: pointer; text-align: left;
+}
+.cf-tool:hover { background: var(--brand-bg); border-color: var(--brand-border-strong); }
+.cf-tool svg { width: 18px; height: 18px; color: var(--primary-dark); flex-shrink: 0; }
+
+@media (max-width: 1100px) {
+    .cf-dash-sales, .cf-dash-main { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+    .cf-op-tiles { grid-template-columns: 1fr; }
+    .cf-sales-value { font-size: 34px; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   หน้าจัดการออเดอร์ — แถบซ้ายกระชับ · หัวเป็นช่องข้อมูล · ขั้นตอนมีเวลา · ไม่มีแท็บ
+   ══════════════════════════════════════════════════════════ */
+.cf-ol-tools { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 6px; }
+.cf-ol-tools .ds-pane-search { width: 100%; margin: 0; padding: 9px 12px; font-size: 14px; box-sizing: border-box; }
+.cf-ol-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cf-ol-row .sip-select, .cf-ol-tools .sip-input { padding: 7px 10px; font-size: 14px; min-width: 0; }
+.cf-ol-dayinfo { font-size: 12.5px; color: var(--text-muted); padding: 0 2px; }
+/* ตัวกรองสถานะ 2 แถว — ปุ่มพื้นขาวมีกรอบบาง ตัวที่เลือกเป็นพื้นเขียว (เดิมพื้นเทาทุกปุ่ม ดูหนัก) */
+.cf-ol-pills { padding: 2px 16px 10px; gap: 6px; }
+.cf-ol-pills .ds-pilltab {
+    flex: 1 1 calc(33.333% - 6px); padding: 5px 4px; font-size: 12.5px; font-weight: 600;
+    background: #fff; border: var(--hairline) solid var(--brand-border); color: var(--text-secondary); box-shadow: none;
+}
+.cf-ol-pills .ds-pilltab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cf-ol-pills .ds-pilltab .tab-count { background: transparent; padding: 0 0 0 2px; color: inherit; opacity: .7; font-weight: 700; }
+
+/* หัวรายละเอียด: ช่องข้อมูล */
+.cf-facts { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 6px; }
+.cf-fact { display: flex; flex-direction: column; line-height: 1.25; }
+.cf-fact small { font-size: 11.5px; color: var(--text-muted); }
+.cf-fact b { font-size: 14px; font-weight: 600; color: #111; }
+.cf-fact.big b { font-size: 17px; font-weight: 800; }
+.cf-fact em { font-style: normal; color: var(--status-warning-strong); font-weight: 600; }
+
+.cf-od-body { padding: 18px 24px 32px; display: flex; flex-direction: column; gap: 16px; }
+.cf-od-card { background: #fff; border: var(--hairline) solid var(--brand-border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.cf-od-title { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+.cf-od-title .tab-notif { position: static; margin-left: 2px; }
+.cf-od-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1300px) { .cf-od-grid { grid-template-columns: 1fr; } }
+
+/* แถบขั้นตอน: วงกลม + เส้นเชื่อม + เวลา */
+.cf-steps { display: flex; background: #fff; border: var(--hairline) solid var(--brand-border); border-radius: 12px; padding: 16px 8px 12px; }
+.cf-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; text-align: center; min-width: 0; }
+.cf-step::before {               /* เส้นเชื่อมไปขั้นก่อนหน้า */
+    content: ''; position: absolute; top: 14px; right: 50%; width: 100%; height: 2px; background: var(--brand-border); z-index: 0;
+}
+.cf-step:first-child::before { display: none; }
+.cf-step.done::before, .cf-step.cur::before { background: var(--primary); }
+.cf-step-dot {
+    width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: #fff; border: 2px solid var(--brand-border); color: var(--text-muted);
+    font-size: 12px; font-weight: 700; position: relative; z-index: 1;
+}
+.cf-step-dot svg { width: 15px; height: 15px; }
+.cf-step.done .cf-step-dot { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cf-step.cur  .cf-step-dot { border-color: var(--primary); color: var(--primary-dark); box-shadow: 0 0 0 4px var(--primary-bg); }
+.cf-step.cur.warn .cf-step-dot { border-color: var(--status-warning); color: var(--status-warning-strong); box-shadow: 0 0 0 4px var(--status-warning-soft); }
+.cf-step-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+.cf-step.done .cf-step-label, .cf-step.cur .cf-step-label { color: #111; }
+.cf-step-time { font-size: 11.5px; color: var(--text-muted); min-height: 15px; }
+.cf-step.cur .cf-step-time { color: var(--primary-dark); font-weight: 700; }
+.cf-step.cur.warn .cf-step-time { color: var(--status-warning-strong); }
+.cf-steps-dead { display: flex; align-items: center; gap: 8px; color: var(--status-danger); font-weight: 700; padding: 0 10px; }
+
+/* ── ปิดรอบ: ลำดับงาน 1 เคลียร์ออเดอร์ค้าง → 2 นับเงิน → 3 ปิดรอบ ── */
+.cf-stepno {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--primary); color: #fff; font-size: 13px; font-weight: 800; margin-right: 6px; flex-shrink: 0;
+}
+.btn .cf-stepno { background: #fff; color: var(--primary-dark); width: 22px; height: 22px; }
+.cf-close-step { width: 100%; justify-content: center; margin-top: 14px; }
+.card-title .cf-stepno, .section-title .cf-stepno { vertical-align: middle; }
+/* สวิตช์บนหน้า (นอก drawer) ให้อ่านง่ายเท่ากัน */
+.clinical-card .ds-toggle { font-size: 14px; font-weight: 600; gap: 10px; color: var(--text-primary); }
+.clinical-card .ds-toggle.is-on { color: var(--text-primary); }
+.clinical-card .ds-toggle-track { width: 36px; height: 20px; }
+.clinical-card .ds-toggle-knob { width: 16px; height: 16px; }
+.clinical-card .ds-toggle.is-on .ds-toggle-knob { transform: translateX(16px); }
+
+/* ── เมนูและสินค้า: ค้นหา + ตัวกรองแถวเดียว ── */
+.cf-menu-tools { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.cf-menu-tools .sip-input { width: 220px; padding: 7px 12px; font-size: 14px; }
+.cf-menu-tools .ds-chip-toggle { white-space: nowrap; }
+
+/* หัวคอลัมน์ตัวเลขชิดขวาตรงกับค่า (ธีมตั้งหัวตารางชิดซ้ายทั้งหมด) */
+.data-table thead th.cf-right { text-align: right; }
+
+/* ── จัดการหมวด / กลุ่มตัวเลือก ── */
+.cf-toggle-row { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 4px 0 8px; }
+.cf-check-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 10px 0; }
+.cf-check-label { width: 72px; font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.cf-check {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+    border: var(--hairline) solid var(--brand-border); background: #fff; font-size: 14px;
+}
+.cf-check:has(input:checked) { border-color: var(--primary); background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+.cf-check input { accent-color: var(--primary); margin: 0; }
+.cf-section-flex { display: flex; align-items: center; justify-content: space-between; }
+.cf-row-off td { opacity: .55; }
+.cf-row-click { cursor: pointer; }
+.cf-row-click:hover td { background: var(--brand-bg); }
+.ds-icon-btn[disabled] { opacity: .3; pointer-events: none; }
+#groupList .td-sub { white-space: normal; }   /* รายชื่อตัวเลือกยาว ต้องตัดบรรทัด ไม่งั้นดันคอลัมน์ "ใช้กับ" หลุดขอบ */
+
+/* ── จัดการสินค้า: ลำดับ · ช่วงเวลา · กำไร ── */
+.cf-prod-cell { display: flex; align-items: center; gap: 8px; }
+.cf-move { display: inline-flex; flex-direction: column; gap: 0; }
+.cf-move .ds-icon-btn { width: 22px; height: 18px; padding: 0; }
+.cf-move .ds-icon-btn svg { width: 14px; height: 14px; }
+.cf-when { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); font-weight: 600; }
+.cf-when svg { width: 12px; height: 12px; }
+.cf-margin { font-size: 12.5px; color: var(--primary-dark); font-weight: 600; white-space: nowrap; }

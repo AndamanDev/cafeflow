@@ -366,6 +366,10 @@ body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); 
 }
 .cfk-badge-reco { background: var(--blue); color: #fff; }
 .cfk-badge-out  { left: auto; right: calc(var(--u) * .9); background: var(--status-danger); color: #fff; }
+.cfk-badge-low  { left: auto; right: calc(var(--u) * .9); background: var(--status-warning); color: #fff; }
+/* คำอธิบายสินค้าใต้ชื่อ — สั้น ๆ บรรทัดเดียวสองบรรทัด */
+.cfk-item-desc  { font-size: calc(var(--u) * 1.35); color: var(--text-secondary); margin-top: calc(var(--u) * .3);
+                  line-height: 1.35; }
 
 /* ══════════════════════════════════════════════════════════
    4. ตะกร้า — อยู่ที่เดิมเสมอ ไม่เคยหาย

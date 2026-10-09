@@ -65,7 +65,9 @@ const OrdersPage = {
         try {
             const res = await CFApi.get('/api/orders/search?limit=1000&day=' + encodeURIComponent(day));
             if (this.state.day !== day) return;          // เปลี่ยนวันไปแล้วระหว่างรอ
-            this.state.dayList = res.orders;
+            // กรองซ้ำที่หน้าจอ — API รุ่นเก่า (ยังไม่รีสตาร์ทหลังอัปเดต) ไม่รู้จัก day= แล้วส่งออเดอร์ล่าสุดมาทั้งหมด
+            // ไม่มีออเดอร์ของวันนั้น ต้องขึ้นว่างจริง ไม่ใช่โชว์ออเดอร์วันนี้ให้เข้าใจผิด
+            this.state.dayList = res.orders.filter((o) => o.businessDate === day);
             this.state.dayNote = res.total > res.orders.length
                 ? `${res.total} รายการ · แสดง ${res.orders.length} รายการแรก` : '';
         } catch (err) {
@@ -139,24 +141,31 @@ const OrdersPage = {
                 ${f.label} <span class="tab-count">${all.filter(f.test).length}</span>
             </button>`).join('');
 
-        document.getElementById('listContainer').innerHTML = list.length ? list.map((o) => `
-            <div class="ds-list-card ${o.id === this.state.selectedId ? 'active' : ''}"
-                 onclick="OrdersPage.select('${o.id}')">
-                <div class="ds-list-card-top">
-                    <span class="ds-list-card-name">${e(o.orderNo)}</span>
-                    <span class="flex gap-sm" style="align-items:center">
-                        ${!this.state.day && !this.state.found && o.businessDate && o.businessDate < today
-                            ? `<span class="sip-chip sip-chip-muted">ค้างจาก ${e(this.dayText(o.businessDate))}</span>` : ''}
-                        ${CFApp.diningChip(o.diningOption)}
-                        ${CFApp.statusChip(o.status)}
-                    </span>
+        // การ์ดเรียบ: เลขคิว + ยอดเงิน · จุดสีสถานะ + เวลา · รายละเอียดตัวเล็ก — เดิมมีป้ายสี 3 อันต่อใบ ดูรก
+        // ใบที่ค้างจากวันก่อนใช้แถบเหลืองด้านซ้าย + ข้อความเล็ก แทนป้ายอีกอัน
+        const TONE = { 'sip-chip-danger': 'danger', 'sip-chip-active': 'warn', 'sip-chip-success': 'ok',
+                       'sip-chip-progress': 'info', 'sip-chip-muted': 'muted' };
+        document.getElementById('listContainer').innerHTML = list.length ? list.map((o) => {
+            const st = CF_STATUS[o.status] || { label: o.status, chip: 'sip-chip-muted' };
+            const carried = !this.state.day && !this.state.found && o.businessDate && o.businessDate < today;
+            const n = o.itemCount != null ? o.itemCount : CFOrders.items(o.id).length;
+            return `<div class="cf-lc ${o.id === this.state.selectedId ? 'active' : ''} ${carried ? 'carried' : ''}"
+                         onclick="OrdersPage.select('${o.id}')">
+                <div class="cf-lc-r1">
+                    <span class="cf-lc-no">${e(o.orderNo)}</span>
+                    <span class="cf-lc-amt">${CFApp.baht(o.total)}</span>
                 </div>
-                <div class="ds-list-card-detail">
-                    ${e(o.kioskId || '—')} ·
-                    ${o.itemCount != null ? o.itemCount : CFOrders.items(o.id).length} รายการ ·
-                    ${CFApp.baht(o.total)} · ${CFApp.time(o.createdAt)}
+                <div class="cf-lc-r2">
+                    <span class="cf-lc-status ${TONE[st.chip] || 'muted'}"><i></i>${e(st.label)}</span>
+                    ${carried
+                        ? `<span class="cf-lc-time carry" title="ค้างจากวันก่อน — ยังไม่จบ">${e(this.dayText(o.businessDate))} ${CFApp.time(o.createdAt)}</span>`
+                        : `<span class="cf-lc-time">${CFApp.time(o.createdAt)}</span>`}
                 </div>
-            </div>`).join('') : '<div class="ds-empty-sm">ไม่พบออเดอร์</div>';
+                <div class="cf-lc-r3">
+                    ${e(o.kioskId || '—')} · ${n} รายการ · ${e((CF_DINING[o.diningOption] || CF_DINING.DINE_IN).label)}
+                </div>
+            </div>`;
+        }).join('') : '<div class="ds-empty-sm">ไม่พบออเดอร์</div>';
 
         this.renderDetail();
         CFApp.applyRoleGate();
@@ -192,15 +201,12 @@ const OrdersPage = {
         }
     },
 
-    setTab(tab) {
-        this.state.tab = tab;
-        document.querySelectorAll('.ds-tabs .ds-tab').forEach((b, i) => {
-            b.classList.toggle('active', ['items', 'payment', 'audit'][i] === tab);
-        });
-        ['items', 'payment', 'audit'].forEach((t) => {
-            document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1))
-                .classList.toggle('active', t === tab);
-        });
+    /** "18 ชม." / "5 นาที" / "2 วัน" — บอกว่าออเดอร์ค้างมานานแค่ไหน */
+    ago(iso) {
+        const m = Math.max(0, Math.floor(CFApp.elapsedMin(iso)));
+        if (m < 60) return m + ' นาที';
+        if (m < 60 * 24) return Math.floor(m / 60) + ' ชม.';
+        return Math.floor(m / 60 / 24) + ' วัน';
     },
 
     /* ══════════════════════════════════════════════════════
@@ -220,13 +226,23 @@ const OrdersPage = {
         }
 
         /* ── context bar ── */
-        document.getElementById('ctxAvatar').textContent = o.orderNo.charAt(0);
+        // ไอคอนบอกกินที่ร้าน/กลับบ้าน — เดิมเป็นตัวแรกของเลขออเดอร์ ซึ่งเป็น "A" ทุกใบ ไม่ได้บอกอะไร
+        const away = o.diningOption === 'TAKE_AWAY';
+        const av = document.getElementById('ctxAvatar');
+        av.classList.toggle('cf-av-away', away);
+        av.title = away ? 'กลับบ้าน' : 'กินที่ร้าน';
+        av.innerHTML = `<i data-lucide="${away ? 'shopping-bag' : 'coffee'}"></i>`;
         document.getElementById('ctxNo').textContent = o.orderNo;
         document.getElementById('ctxChip').innerHTML = CFApp.statusChip(o.status);
-        document.getElementById('ctxKiosk').textContent = o.kioskId;
-        document.getElementById('ctxTime').textContent = CFApp.dateTime(o.createdAt);
-        document.getElementById('ctxTotal').textContent = CFApp.baht(o.total);
-        document.getElementById('ctxMethod').textContent = o.paymentMethod === 'CASH' ? 'เงินสด' : 'QR / โอน';
+        // ข้อมูลหลักเป็นช่องสั้น ๆ มีหัวข้อกำกับ — เดิมเป็นตัวเทาเล็กเรียงติดกันบรรทัดเดียว อ่านยาก
+        const ended = ['COMPLETED', 'CANCELLED', 'VOIDED', 'REFUNDED'].includes(o.status);
+        const fact = (label, value, cls) => `<span class="cf-fact ${cls || ''}"><small>${label}</small><b>${value}</b></span>`;
+        document.getElementById('ctxFacts').innerHTML =
+            fact('ยอด', CFApp.baht(o.total), 'big') +
+            fact('จ่ายด้วย', o.paymentMethod === 'CASH' ? 'เงินสด' : 'QR / โอน') +
+            fact('ตู้', e(o.kioskId || '—')) +
+            fact('สั่งเมื่อ', e(CFApp.dateTime(o.createdAt)) +
+                 (ended ? '' : ` <em>· ผ่านไป ${this.ago(o.createdAt)}</em>`));
 
         // การ์ดเตือนโผล่เฉพาะตอนที่การชำระมีปัญหา
         const alertNeeded = ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'PAYMENT_FAILED'].includes(o.status);
@@ -243,24 +259,36 @@ const OrdersPage = {
         /* ── §7 stepper ──
            สถานะย่อยของการชำระ (รอเงินสด / รอ QR / หมดเวลา / รอตรวจสอบ) ยุบเป็นขั้นเดียว
            ไม่งั้นออเดอร์ที่รอชำระอยู่จะไม่มีขั้นไหน active เลย */
+        // at = เวลาที่ผ่านขั้นนั้น (จาก order.ts) แสดงใต้ขั้น — ดูปราดเดียวรู้ว่าค้างขั้นไหนมานานเท่าไร
         const STEPS = [
-            { label: 'ยืนยันออเดอร์', states: ['ORDER_CONFIRMED'] },
-            { label: 'ชำระเงิน',      states: ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'PAYMENT_REVIEW', 'PAYMENT_FAILED', 'PAID'] },
-            { label: 'ส่งเข้าครัว',   states: ['SENT_TO_KITCHEN'] },
-            { label: 'กำลังจัดเตรียม', states: ['PREPARING'] },
-            { label: 'พร้อมรับ',      states: ['READY'] },
-            { label: 'ส่งมอบแล้ว',    states: ['SERVED'] },
-            { label: 'เสร็จสิ้น',     states: ['COMPLETED'] },
+            { label: 'ยืนยันออเดอร์', states: ['ORDER_CONFIRMED'], at: 'createdAt' },
+            { label: 'ชำระเงิน',      states: ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'PAYMENT_REVIEW', 'PAYMENT_FAILED', 'PAID'], at: 'paidAt' },
+            { label: 'ส่งเข้าครัว',   states: ['SENT_TO_KITCHEN'], at: 'sentAt' },
+            { label: 'กำลังจัดเตรียม', states: ['PREPARING'], at: 'preparingAt' },
+            { label: 'พร้อมรับ',      states: ['READY'], at: 'readyAt' },
+            { label: 'ส่งมอบแล้ว',    states: ['SERVED'], at: 'servedAt' },
+            { label: 'เสร็จสิ้น',     states: ['COMPLETED'], at: 'completedAt' },
         ];
         const dead = ['CANCELLED', 'VOIDED', 'REFUNDED'];
         const pos = STEPS.findIndex((s) => s.states.includes(o.status));
 
+        const ts = o.ts || {};
+        // ขั้นชำระเงินที่มีปัญหา (หมดเวลา/รอตรวจ/ไม่สำเร็จ) เป็นสีเตือน ไม่ใช่สีปกติ
+        const trouble = ['PAYMENT_TIMEOUT', 'PAYMENT_REVIEW', 'PAYMENT_FAILED'].includes(o.status);
         document.getElementById('stepper').innerHTML = dead.includes(o.status)
-            ? `<span class="ds-step" style="color:var(--status-danger);font-weight:700">
-                 <i data-lucide="x-circle" class="icon-sm"></i> ${e(CFApp.statusLabel(o.status))}</span>`
+            ? `<div class="cf-steps-dead"><i data-lucide="x-circle" class="icon-sm"></i>
+                 ${e(CFApp.statusLabel(o.status))}${o.cancelReason ? ' — ' + e(o.cancelReason) : ''}</div>`
             : STEPS.map((s, i) => {
-                const cls = pos < 0 ? '' : i < pos ? 'completed' : i === pos ? 'active' : '';
-                return `<span class="ds-step ${cls}">${e(s.label)}</span>`;
+                // เสร็จสิ้นแล้ว = ทุกขั้นผ่าน (ไม่มีขั้นไหนค้าง)
+                const done = pos >= 0 && (i < pos || (i === pos && o.status === 'COMPLETED'));
+                const cur = i === pos && !done;
+                const at = ts[s.at] || (i === 0 ? o.createdAt : null);
+                const cls = done ? 'done' : cur ? (trouble ? 'cur warn' : 'cur') : '';
+                return `<div class="cf-step ${cls}">
+                    <span class="cf-step-dot">${done ? '<i data-lucide="check"></i>' : i + 1}</span>
+                    <span class="cf-step-label">${e(s.label)}</span>
+                    <span class="cf-step-time">${done && at ? CFApp.time(at) : cur ? (trouble ? e(CFApp.statusLabel(o.status)) : 'ตอนนี้') : ''}</span>
+                </div>`;
             }).join('');
 
         this.renderItems(o);
@@ -383,7 +411,7 @@ const OrdersPage = {
                     <span class="ds-timeline-time">${CFApp.timeSec(a.ts)}</span>
                 </div>
                 <div class="text-muted">
-                    ${e(CFApp.actorName(a.actor))} · ${e(a.device || '')}${a.reason ? ' · ' + e(a.reason) : ''}
+                    ${[CFApp.actorName(a.actor), a.device, a.reason].filter(Boolean).map(e).join(' · ')}
                 </div>
             </div>`).join('') : '<div class="ds-empty-sm">ยังไม่มีประวัติ</div>';
     },
@@ -544,7 +572,9 @@ function DashLabel(ev) {
         PAYMENT_VERIFIED: 'ยืนยันการชำระ', PAYMENT_OVERRIDE: 'ยืนยันโดยพนักงาน',
         PAYMENT_TIMEOUT: 'หมดเวลาชำระ', STATION_READY: 'สถานีพร้อม',
         PRINT: 'พิมพ์เอกสาร', STATUS_CHANGE: 'เปลี่ยนสถานะ',
-        PRODUCT_UPDATE: 'แก้ไขสินค้า', SHIFT_CLOSE: 'ปิดรอบ',
+        PRODUCT_UPDATE: 'แก้ไขสินค้า', SHIFT_CLOSE: 'ปิดรอบ', SHIFT_OPEN: 'เปิดรอบ',
+        QR_ISSUED: 'ออก QR ชำระเงิน', SLIP_REJECTED: 'ปฏิเสธสลิป', DEVICE_UPDATE: 'ตั้งค่าอุปกรณ์',
+        SETTINGS_UPDATE: 'แก้ค่าตั้ง', USER_PASSWORD: 'เปลี่ยนรหัสผ่าน',
     }[ev] || ev);
 }
 

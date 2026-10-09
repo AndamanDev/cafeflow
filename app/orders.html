@@ -43,26 +43,28 @@
             <h3><i data-lucide="receipt" class="mi"></i> ออเดอร์</h3>
             <span class="ds-pane-count" id="listCount">0</span>
         </div>
-        <div class="ds-pane-tools" style="display:grid;gap:8px">
-            <div class="flex gap-sm">
-                <select class="sip-select" id="daySelect" style="flex:1" onchange="OrdersPage.setDay(this.value)">
+        <!-- ค้นหาอยู่บนสุด (ใช้บ่อยสุด) · วัน + เรียงลำดับแถวเดียว · ตัวกรองสถานะแถวเดียวเลื่อนได้
+             — เดิมซ้อน 6 ชั้นจนเห็นออเดอร์แค่ 4 ใบ -->
+        <div class="cf-ol-tools">
+            <input class="ds-pane-search" id="listSearch" placeholder="ค้นหาเลขออเดอร์ / เมนู / คีออสก์"
+                   oninput="OrdersPage.setQuery(this.value)">
+            <div class="cf-ol-row">
+                <select class="sip-select" id="daySelect" onchange="OrdersPage.setDay(this.value)">
                     <option value="today">วันนี้</option>
                     <option value="yesterday">เมื่อวาน</option>
                     <option value="pick">เลือกวัน…</option>
                 </select>
-                <input type="date" class="sip-input" id="dayPick" style="flex:1;display:none"
-                       onchange="OrdersPage.loadDay(this.value)">
+                <select class="sip-select" id="groupSelect" onchange="OrdersPage.setGroup(this.value)">
+                    <option value="recent">ใหม่สุด</option>
+                    <option value="oldest">เก่าสุด</option>
+                    <option value="amount">ยอดสูงสุด</option>
+                </select>
             </div>
-            <div class="ds-note" id="dayInfo"></div>
-            <select class="sip-select" id="groupSelect" onchange="OrdersPage.setGroup(this.value)">
-                <option value="recent">เรียง: ใหม่ล่าสุด</option>
-                <option value="oldest">เรียง: เก่าสุด</option>
-                <option value="amount">เรียง: ยอดสูงสุด</option>
-            </select>
+            <input type="date" class="sip-input" id="dayPick" style="display:none"
+                   onchange="OrdersPage.loadDay(this.value)">
+            <div class="cf-ol-dayinfo" id="dayInfo"></div>
         </div>
-        <div class="ds-pilltabs" id="pillTabs"></div>
-        <input class="ds-pane-search" id="listSearch" placeholder="ค้นหาเลขออเดอร์ / คีออสก์"
-               oninput="OrdersPage.setQuery(this.value)">
+        <div class="ds-pilltabs cf-ol-pills" id="pillTabs"></div>
         <div class="ds-pane-scroll" id="listContainer"></div>
     </aside>
 
@@ -80,36 +82,37 @@
                 <button class="ds-pane-toggle" onclick="OrdersPage.toggleLeft()" title="ซ่อน/แสดงรายการ">
                     <i data-lucide="panel-left" class="icon-sm"></i>
                 </button>
-                <div class="ds-context-avatar" id="ctxAvatar">A</div>
+                <div class="ds-context-avatar" id="ctxAvatar"></div>
                 <div class="ds-context-info">
                     <div class="ds-context-name">
                         <span id="ctxNo">—</span>
                         <span id="ctxChip"></span>
                     </div>
-                    <div class="ds-context-meta">
-                        <span id="ctxKiosk"></span>
-                        <span id="ctxTime"></span>
-                        <span id="ctxTotal"></span>
-                        <span id="ctxMethod"></span>
-                    </div>
+                    <div class="cf-facts" id="ctxFacts"></div>
                 </div>
                 <div class="ds-context-aside" id="ctxAside"></div>
             </div>
 
-            <div style="padding:16px 24px 32px">
-                <div class="ds-stepper" id="stepper" style="margin-bottom:16px"></div>
+            <!-- ไม่มีแท็บ — สินค้า · การชำระ · ประวัติ เห็นพร้อมกันในหน้าเดียว (เดิมตรงกลางว่างเกือบทั้งจอ) -->
+            <div class="cf-od-body">
+                <div class="cf-steps" id="stepper"></div>
 
-                <div class="ds-tabs">
-                    <button class="ds-tab active" onclick="OrdersPage.setTab('items')">รายการสินค้า</button>
-                    <button class="ds-tab" onclick="OrdersPage.setTab('payment')">การชำระเงิน</button>
-                    <button class="ds-tab" onclick="OrdersPage.setTab('audit')">
-                        ประวัติ <span class="tab-notif" id="auditBadge">0</span>
-                    </button>
+                <section class="cf-od-card">
+                    <div class="cf-od-title"><i data-lucide="coffee" class="icon-sm"></i> รายการสินค้า</div>
+                    <div id="tabItems"></div>
+                </section>
+
+                <div class="cf-od-grid">
+                    <section class="cf-od-card">
+                        <div class="cf-od-title"><i data-lucide="wallet" class="icon-sm"></i> การชำระเงิน</div>
+                        <div id="tabPayment"></div>
+                    </section>
+                    <section class="cf-od-card">
+                        <div class="cf-od-title"><i data-lucide="history" class="icon-sm"></i> ประวัติ
+                            <span class="tab-notif" id="auditBadge">0</span></div>
+                        <div class="ds-timeline" id="auditList"></div>
+                    </section>
                 </div>
-
-                <div class="ds-tab-content active" id="tabItems"></div>
-                <div class="ds-tab-content" id="tabPayment"></div>
-                <div class="ds-tab-content" id="tabAudit"><div class="ds-timeline" id="auditList"></div></div>
             </div>
         </div>
     </main>

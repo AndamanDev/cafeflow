@@ -128,6 +128,7 @@ const ClosingPage = {
         const open = CFStore.openShift();
         document.getElementById('openShiftCard').hidden = !!open;
         document.getElementById('closeBtn').hidden = !open;
+        document.getElementById('closeBtn2').hidden = !open;
         const shift = open || CFStore.all('shifts').slice(-1)[0];
         if (!shift) {
             document.getElementById('shiftLine').textContent = 'ยังไม่มีรอบการขาย';
@@ -194,12 +195,28 @@ const ClosingPage = {
 
         /* ── สินค้าขายดี ── */
         const top = CFKpi.topProducts(shift.id, 10);
-        document.getElementById('topRows').innerHTML = top.length ? top.map((t, i) => `<tr>
+        // ต้นทุน/กำไร — เซิร์ฟเวอร์ส่งมาเฉพาะคนที่แก้ราคาได้ · cost null = บางแบบยังไม่ได้ใส่ต้นทุน (ไม่เดา)
+        const withCost = top.some((t) => 'cost' in t);
+        document.getElementById('topHead').innerHTML = `<tr><th>#</th><th>สินค้า</th><th class="cf-right">จำนวน</th>
+            <th class="cf-right">ยอดเงิน</th>${withCost ? '<th class="cf-right">ต้นทุน</th><th class="cf-right">กำไรขั้นต้น</th>' : ''}</tr>`;
+        const cols = withCost ? 6 : 4;
+        let gp = 0, gpMissing = false;
+        document.getElementById('topRows').innerHTML = top.length ? top.map((t, i) => {
+            const known = withCost && t.cost != null;
+            if (withCost) { if (known) gp += t.amount - t.cost; else gpMissing = true; }
+            return `<tr>
                 <td>${i + 1}</td>
                 <td class="td-name">${e(t.name)}</td>
                 <td class="cf-right">${t.qty}</td>
                 <td class="cf-right cf-money">${CFApp.money(t.amount)}</td>
-            </tr>`).join('') : '<tr><td colspan="4"><div class="ds-empty-sm">ยังไม่มียอดขาย</div></td></tr>';
+                ${withCost ? `<td class="cf-right cf-money">${known ? CFApp.money(t.cost) : '<span class="text-light" title="ยังไม่ได้ใส่ต้นทุน">—</span>'}</td>
+                <td class="cf-right cf-money" style="font-weight:700">${known
+                    ? CFApp.money(t.amount - t.cost) + ` <small class="text-muted">${t.amount ? Math.round((t.amount - t.cost) / t.amount * 100) : 0}%</small>`
+                    : '<span class="text-light">—</span>'}</td>` : ''}
+            </tr>`;
+        }).join('') + (withCost ? `<tr><td colspan="5" class="cf-right td-name">กำไรขั้นต้นรวม (สินค้าที่แสดง${gpMissing ? ' · ไม่นับรายการที่ยังไม่ใส่ต้นทุน' : ''})</td>
+            <td class="cf-right cf-money td-name">${CFApp.money(gp)}</td></tr>` : '')
+            : `<tr><td colspan="${cols}"><div class="ds-empty-sm">ยังไม่มียอดขาย</div></td></tr>`;
 
         /* ── ลิงก์ส่งออกทีละไฟล์ ── */
         document.getElementById('csvLinks').innerHTML = [
@@ -328,8 +345,9 @@ const ClosingPage = {
         // ★ ล็อกปุ่มระหว่างรอ — กดซ้ำตอนจอยังไม่อัปเดต = ปิดรอบใหม่ที่ระบบเพิ่งเปิดให้ทันที (รอบว่างซ้อนหลายรอบ)
         if (this._closing) return;
         this._closing = true;
-        const btn = document.getElementById('closeBtn');
-        btn.disabled = true;
+        // ปุ่มปิดรอบมีสองที่ (หัวหน้า + ท้ายการ์ดนับเงิน) — ล็อกพร้อมกัน
+        const btns = ['closeBtn', 'closeBtn2'].map((id) => document.getElementById(id)).filter(Boolean);
+        btns.forEach((b) => { b.disabled = true; });
         try {
             const res = await CFStore.cmd('post',
                 '/api/shifts/' + encodeURIComponent(shift.id) + '/close',
@@ -346,7 +364,7 @@ const ClosingPage = {
             showToast(err.message || 'ปิดรอบไม่สำเร็จ', 'error', 5000);
         } finally {
             this._closing = false;
-            btn.disabled = false;
+            btns.forEach((b) => { b.disabled = false; });
         }
     },
 

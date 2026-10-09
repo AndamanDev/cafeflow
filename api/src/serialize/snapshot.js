@@ -92,14 +92,23 @@ function toCategory(r) {
  * สินค้า + ราคา
  * prices มาจาก jsonb_object_agg ฝั่ง SQL แล้ว — แถวที่ไม่มีก็คือคีย์ที่ไม่มี
  */
-function toProduct(r) {
+function toProduct(r, withCost) {
     const prices = {};
     for (const [k, v] of Object.entries(r.prices || {})) prices[k] = Number(v);
     const p = {
         id: r.id, groupTh: r.group_th, nameTh: r.name_th, nameEn: r.name_en,
         categoryId: r.category_id, prices, station: r.station,
-        active: r.active, soldOut: r.sold_out,
+        active: r.active, soldOut: r.sold_out, sort: r.sort,
+        stockQty: r.stock_qty == null ? null : Number(r.stock_qty),
     };
+    if (r.description_th) p.descriptionTh = r.description_th;
+    if (r.description_en) p.descriptionEn = r.description_en;
+    // ช่วงเวลาขาย "HH:MM" (เวลาไทย) — ไม่มี = ขายทั้งวัน
+    if (r.avail_from_s && r.avail_to_s) { p.availFrom = r.avail_from_s; p.availTo = r.avail_to_s; }
+    if (withCost) {
+        p.costs = {};
+        for (const [k, v] of Object.entries(r.costs || {})) p.costs[k] = Number(v);
+    }
     if (r.recommended) p.recommended = true;      // โค้ดเดิมเช็คด้วย truthiness
     if (r.image_url) p.imageUrl = r.image_url;
     if (r.art_key) p.artKey = r.art_key;
@@ -108,12 +117,12 @@ function toProduct(r) {
 
 function toGroup(r) {
     return { id: r.id, nameTh: r.name_th, nameEn: r.name_en, type: r.type, required: r.required,
-             maxSelect: r.max_select == null ? null : Number(r.max_select) };
+             maxSelect: r.max_select == null ? null : Number(r.max_select), sort: r.sort, active: r.active };
 }
 function toOption(r) {
     return {
         id: r.id, groupId: r.group_id, nameTh: r.name_th, nameEn: r.name_en, shortLabel: r.short_label,
-        priceDelta: Number(r.price_delta), isDefault: r.is_default, sort: r.sort,
+        priceDelta: Number(r.price_delta), isDefault: r.is_default, sort: r.sort, active: r.active,
     };
 }
 function toRule(r) {
