@@ -6,7 +6,8 @@
  *
  * เตือนเฉพาะเรื่องที่ต้องมีคนลุกไปทำ — เตือนทุกเรื่องแล้วคนจะชินจนไม่สนใจ
  *   แคชเชียร์  🔔 รอจ่ายเงินสด · ส่งสลิปแล้ว
- *              🚨 ลูกค้าเรียกพนักงาน · สลิปไม่ตรง · เครื่องพิมพ์พิมพ์ไม่ออก
+ *              🚨 สลิปไม่ตรง · เครื่องพิมพ์พิมพ์ไม่ออก
+ *   ทุกหน้าพนักงานที่รับเงินได้  🚨 ลูกค้าที่คีออสก์เรียกพนักงาน — การ์ดแดงมุมขวาบนค้างจนรับทราบ + เสียงซ้ำ
  *   ครัว       🛎 ออเดอร์ใหม่เข้าครัว
  *
  * เสียงสร้างในเบราว์เซอร์ (Web Audio) ไม่มีไฟล์เสียง ไม่ใช้เน็ต
@@ -125,6 +126,9 @@ const CFAlerts = {
         this.mountToggle();
         if (page === 'cashier') this.watchCashier();
         if (page === 'kds') this.watchKitchen();
+        // ลูกค้าเรียกพนักงาน — ทุกหน้าที่คนรับเงินได้เปิดอยู่ (แคชเชียร์ · จัดการออเดอร์ · ภาพรวม · เมนู · ปิดรอบ)
+        // เดิมมีแค่หน้าแคชเชียร์ พนักงานที่เปิดหน้าอื่นค้างไว้ไม่รู้เลยว่ามีลูกค้ารอ
+        if (page !== 'kds') this.watchHelp();
     },
 
     /**
@@ -155,11 +159,12 @@ const CFAlerts = {
             if (o.status === 'WAITING_CASH') {
                 this.notify('chime', o.orderNo + ' รอจ่ายเงินสด ' + money(o));
             } else if (o.status === 'PAYMENT_REVIEW') {
-                // ไม่มีสลิป = ลูกค้ากด "แจ้งพนักงาน" ที่คีออสก์ — มีคนยืนรออยู่
+                // ลูกค้าเรียกพนักงาน = helpAt (ดังด่วนแยกด้านล่าง) · ตรงนี้แค่แจ้งว่ามีงานรอตรวจ
                 if (slipOf(o.id)) this.notify('chime', o.orderNo + ' ส่งสลิปแล้ว รอตรวจ ' + money(o));
-                else this.notify('urgent', 'ลูกค้าที่คีออสก์เรียกพนักงาน · ' + o.orderNo + ' ' + money(o));
+                else if (!o.helpAt) this.notify('chime', o.orderNo + ' QR หมดเวลา รอตรวจ ' + money(o));
             }
         });
+
 
         // ผลอ่านสลิปมาทีหลัง ~5 วิ — สลิปที่เพิ่งกลายเป็น "ไม่ตรง" ต้องดังเตือน
         let seenFail = null;
@@ -194,6 +199,85 @@ const CFAlerts = {
         }).catch(() => {});
         jobs();
         setInterval(jobs, 20000);
+    },
+
+    /* ── ลูกค้าที่คีออสก์เรียกพนักงาน ───────────────────── */
+    helpCalls() {
+        return CFStore.all('orders').filter((o) => o.helpAt && !o.helpAckAt)
+            .sort((a, b) => new Date(a.helpAt) - new Date(b.helpAt));
+    },
+
+    /**
+     * การ์ดแดงมุมขวาบน (ไม่บังกลางจอ — แคชเชียร์อาจกำลังทอนเงินอยู่) ค้างจนกว่าจะกด
+     *   [ไปดู]    รับทราบ + เปิดหน้าตรวจ/รับเงินของออเดอร์ (หน้าที่ไม่มี drawer → ไปหน้าแคชเชียร์ ?order=)
+     *   [รับทราบ] มีคนไปดูลูกค้าแล้ว — การ์ดหายทุกเครื่องพร้อมกัน (ข้อมูลอยู่ที่ออเดอร์)
+     * ดังด่วนทุกครั้งที่เรียก (เรียกซ้ำ = helpAt ใหม่ ดังอีก) แล้วดังซ้ำทุก 45 วิจนกว่าจะมีคนรับทราบ
+     * รอบแรกไม่ดังของที่ค้างอยู่ก่อนเปิดหน้า (แต่การ์ดขึ้น และเสียงซ้ำยังดัง — ยังไม่มีใครรับ)
+     */
+    watchHelp() {
+        let seen = null;
+        const run = () => {
+            const calls = this.helpCalls();
+            if (seen) {
+                calls.filter((o) => !seen.has(o.id + '@' + o.helpAt)).forEach(() => {
+                    this.play('urgent');
+                    if (document.hidden) { this.unseen++; document.title = '(' + this.unseen + ') ' + this.baseTitle; }
+                });
+            }
+            seen = new Set(calls.map((o) => o.id + '@' + o.helpAt));
+            this.renderHelp(calls);
+        };
+        run();
+        CFStore.subscribe(run);
+        setInterval(() => this.renderHelp(this.helpCalls()), 30000);      // "x นาทีที่แล้ว"
+        setInterval(() => { if (this.helpCalls().length) this.play('urgent'); }, 45000);
+    },
+
+    renderHelp(calls) {
+        let box = document.getElementById('cfHelpCards');
+        if (!calls.length) { if (box) box.remove(); return; }
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'cfHelpCards';
+            box.className = 'cf-help-cards';
+            box.setAttribute('role', 'alert');
+            document.body.appendChild(box);
+        }
+        const e = CFApp.esc;
+        const ago = (iso) => {
+            const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+            return m < 1 ? 'เมื่อสักครู่' : m + ' นาทีที่แล้ว';
+        };
+        box.innerHTML = calls.map((o) => {
+            const kiosk = (CFStore.byId('devices', o.kioskId) || {}).name || o.kioskId || 'คีออสก์';
+            return `<div class="cf-help-card">
+                <div class="cf-help-head"><i data-lucide="bell-ring" class="icon-sm"></i>
+                    <strong>ลูกค้าเรียกพนักงาน</strong><span>${ago(o.helpAt)}</span></div>
+                <div class="cf-help-order">${e(o.orderNo)} · ${CFApp.baht(o.total)} · ${e(kiosk)}</div>
+                <div class="cf-help-why">${e(o.helpReason || 'ลูกค้ากดแจ้งพนักงาน')}</div>
+                <div class="cf-help-btns">
+                    <button class="btn btn-outline btn-sm" onclick="CFAlerts.ackHelp('${o.id}')">รับทราบ</button>
+                    <button class="btn btn-primary btn-sm" onclick="CFAlerts.goHelp('${o.id}')">
+                        <i data-lucide="search-check" class="icon-sm"></i> ไปดู</button>
+                </div>
+            </div>`;
+        }).join('');
+        if (window.refreshIcons) refreshIcons();
+    },
+
+    async ackHelp(orderId) {
+        try {
+            await CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/help-ack', {});
+        } catch (err) {
+            if (window.showToast) showToast(err.message || 'บันทึกไม่สำเร็จ', 'error');
+        }
+    },
+
+    /** ไปดู = รับทราบ + เปิดหน้าตรวจ (หน้าแคชเชียร์/จัดการออเดอร์มี drawer อยู่แล้ว) — หน้าอื่นพาไปหน้าแคชเชียร์ */
+    goHelp(orderId) {
+        this.ackHelp(orderId);
+        if (window.CashierPage && typeof CashierPage.open === 'function') CashierPage.open(orderId);
+        else location.href = 'cashier.html?order=' + encodeURIComponent(orderId);
     },
 
     watchKitchen() {

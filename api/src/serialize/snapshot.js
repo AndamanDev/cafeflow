@@ -159,6 +159,8 @@ function toOrder(r) {
             refundedAt: iso(r.refunded_at),
         }),
         cancelReason: r.cancel_reason,
+        // ลูกค้าที่คีออสก์เรียกพนักงาน — ค้างที่แคชเชียร์จนกว่าจะรับทราบ (helpAckAt) หรือออเดอร์จบขั้นรอจ่าย
+        helpAt: iso(r.help_at), helpReason: r.help_reason || null, helpAckAt: iso(r.help_ack_at),
     };
 }
 

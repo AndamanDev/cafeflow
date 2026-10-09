@@ -1111,6 +1111,7 @@ const CFKiosk = {
         this._qrScanned = false;
         this._paused = false;
         this._rejectedRef = null;
+        this._slipSent = false;
         // ขอ QR ที่ผูกยอดไว้แล้วจากเซิร์ฟเวอร์ — นับถอยหลังเริ่มเมื่อได้เวลาหมดอายุจริง
         setTimeout(() => { this.loadQr(); this.startCam(); }, 0);
         return `
@@ -1213,6 +1214,7 @@ const CFKiosk = {
         clearInterval(this._qr);
         this._paused = false;
         this._rejectedRef = null;
+        this._slipSent = false;
         this.go('slip');
     },
 
@@ -1286,76 +1288,80 @@ const CFKiosk = {
      * ลูกค้าเห็นเองว่าภาพเบลอหรือวันที่หลุดกรอบ แก้ได้ตรงจุดกว่าอ่านคำอธิบายอย่างเดียว
      */
     camPreview(image, [title, how]) {
-        this._paused = true;
-        const cam = document.getElementById('cfkCam');
-        if (cam && image) {
-            let pv = document.getElementById('cfkPreview');
-            if (!pv) {
-                pv = document.createElement('img');
-                pv.id = 'cfkPreview';
-                pv.className = 'cfk-cam-preview';
-                pv.alt = this.t('ภาพสลิปที่ถ่ายได้', 'Photo of your slip');
-                cam.appendChild(pv);
-            }
-            pv.src = image;
-        }
-        this.camRetake([title, how]);
-        const el = document.getElementById('cfkCamMsg');
-        if (el) {
-            el.querySelector('.cfk-slip-reject-next').textContent = this.t('นี่คือภาพที่กล้องถ่ายได้ — ถ่ายใหม่ได้เรื่อย ๆ จนกว่าจะชัด',
-                'This is the photo the camera took — you can retake it until it is clear');
-            el.insertAdjacentHTML('beforeend', `
-                <div class="cfk-preview-actions">
-                    <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.previewSend()">${this.t('ส่งให้พนักงานตรวจ', 'Send to staff')}</button>
-                    <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.previewRetake()">
-                        ${CFKioskArt.icon('qr')} ${this.t('ถ่ายใหม่', 'Retake')}</button>
-                </div>`);
-        }
-        // ลูกค้าเดินหนีไประหว่างดูภาพ → ส่งให้พนักงานเองหลัง 60 วิ (สลิปบันทึกไว้แล้ว)
-        clearTimeout(this._previewT);
-        this._previewT = setTimeout(() => { if (this._paused) this.previewSend(); }, 60000);
+        this.slipDialog({
+            tone: 'retake', title, lines: [how], image,
+            hint: this.t('นี่คือภาพที่กล้องถ่ายได้ — ถ่ายใหม่ได้เรื่อย ๆ จนกว่าจะชัด',
+                         'This is the photo the camera took — you can retake it until it is clear'),
+            retry: this.t('ถ่ายใหม่', 'Retake'),
+            staffReason: 'ภาพสลิปไม่ชัด ลูกค้าขอให้พนักงานตรวจ — ' + title,
+        });
     },
 
-    previewRetake() {
-        clearTimeout(this._previewT);
-        const pv = document.getElementById('cfkPreview');
-        if (pv) pv.remove();
+    /** สลิปไม่ผ่าน (ยอด/วันที่/ผู้รับไม่ตรง) */
+    camReject(reasons) {
+        this.slipDialog({
+            tone: 'fail', title: this.t('สลิปนี้ไม่ตรงกับออเดอร์', 'This slip does not match your order'),
+            lines: reasons,
+            hint: this.t('เปิดสลิปที่ถูกต้องแล้วสแกนใหม่ หรือให้พนักงานช่วยตรวจ',
+                         'Open the correct slip and scan again, or ask our staff to check it'),
+            retry: this.t('สแกนใหม่', 'Scan again'),
+            staffReason: 'สลิปไม่ตรง: ' + (reasons.join(' · ') || 'ระบบตรวจไม่ผ่าน'),
+        });
+    },
+
+    /**
+     * สแกนสลิปไม่ได้ → กล่องกลางจอ (เดิมเป็นกล่องสีใต้กล้อง ลูกค้าที่มองมือถือตัวเองไม่เห็น)
+     * มีสองทางเสมอ: สแกน/ถ่ายใหม่ · แจ้งพนักงาน (แคชเชียร์ขึ้นแถบเตือนพร้อมเหตุผล)
+     * ระหว่างเปิดกล่อง กล้องหยุดอ่าน + เส้นตายหยุดนับ · ไม่มีใครแตะ 60 วิ = เดินไปแล้ว → แจ้งพนักงานเอง
+     *   tone   'fail' แดง (สลิปไม่ตรง) · 'retake' เหลือง (ภาพไม่ชัด — ลูกค้าไม่ได้ทำผิด)
+     *   image  ภาพที่กล้องถ่ายได้ (ให้เห็นเองว่าเบลอ/หลุดกรอบตรงไหน)
+     */
+    slipDialog({ tone, title, lines = [], image, hint, retry, staffReason }) {
+        const e = CFApp.esc;
+        this.closeSlipDialog();
+        this._paused = true;
+        this._deadline = Infinity;
+        this._dlgReason = staffReason;
+        this.stage.insertAdjacentHTML('beforeend', `
+        <div class="cfk-sheet" id="cfkSlipDlg" role="alertdialog" aria-modal="true">
+            <div class="cfk-sheet-box cfk-slipdlg is-${tone}">
+                <div class="cfk-slipdlg-head">${CFKioskArt.icon('alert')}<b>${e(title)}</b></div>
+                ${image ? `<img class="cfk-slipdlg-img" src="${image}" alt="${e(this.t('ภาพสลิปที่ถ่ายได้', 'Photo of your slip'))}">` : ''}
+                <div class="cfk-slipdlg-body">
+                    ${lines.filter(Boolean).map((l) => `<div class="cfk-slipdlg-why">${e(l)}</div>`).join('')}
+                    ${hint ? `<p>${e(hint)}</p>` : ''}
+                </div>
+                <div class="cfk-actionbar">
+                    <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.slipDialogStaff()">${this.t('แจ้งพนักงาน', 'Call staff')}</button>
+                    <button class="cfk-btn cfk-btn-primary cfk-btn-grow" onclick="CFKiosk.slipDialogRetry()">
+                        ${CFKioskArt.icon('qr')} ${e(retry || this.t('สแกนใหม่', 'Scan again'))}</button>
+                </div>
+            </div>
+        </div>`);
+        this.tick();
+        this._dlgT = setTimeout(() => { if (document.getElementById('cfkSlipDlg')) this.slipDialogStaff(); }, 60000);
+    },
+
+    closeSlipDialog() {
+        clearTimeout(this._dlgT);
+        const d = document.getElementById('cfkSlipDlg');
+        if (d) d.remove();
+    },
+
+    slipDialogRetry() {
+        this.closeSlipDialog();
         this.camMsg(this.t('หันจอมือถือเข้าหากล้องอีกครั้ง ให้เห็นทั้งใบตั้งแต่วันที่ด้านบนจนถึง QR',
                            'Turn your phone to the camera again — show the whole slip from the date to the QR'));
-        this.resetScanDeadline();
         this._paused = false;
+        this.resetScanDeadline();
+        this.tick();
     },
 
-    previewSend() {
-        clearTimeout(this._previewT);
+    slipDialogStaff() {
+        this.closeSlipDialog();
         this._paused = false;
         this.stopCam();
-        this.go('done', { kind: 'REVIEW' });
-    },
-
-    /** ขอสแกนใหม่ — เด่นเท่ากล่องสลิปไม่ผ่าน แต่เป็นสีเหลือง (ลูกค้าไม่ได้ทำผิด แค่ต้องถือใหม่) */
-    camRetake([title, how]) {
-        const el = document.getElementById('cfkCamMsg');
-        if (!el) return;
-        const e = CFApp.esc;
-        el.className = 'cfk-slip-reject cfk-slip-retake';
-        el.innerHTML = `
-            <div class="cfk-slip-reject-head">${CFKioskArt.icon('alert')} ${e(title)}</div>
-            <div class="cfk-slip-reject-why">${e(how)}</div>
-            <div class="cfk-slip-reject-next">${this.t('แล้วสแกนอีกครั้ง — กล้องยังเปิดอยู่', 'Then scan again — the camera is still on')}</div>`;
-    },
-
-    /** สลิปไม่ผ่าน — ต้องเด่นพอให้ลูกค้าที่กำลังมองมือถือตัวเองเห็น ไม่ใช่แค่แถบเล็ก ๆ */
-    camReject(reasons) {
-        const el = document.getElementById('cfkCamMsg');
-        if (!el) return;
-        const e = CFApp.esc;
-        el.className = 'cfk-slip-reject';
-        el.innerHTML = `
-            <div class="cfk-slip-reject-head">${CFKioskArt.icon('alert')} ${this.t('สลิปนี้ไม่ตรงกับออเดอร์', 'This slip does not match your order')}</div>
-            ${reasons.map((r) => `<div class="cfk-slip-reject-why">${e(r)}</div>`).join('')}
-            <div class="cfk-slip-reject-next">${this.t('เปิดสลิปที่ถูกต้องแล้วสแกนใหม่ หรือกด "แจ้งพนักงาน" ด้านล่าง',
-                'Open the correct slip and scan again, or tap "Call staff" below')}</div>`;
+        this.qrTimeout(this._dlgReason);
     },
 
     async startCam() {
@@ -1397,7 +1403,7 @@ const CFKiosk = {
         this._scan = setInterval(async () => {
             if (this._submitting || !video.videoWidth) return;
             if (this._paused) return;                         // กำลังดูภาพที่ถ่าย รอลูกค้าตัดสินใจ
-            if (Date.now() > this._deadline) { this.stopCam(); this.qrTimeout(); return; }
+            if (Date.now() > this._deadline) { this.stopCam(); this.qrTimeout('สแกนสลิปไม่สำเร็จจนหมดเวลา'); return; }
             // สลับอ่านทั้งภาพ (ย่อ) กับกลางภาพความละเอียดเต็ม — เดิมย่ออย่างเดียว QR สลิปเล็กจนอ่านไม่ออก
             const code = CFApp.qrFromVideo(video, tick++);
             if (!code.data) { if (code.full) this.liveHint(code.canvas); return; }
@@ -1547,6 +1553,7 @@ const CFKiosk = {
             const image = video ? await this.captureBest(video) : null;
             this.slipSteps('send');
             const r = await CFApi.post('/api/orders/' + encodeURIComponent(this.state.orderId) + '/slip', { payload, image }, { timeout: 60000 });   // อัปโหลดภาพเต็มขนาด — Wi-Fi ช้าใช้เวลานานกว่าคำขอทั่วไป
+            this._slipSent = true;
             const res = r.slipId ? await this.waitSlipCheck(r.slipId, r.bank) : null;
             if (res && res.verdict === 'FAIL') {
                 // ยอด/วันที่ไม่ตรง — บอกลูกค้าตรงนี้ ให้สแกนใบที่ถูกต้องหรือแจ้งพนักงาน (กล้องยังเปิดอยู่)
@@ -1554,10 +1561,15 @@ const CFKiosk = {
                 this._rejectedN = r.ref === this._rejectedRef ? (this._rejectedN || 1) + 1 : 1;
                 this._rejectedRef = r.ref;
                 this._rejectedAt = Date.now();
-                if (this._rejectedN >= 3) { this.stopCam(); this.go('done', { kind: 'REVIEW' }); return; }
                 const why = (res.notes || []).filter((n, i) =>
                     (i === 0 && res.checks.amount === 'FAIL') || (i === 1 && res.checks.date === 'FAIL') ||
                     (i === 2 && res.checks.receiver === 'FAIL'));
+                if (this._rejectedN >= 3) {
+                    // ต้องรอ finally ปลด _submitting ก่อน ไม่งั้น qrTimeout คืนทันทีไม่ทำอะไร
+                    this.stopCam();
+                    setTimeout(() => this.qrTimeout('สลิปไม่ผ่าน 3 ครั้ง: ' + (why.join(' · ') || 'ระบบตรวจไม่ผ่าน')), 0);
+                    return;
+                }
                 this.camReject(why);
                 return;
             }
@@ -1582,16 +1594,20 @@ const CFKiosk = {
             this.stopCam();
             this.go('done', { kind: 'REVIEW' });
         } catch (err) {
-            // สลิปซ้ำ/ไม่ใช่สลิป → บอกเหตุผลแล้วสแกนต่อได้ ไม่ปิดกล้อง
-            this.camMsg(err.offline ? this.t('ติดต่อเซิร์ฟเวอร์ไม่ได้ กรุณาแจ้งพนักงาน', 'Cannot reach the shop system — please ask our staff')
-                                    : (err.message || this.t('ตรวจสลิปไม่สำเร็จ', 'Could not check the slip')), true);
-            // กันอ่าน QR เดิมซ้ำรัว ๆ ขณะที่ลูกค้ายังถือมือถือค้างไว้
-            await new Promise((r) => setTimeout(r, 2500));
+            // สลิปซ้ำกับออเดอร์อื่น / ไม่ใช่สลิป / ติดต่อเซิร์ฟเวอร์ไม่ได้ → กล่องกลางจอ (กล้องหยุดอ่านระหว่างเปิดกล่อง
+            // จึงไม่อ่าน QR เดิมซ้ำรัว ๆ ขณะลูกค้ายังถือมือถือค้าง) · แจ้งพนักงานได้จากในกล่องเลย
+            const msg = err.offline ? this.t('ติดต่อระบบของร้านไม่ได้', 'Cannot reach the shop system')
+                                    : (err.message || this.t('ตรวจสลิปไม่สำเร็จ', 'Could not check the slip'));
+            this.slipDialog({
+                tone: 'fail', title: this.t('ตรวจสลิปไม่สำเร็จ', 'Could not check your slip'), lines: [msg],
+                hint: this.t('ลองสแกนใหม่ หรือให้พนักงานช่วย', 'Try scanning again, or ask our staff'),
+                staffReason: 'ตรวจสลิปไม่สำเร็จ: ' + msg,
+            });
         } finally {
             this._submitting = false;
             this.setBusy(false);
             // กลับมาสแกนต่อ (สลิปไม่ผ่าน / สลิปซ้ำ / ติดต่อเซิร์ฟเวอร์ไม่ได้) → ได้เวลาเต็มใหม่
-            // ดูภาพที่ถ่าย (paused) ยังไม่นับ — กด "ถ่ายใหม่" ค่อยเริ่ม (previewRetake)
+            // เปิดกล่องสแกนไม่ได้อยู่ (paused) ยังไม่นับ — กด "สแกนใหม่/ถ่ายใหม่" ค่อยเริ่ม (slipDialogRetry)
             if (this.camScreen() && !this._paused && this._scan) this.resetScanDeadline();
             this.tick();
         }
@@ -1666,7 +1682,8 @@ const CFKiosk = {
     screen_qrexpired() {
         const o = CFStore.byId('orders', this.state.orderId);
         clearTimeout(this._expT);
-        this._expT = setTimeout(() => { if (this.state.screen === 'qrexpired') this.qrTimeout(); }, 30000);
+        // ไม่มีใครแตะ 30 วิ = ลูกค้าเดินไปแล้ว → ส่งเข้าคิวตรวจเฉย ๆ (null) ไม่ปลุกแคชเชียร์ว่ามีคนรอ
+        this._expT = setTimeout(() => { if (this.state.screen === 'qrexpired') this.qrTimeout(null); }, 30000);
         return `
         ${this.topHtml({ title: this.t('หมดเวลาชำระเงิน', 'Payment time is up'), sub: this.t('ออเดอร์ ', 'Order ') + o.orderNo + ' · ฿' + CFApp.money(o.total) })}
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
@@ -1779,11 +1796,17 @@ const CFKiosk = {
         }
     },
 
-    async qrTimeout() {
+    /**
+     * ส่งออเดอร์ให้พนักงานตรวจ
+     *   reason  ลูกค้าเรียกพนักงาน → แคชเชียร์ขึ้นแถบเตือนค้าง + เหตุผล (/call-staff)
+     *           null = ไม่มีคนอยู่หน้าเครื่อง (QR หมดเวลาแล้วไม่มีใครแตะ) — ส่งเข้าคิวตรวจเฉย ๆ ไม่ปลุกแคชเชียร์
+     */
+    async qrTimeout(reason = 'ลูกค้ากดแจ้งพนักงาน') {
         if (this._submitting) return;
         this._submitting = true;
         clearInterval(this._qr);
         this.stopCam();
+        this.closeSlipDialog();
         this.setBusy(true, this.t('กำลังแจ้งพนักงาน…', 'Calling staff…'));
         try {
             const id = this.state.orderId;
@@ -1798,9 +1821,15 @@ const CFKiosk = {
             if (st !== 'PAYMENT_REVIEW') {
                 await CFOrders.transition(id, 'PAYMENT_REVIEW',
                     { byId: 'SYSTEM', device: this.state.deviceId,
-                      reason: 'ลูกค้ากดแจ้งพนักงานจากคีออสก์' });
+                      reason: reason || 'QR หมดเวลา ไม่มีคนตอบที่หน้าคีออสก์' });
             }
-            this.go('done', { kind: 'TIMEOUT' });
+            if (reason) {
+                // เตือนไม่ติดก็ยังไปต่อ — ออเดอร์อยู่ในคิวรอตรวจของแคชเชียร์แล้ว
+                await CFApi.post('/api/orders/' + encodeURIComponent(id) + '/call-staff', { reason }).catch(() => {});
+            }
+            // สแกนสลิปเข้ามาแล้ว = จ่ายแล้วแต่ตรวจไม่ผ่าน → "พนักงานได้รับแจ้งแล้ว" ไม่ใช่ "ยังไม่ได้ชำระ"
+            const hasSlip = this._slipSent || this._qrScanned;
+            this.go('done', { kind: reason && hasSlip ? 'HELP' : 'TIMEOUT' });
         } finally {
             this._submitting = false;
             this.setBusy(false);
@@ -1829,6 +1858,10 @@ const CFKiosk = {
                     banner: ['chef', 'cfk-note-ok', this.t('ส่งเข้าครัวแล้ว กรุณารอเรียกหมายเลข', 'Sent to the kitchen — please wait for your number')] },
             REVIEW: { title: this.t('ได้รับสลิปแล้ว', 'Slip received'), ico: 'check', tone: 'ok',
                     banner: ['timer', 'cfk-note-ok', this.t('พนักงานกำลังตรวจยอดเงิน แล้วจะส่งเข้าครัวทันที', 'Our staff is checking your payment — your order goes to the kitchen right after')] },
+            // สแกนสลิปแล้วตรวจไม่ผ่าน แล้วลูกค้ากดแจ้งพนักงาน — จ่ายแล้ว อย่าบอกว่า "ยังไม่ได้ชำระ"
+            HELP: { title: this.t('แจ้งพนักงานแล้ว', 'Our staff has been notified'), ico: 'alert', tone: 'warn',
+                    banner: ['alert', 'cfk-note-warn', this.t('กรุณาไปที่เคาน์เตอร์พร้อมสลิปในมือถือ พนักงานจะตรวจให้แล้วส่งเข้าครัว',
+                                                              'Please go to the counter with the slip on your phone — our staff will check it and send your order to the kitchen')] },
             TIMEOUT: { title: this.t('กรุณาติดต่อพนักงาน', 'Please see our staff'), ico: 'alert', tone: 'warn',
                     banner: ['alert', 'cfk-note-warn', this.t('ออเดอร์นี้ยังไม่ได้ชำระ — ถ้าโอนแล้ว แสดงสลิปที่เคาน์เตอร์',
                                                               'This order is not paid yet — if you already paid, show your slip at the counter')] },

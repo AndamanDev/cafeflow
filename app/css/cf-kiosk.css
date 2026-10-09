@@ -737,28 +737,25 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     border: 4px dashed rgba(255,255,255,.95); border-radius: calc(var(--u) * 1.6);
     box-shadow: 0 0 0 100vmax rgba(0,0,0,.4);
 }
-.cfk-slip-reject {
-    width: min(100%, calc(var(--u) * 64)); display: grid; gap: calc(var(--u) * .6); text-align: left;
-    padding: calc(var(--u) * 1.4) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1.2);
-    background: #FDECEA; border: 2px solid #D92D20; color: #8A1C12;
+/* ── กล่องสแกนสลิปไม่ได้ (กลางจอ) — สลิปไม่ตรง (แดง) · ภาพไม่ชัด (เหลือง) ──
+   เดิมเป็นกล่องสีใต้กล้อง ลูกค้าที่ก้มมองมือถือตัวเองไม่เห็น */
+.cfk-slipdlg { max-width: calc(var(--u) * 52); border-width: 3px; }
+.cfk-slipdlg.is-fail { border-color: #D92D20; }
+.cfk-slipdlg.is-retake { border-color: #E0A100; }
+.cfk-slipdlg-head {
+    display: flex; align-items: center; gap: calc(var(--u) * .8);
+    padding: calc(var(--u) * 1.8) calc(var(--u) * 2.2) calc(var(--u) * 1.2);
+    font-size: calc(var(--u) * 2.2); font-weight: 700;
 }
-.cfk-slip-reject-head {
-    display: flex; align-items: center; gap: calc(var(--u) * .6);
-    font-size: calc(var(--u) * 1.9); font-weight: 700; color: #B42318;
+.cfk-slipdlg.is-fail .cfk-slipdlg-head { background: #FDECEA; color: #B42318; }
+.cfk-slipdlg.is-retake .cfk-slipdlg-head { background: #FFF6E0; color: #8A5A00; }
+.cfk-slipdlg-head .cfk-ic { width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6); flex-shrink: 0; }
+.cfk-slipdlg-img {
+    display: block; width: 100%; max-height: calc(var(--u) * 26); object-fit: contain; background: #111;
 }
-.cfk-slip-reject-head .cfk-ic { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
-.cfk-slip-reject-why { font-size: calc(var(--u) * 1.5); font-weight: 600; }
-.cfk-slip-reject-next { font-size: calc(var(--u) * 1.3); color: #5B2A24; }
-.cfk-slip-retake { background: #FFF6E0; border-color: #E0A100; color: #6B4A00; }
-.cfk-slip-retake .cfk-slip-reject-head { color: #8A5A00; }
-.cfk-slip-retake .cfk-slip-reject-next { color: #6B4A00; }
-
-/* ภาพที่ถ่ายได้ ทับภาพสดขณะรอลูกค้าตัดสินใจถ่ายใหม่ */
-.cfk-cam-preview {
-    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
-    background: #111; z-index: 2;
-}
-.cfk-preview-actions { display: flex; gap: calc(var(--u) * .8); margin-top: calc(var(--u) * .6); }
+.cfk-slipdlg-body { display: grid; gap: calc(var(--u) * .7); padding: calc(var(--u) * 1.6) calc(var(--u) * 2.2) calc(var(--u) * 2); }
+.cfk-slipdlg-why { font-size: calc(var(--u) * 1.7); font-weight: 600; color: #111; }
+.cfk-slipdlg-body p { margin: 0; font-size: calc(var(--u) * 1.4); color: var(--text-muted); }
 
 .cfk-cam-label {
     position: absolute; left: 0; right: 0; bottom: 2%; text-align: center;
@@ -963,7 +960,6 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     width: 100%; height: 100%; aspect-ratio: auto; min-height: 0;
     border: 3px solid var(--primary); border-radius: var(--r-lg);
 }
-.cfk-pay2 .cfk-slip-reject { width: 100%; }
 /* หน้าสแกนสลิป (screen_slip) — ช่อง QR เป็นป้าย "โอนแล้ว" สีเขียว */
 .cfk-pay2 .cfk-pay2-paid {
     border-style: solid; border-color: var(--primary); background: var(--primary-bg);

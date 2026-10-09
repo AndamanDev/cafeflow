@@ -298,8 +298,11 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
         `UPDATE cf_order SET prev_status = status, status = $2,
                 cancel_reason = COALESCE(NULLIF($3,''), cancel_reason),
                 ${stampCol ? stampCol + ' = now(),' : ''}
+                help_at = CASE WHEN $2 IN ('WAITING_PAYMENT','PAYMENT_TIMEOUT','PAYMENT_REVIEW','WAITING_CASH')
+                               THEN help_at END,
                 rev = nextval('global_rev'), updated_at = now()
           WHERE id = $1`, [orderId, newStatus, reason]);
+    // ↑ ออกจากขั้นรอจ่าย/รอตรวจ (จ่ายแล้ว · ยกเลิก · สลิปไม่ผ่าน) = เรื่องที่ลูกค้าเรียกจบแล้ว แถบเตือนที่แคชเชียร์หายเอง
 
     await audit(c, branchId, {
         eventType: 'STATUS_CHANGE', orderId, oldStatus: o.status, newStatus,
@@ -812,6 +815,58 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         });
         publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
         return out;
+    }));
+
+    /**
+     * ลูกค้าที่คีออสก์เรียกพนักงาน (กดแจ้งพนักงาน / สแกนสลิปไม่ผ่าน / หมดเวลาสแกน)
+     * บันทึกไว้ที่ออเดอร์ → แคชเชียร์ขึ้นแถบเตือนค้าง + เสียงซ้ำ จนกว่าจะกดรับทราบ
+     * (เดิมรู้จากสถานะเปลี่ยนเท่านั้น — ออเดอร์ที่รอตรวจอยู่แล้วกดแจ้งพนักงาน สถานะไม่เปลี่ยน แคชเชียร์ไม่รู้)
+     */
+    app.post('/api/orders/:id/call-staff', handle(async (req) => {
+        const ctx = await context(req);
+        if (ctx.user || !ctx.device || ctx.device.kind !== 'KIOSK') {
+            throw new ApiError(403, 'ใช้ได้เฉพาะคีออสก์');
+        }
+        const reason = String((req.body || {}).reason || '').trim().slice(0, 300) || 'ลูกค้ากดแจ้งพนักงาน';
+        await tx(async (c) => {
+            const o = (await c.query(
+                'SELECT * FROM cf_order WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+                [req.params.id, branchId()])).rows[0];
+            if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
+            if (o.kiosk_id !== ctx.device.id) throw new ApiError(403, 'ออเดอร์นี้ไม่ได้สั่งจากเครื่องนี้');
+            await c.query(
+                `UPDATE cf_order SET help_at = now(), help_reason = $2, help_ack_at = NULL, help_ack_by = NULL,
+                        rev = nextval('global_rev'), updated_at = now()
+                  WHERE id = $1`, [o.id, reason]);
+            await audit(c, branchId(), {
+                eventType: 'CALL_STAFF', orderId: o.id, actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
+                deviceId: ctx.deviceId, ip: ctx.ip, reason,
+            });
+            await touch(c, branchId(), 'orders', o.id, 'update');
+        });
+        publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
+        return { ok: true };
+    }));
+
+    /** แคชเชียร์รับทราบว่ามีคนไปดูลูกค้าแล้ว — แถบเตือนและเสียงซ้ำหยุด */
+    app.post('/api/orders/:id/help-ack', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'PAY_RECEIVE');
+        await tx(async (c) => {
+            const r = await c.query(
+                `UPDATE cf_order SET help_ack_at = now(), help_ack_by = $3,
+                        rev = nextval('global_rev'), updated_at = now()
+                  WHERE id = $1 AND branch_id = $2 AND help_at IS NOT NULL AND help_ack_at IS NULL
+                  RETURNING id`, [req.params.id, branchId(), ctx.actorUserId || null]);
+            if (!r.rows.length) return;
+            await audit(c, branchId(), {
+                eventType: 'CALL_STAFF_ACK', orderId: req.params.id, actorKind: ctx.actorKind,
+                actorUserId: ctx.actorUserId, deviceId: ctx.deviceId, ip: ctx.ip,
+            });
+            await touch(c, branchId(), 'orders', req.params.id, 'update');
+        });
+        publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
+        return { ok: true };
     }));
 
     /* ── สถานีทำเสร็จ ── */
