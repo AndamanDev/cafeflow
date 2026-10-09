@@ -32,8 +32,11 @@ const OrdersPage = {
         if (this.state.found) return this.state.found;
         if (this.state.day) return this.state.dayList || [];
         const today = this.today();
+        // "จบแล้ว" นิยามเดียวกับตอนปิดรอบ (closeShift) — ห้ามใช้ CFFlow.isTerminal:
+        // COMPLETED ยังไป REFUNDED ได้จึงไม่นับเป็น terminal → ออเดอร์เมื่อวานที่เสร็จแล้วโผล่เป็น "ค้าง"
+        const DONE = ['COMPLETED', 'CANCELLED', 'VOIDED', 'REFUNDED'];
         return CFStore.all('orders').filter((o) =>
-            !o.businessDate || o.businessDate === today || !CFFlow.isTerminal(o.status));
+            !o.businessDate || o.businessDate === today || !DONE.includes(o.status));
     },
 
     setDay(v) {
