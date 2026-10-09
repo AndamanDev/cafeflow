@@ -49,8 +49,8 @@ const ClosingPage = {
         }).join('');
 
         document.getElementById('pendingNote').textContent =
-            'ยกเลิก = ออเดอร์ที่ยังไม่ได้รับเงิน · ปิดรายการ = จ่ายแล้วและลูกค้ารับของไปแล้ว ' +
-            '· ที่ไม่ได้เคลียร์: ยังไม่จ่ายจะถูกยกไปรอบถัดไป ส่วนที่จ่ายแล้วอยู่ในยอดรอบเดิม';
+            'ต้องจัดการให้หมดก่อนจึงจะปิดรอบได้ · ยกเลิก = ออเดอร์ที่ยังไม่ได้รับเงิน ' +
+            '· ปิดรายการ = จ่ายแล้วและลูกค้ารับของไปแล้ว · รอตรวจสลิป = ยืนยัน/ปฏิเสธที่หน้าแคชเชียร์';
     },
 
     async cancelOne(id) {
@@ -274,6 +274,27 @@ const ClosingPage = {
         const cc = CFKpi.cashControl(shift.id);
         const actual = this.state.actual;
 
+        // ยังมีออเดอร์ไม่จบ → ปิดรอบไม่ได้ (เซิร์ฟเวอร์ก็ปฏิเสธเช่นกัน) บอกว่าค้างอะไรบ้าง แล้วพาไปที่รายการ
+        const pending = this.pendingOrders();
+        if (pending.length) {
+            const count = (list) => pending.filter((o) => list.includes(o.status)).length;
+            const unpaid = count(CLOSE_UNPAID), review = count(CLOSE_REVIEW), paid = count(CLOSE_PAID);
+            const go = await Drawer.confirm({
+                title: 'ยังปิดรอบไม่ได้',
+                message: 'มีออเดอร์ที่ยังไม่จบ ' + pending.length + ' ออเดอร์ — จัดการให้เสร็จก่อน',
+                lines: [
+                    unpaid ? 'ยังไม่ได้ชำระ ' + unpaid + ' ออเดอร์ → รับเงิน หรือกด "ยกเลิก"' : '',
+                    review ? 'รอตรวจสลิป ' + review + ' ออเดอร์ → ยืนยัน/ปฏิเสธที่หน้าแคชเชียร์' : '',
+                    paid ? 'ชำระแล้วแต่ยังไม่ส่งมอบ ' + paid + ' ออเดอร์ → ส่งมอบ หรือกด "ปิดรายการ"' : '',
+                ],
+                note: 'ออเดอร์ทดสอบ/ค้างนาน กด "เคลียร์ทั้งหมด" ได้ในครั้งเดียว (ยกเว้นที่รอตรวจสลิป)',
+                cancelText: 'ปิด', confirmText: 'ไปที่รายการค้าง', danger: false,
+            });
+            const card = document.getElementById('pendingCard');
+            if (go && card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+
         if (actual == null) {
             showToast('กรุณากรอกยอดเงินสดที่นับได้จริงก่อนปิดรอบ', 'error');
             const el = document.getElementById('actualCash');
@@ -282,13 +303,6 @@ const ClosingPage = {
         }
 
         const diff = actual - cc.expected;
-        const pending = this.pendingOrders();
-        const carry = pending.filter((o) => CLOSE_UNPAID.includes(o.status) || CLOSE_REVIEW.includes(o.status)).length;
-        // ชำระแล้ว: ของรอบนี้อยู่ในยอดรอบนี้ · ของรอบก่อนถูกนับในรอบนั้นไปแล้ว อย่าบอกว่าอยู่ในยอดรอบนี้
-        const paid = pending.filter((o) => CLOSE_PAID.includes(o.status));
-        const stay = paid.filter((o) => o.shiftId === shift.id).length;
-        const stayOld = paid.length - stay;
-
         const ok = await Drawer.confirm({
             title: 'ปิดรอบการขาย?',
             message: shift.id,
@@ -298,13 +312,7 @@ const ClosingPage = {
                 'นับได้จริง ' + CFApp.baht(actual),
                 (diff === 0 ? 'เงินสดตรงพอดี' : (diff < 0 ? 'ขาด ' : 'เกิน ') + CFApp.baht(Math.abs(diff))),
             ],
-            note: pending.length
-                ? 'ยังมี ' + pending.length + ' ออเดอร์ที่ยังไม่จบ' +
-                  (carry ? ' · ยังไม่ชำระ ' + carry + ' ออเดอร์จะถูกยกไปรอบถัดไป' : '') +
-                  (stay ? ' · ชำระแล้ว ' + stay + ' ออเดอร์อยู่ในยอดรอบนี้ ทำต่อได้ตามปกติ' : '') +
-                  (stayOld ? ' · ชำระแล้วจากรอบก่อน ' + stayOld + ' ออเดอร์ (นับในยอดรอบนั้นไปแล้ว)' : '') +
-                  ' — ถ้าไม่ต้องการ ให้กด "เคลียร์ทั้งหมด" ก่อน'
-                : 'ระบบจะเปิดรอบใหม่ให้อัตโนมัติ',
+            note: 'ระบบจะเปิดรอบใหม่ให้อัตโนมัติ',
             confirmText: 'ปิดรอบ', danger: true,
         });
         if (!ok) return;

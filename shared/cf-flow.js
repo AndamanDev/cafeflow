@@ -21,7 +21,8 @@
         // → WAITING_CASH = ลูกค้าเปลี่ยนใจจ่ายเงินสด (ไม่มีแอปธนาคาร/เน็ตมือถือ) — เซิร์ฟเวอร์ปิด QR และเปลี่ยนวิธีจ่ายให้
         WAITING_PAYMENT: ['PAID', 'PAYMENT_REVIEW', 'PAYMENT_TIMEOUT', 'WAITING_CASH', 'CANCELLED'],
         // หมดเวลาแล้วลูกค้าขอ QR ใหม่ที่คีออสก์ → กลับไปรอชำระ (ไม่ค้างในแท็บรอตรวจของแคชเชียร์)
-        PAYMENT_TIMEOUT: ['WAITING_PAYMENT', 'PAYMENT_REVIEW', 'WAITING_CASH', 'CANCELLED'],
+        // → PAID / PAYMENT_FAILED = แคชเชียร์ตัดสินจากแผงตรวจสอบ (ลูกค้ามาเคาน์เตอร์โดยไม่มีสลิปให้สแกน) — ต้องมีเหตุผล + ติดเพดานยืนยันแทน
+        PAYMENT_TIMEOUT: ['WAITING_PAYMENT', 'PAYMENT_REVIEW', 'WAITING_CASH', 'PAID', 'PAYMENT_FAILED', 'CANCELLED'],
         PAYMENT_REVIEW:  ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
         PAYMENT_FAILED:  ['WAITING_PAYMENT', 'CANCELLED'],
         PAID:            ['SENT_TO_KITCHEN', 'VOIDED', 'REFUNDED'],

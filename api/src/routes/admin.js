@@ -7,6 +7,7 @@
 const path = require('path');
 const SHARED = path.resolve(__dirname, '..', '..', '..', 'shared');
 const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
+const { CF_STATUS } = require(path.join(SHARED, 'cf-consts.js'));
 
 const { publish } = require('./stream');
 const { audit, touch, ApiError, businessDate } = require('./orders');
@@ -234,6 +235,19 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
 
     const actual = Number(body.actualCash);
     if (!isFinite(actual) || actual < 0) throw new ApiError(400, 'ต้องกรอกยอดเงินสดที่นับได้จริง');
+
+    // ห้ามปิดรอบถ้ายังมีออเดอร์ไม่จบ (ทุกสถานะ ทุกรอบ) — ต้องจัดการให้เสร็จ/ยกเลิกก่อน
+    // ไม่งั้นออเดอร์ค้างถูกยกข้ามรอบไปเรื่อย ๆ และยอดเงินของแต่ละรอบอธิบายไม่ได้
+    const pending = (await c.query(
+        `SELECT status, count(*)::int AS n FROM cf_order
+          WHERE branch_id = $1 AND status NOT IN ('COMPLETED','CANCELLED','VOIDED','REFUNDED')
+          GROUP BY status ORDER BY n DESC`, [branchId])).rows;
+    if (pending.length) {
+        const total = pending.reduce((s, r) => s + r.n, 0);
+        const parts = pending.map((r) => ((CF_STATUS[r.status] || {}).label || r.status) + ' ' + r.n);
+        throw new ApiError(409,
+            `ยังมีออเดอร์ที่ยังไม่จบ ${total} ออเดอร์ (${parts.join(' · ')}) — จัดการให้เสร็จก่อนปิดรอบ`);
+    }
 
     // เงินสดที่ควรมีคิดจากฐาน ไม่เชื่อตัวเลขที่หน้าจอส่งมา
     const cash = Number((await c.query(

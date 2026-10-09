@@ -331,6 +331,34 @@ const CFKioskArt = {
         frappe:   '<path d="M5 8h14l-1.5 12.1a1 1 0 0 1-1 .9h-9a1 1 0 0 1-1-.9z"/><path d="M4 8h16M12 8V3l4-1"/>',
     },
 
+    /** ภาพแนะนำข้าง QR: มือถือแสดงสลิป (แถบเขียว · เครื่องหมายถูก · QR มุมล่าง) อยู่ในกรอบเล็ง — วางบนพื้นเข้ม */
+    slipHint() {
+        return `<svg class="cfk-slip-art" viewBox="0 0 160 150" aria-hidden="true">
+            <g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="3" stroke-linecap="round">
+                <path d="M22 34V20a6 6 0 0 1 6-6h14M118 14h14a6 6 0 0 1 6 6v14M138 116v14a6 6 0 0 1-6 6h-14M42 136H28a6 6 0 0 1-6-6v-14"/>
+            </g>
+            <rect x="48" y="12" width="64" height="126" rx="10" fill="#1F2937" stroke="#4B5563" stroke-width="2"/>
+            <rect x="53" y="22" width="54" height="106" rx="4" fill="#fff"/>
+            <rect x="53" y="22" width="54" height="34" rx="4" fill="#16A34A"/>
+            <rect x="53" y="44" width="54" height="12" fill="#16A34A"/>
+            <circle cx="80" cy="39" r="9" fill="#fff"/>
+            <path d="m75.5 39 3 3 6-6" fill="none" stroke="#16A34A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <g fill="#D1D5DB">
+                <rect x="60" y="64" width="40" height="4" rx="2"/>
+                <rect x="60" y="73" width="30" height="4" rx="2"/>
+                <rect x="60" y="82" width="36" height="4" rx="2"/>
+                <rect x="60" y="91" width="22" height="4" rx="2"/>
+            </g>
+            <g fill="#111827">
+                <rect x="85" y="104" width="18" height="18" rx="1.5" fill="#fff" stroke="#111827" stroke-width="1.6"/>
+                <rect x="88" y="107" width="5" height="5"/><rect x="95" y="107" width="5" height="5"/>
+                <rect x="88" y="114" width="5" height="5"/><rect x="95.5" y="114.5" width="2" height="2"/>
+                <rect x="98" y="117" width="2" height="2"/>
+            </g>
+            <rect x="72" y="15.5" width="16" height="3" rx="1.5" fill="#4B5563"/>
+        </svg>`;
+    },
+
     /** คืน <svg> เป็น string — ขนาดคุมด้วย CSS ผ่านคลาส */
     icon(name, cls) {
         const d = this.ICON[name];

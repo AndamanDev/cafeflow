@@ -323,7 +323,21 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
 
 async function settlePayment(c, branchId, order, opts, ctx) {
     const amount = Number(order.total);
+    if (opts.method != null && !['CASH', 'QR'].includes(opts.method)) {
+        throw new ApiError(400, 'วิธีชำระไม่ถูกต้อง');
+    }
     const method = opts.method || order.payment_method || 'CASH';
+
+    // ลูกค้าเปลี่ยนวิธีจ่ายที่เคาน์เตอร์ (เช่น QR → จ่ายเงินสดแทน) — ต้องตามไปทั้งออเดอร์และการชำระ
+    // ไม่งั้นเงินสดในลิ้นชักไม่เข้า "เงินสดที่ควรมี" ตอนปิดรอบ และใบเสร็จพิมพ์วิธีจ่ายผิด
+    if (method !== order.payment_method) {
+        await c.query('UPDATE cf_order SET payment_method = $2 WHERE id = $1', [order.id, method]);
+        if (method === 'CASH') {
+            // ปิด QR ที่ยังค้าง — โอนเข้ามาทีหลังจะไม่ถูกจับคู่กับออเดอร์ที่รับเงินสดไปแล้ว
+            await c.query('UPDATE payment_qr SET cancelled_at = now() WHERE order_id = $1 AND cancelled_at IS NULL',
+                [order.id]);
+        }
+    }
 
     // เพดานการยืนยันแทน — เช็คที่เซิร์ฟเวอร์ ไม่ใช่แค่ disable ปุ่ม
     if (opts.override) {
@@ -352,11 +366,11 @@ async function settlePayment(c, branchId, order, opts, ctx) {
                     tx_at = COALESCE(tx_at, now()), verified_by = $7,
                     override_by = $8, override_reason = $9,
                     override_at = CASE WHEN $8::text IS NULL THEN NULL ELSE now() END,
-                    updated_at = now()
+                    method = $10, updated_at = now()
               WHERE id = $1`,
             [paymentId, amount, received, change, opts.ref || null, opts.bank || null,
              ctx.actorUserId || 'SYSTEM',
-             opts.override ? ctx.actorUserId : null, opts.override ? opts.reason : null]);
+             opts.override ? ctx.actorUserId : null, opts.override ? opts.reason : null, method]);
     } else {
         await c.query(
             `INSERT INTO payment (id, branch_id, order_id, method, amount, received,

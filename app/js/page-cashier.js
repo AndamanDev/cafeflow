@@ -1,4 +1,8 @@
 /** CafeFlow — แคชเชียร์ (§12, §16, §24) */
+
+/** เหตุผลที่แปลว่ารับเป็นเงินสด — ส่ง method: 'CASH' ไปด้วย */
+const CASH_INSTEAD_REASON = 'ลูกค้าชำระเงินสดแทน';
+
 const CashierPage = {
 
     // view state เท่านั้น — ไม่เก็บข้อมูล เพื่อให้ remote change re-render ได้โดยไม่เสีย tab/คำค้น
@@ -338,7 +342,7 @@ const CashierPage = {
 
                 <div class="ds-section-label" style="margin-top:16px">ตัดสินใจ — เลือกเหตุผล 1 ข้อ</div>
                 <div class="ds-chips" id="ovChips">
-                    ${['เงินเข้าบัญชีร้านแล้ว ยอดตรง', 'ตรวจสลิปจากมือถือลูกค้าแล้ว ยอดตรง', 'ลูกค้าชำระเงินสดแทน']
+                    ${['เงินเข้าบัญชีร้านแล้ว ยอดตรง', 'ตรวจสลิปจากมือถือลูกค้าแล้ว ยอดตรง', CASH_INSTEAD_REASON]
                         .map((r) => `<button type="button" class="ds-chip-suggest"
                             onclick="CashierPage.setReason('${e(r)}')">${e(r)}</button>`).join('')}
                 </div>
@@ -590,6 +594,8 @@ const CashierPage = {
 
     onReason(v) {
         this._review.reason = v;
+        // เลือก "ลูกค้าชำระเงินสดแทน" = รับเงินสดเข้าลิ้นชัก → ต้องบันทึกเป็นเงินสด ไม่ใช่ QR
+        this._review.method = v.trim() === CASH_INSTEAD_REASON ? 'CASH' : null;
         const { overLimit } = this._review;
         const ready = !!v.trim();
         const btn = document.getElementById('btnOverride');
@@ -609,7 +615,7 @@ const CashierPage = {
     },
 
     async confirmOverride() {
-        const { orderId, reason } = this._review;
+        const { orderId, reason, method } = this._review;
         if (!reason.trim()) return;
         if (document.activeElement) document.activeElement.blur();
         this.stopSlipCam();                     // drawer ยืนยันซ้อนทับ — กล้องค้างไว้ข้างใต้ไม่มีประโยชน์
@@ -618,13 +624,14 @@ const CashierPage = {
         const ok = await Drawer.confirm({
             title: 'ยืนยันการชำระแทนระบบ?',
             message: 'ออเดอร์ ' + o.orderNo + ' · ' + CFApp.baht(o.total),
-            lines: [reason],
+            lines: [reason, method === 'CASH' ? 'บันทึกเป็นเงินสด — นับรวมใน "เงินสดที่ควรมี" ตอนปิดรอบ' : ''],
             note: 'ชื่อของคุณจะถูกบันทึกเป็นผู้ยืนยัน',
             confirmText: 'ยืนยัน', danger: true,
         });
         if (!ok) return;
 
-        if (await CFOrders.transition(orderId, 'PAID', { reason, override: true })) {
+        const opts = method ? { reason, override: true, method } : { reason, override: true };
+        if (await CFOrders.transition(orderId, 'PAID', opts)) {
             Drawer.close();
             showToast('ยืนยันการชำระ ' + o.orderNo + ' แล้ว', 'success');
         }

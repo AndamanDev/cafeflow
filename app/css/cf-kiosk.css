@@ -714,11 +714,6 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 /* ── สแกนสลิปจากจอมือถือ ──
    ชิดบนแทนกึ่งกลาง: กล้องติดขอบบนของเครื่อง ภาพต้องอยู่ใกล้กล้องที่สุด (ระดับสายตา) */
 .cfk-slip { justify-content: flex-start; padding-top: calc(var(--u) * 1); }
-.cfk-slip-hint {
-    display: flex; align-items: center; gap: calc(var(--u) * .6);
-    font-size: calc(var(--u) * 1.5); font-weight: 700; color: var(--text-primary);
-}
-.cfk-slip-hint .cfk-ic { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
 .cfk-cam {
     position: relative; width: min(100%, calc(var(--u) * 64)); aspect-ratio: 4 / 3;
     border-radius: calc(var(--u) * 1.6); overflow: hidden; background: #111;
@@ -932,20 +927,19 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     font-size: calc(var(--u) * 4); font-weight: 800; color: #111; line-height: 1.1;
     font-variant-numeric: tabular-nums;
 }
-.cfk-pay2-guide {
-    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-    gap: calc(var(--u) * .8); padding: calc(var(--u) * 1.4) calc(var(--u) * 1.2);
-    border-radius: var(--r-lg); color: var(--primary-dark); text-align: center; min-width: 0;
-    border: 0.8px solid var(--primary-border);
-    background: radial-gradient(120% 70% at 50% 100%, #DDF5E7 0 45%, transparent 46%), var(--primary-bg);
+/* แผงแนะนำยกสลิป — พื้นเข้มให้มือถือในภาพกับกรอบเล็งสีขาวเด่น เหมือนภาพที่ลูกค้าจะเห็นในกล้อง */
+.cfk-slip-hint {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: calc(var(--u) * 1.2); padding: calc(var(--u) * 1.6);
+    background: linear-gradient(160deg, #374151, #1F2937);
+    border-radius: calc(var(--u) * 1.6); color: #fff; text-align: center; min-width: 0;
 }
-.cfk-pay2-guide > b { font-size: calc(var(--u) * 2); font-weight: 800; }
-.cfk-pay2-art { width: 100%; flex: 1; min-height: 0; }
-.cfk-pay2-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--u) * .5); }
-.cfk-pay2-chips span {
+.cfk-slip-title { font-size: calc(var(--u) * 1.7); font-weight: 700; }
+.cfk-slip-art { width: 100%; max-width: calc(var(--u) * 20); height: auto; display: block; }
+.cfk-slip-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--u) * .6); }
+.cfk-slip-chips span {
     padding: calc(var(--u) * .4) calc(var(--u) * 1); border-radius: 999px;
-    background: #fff; color: var(--text); border: 0.8px solid var(--primary-border);
-    font-size: calc(var(--u) * 1.3); font-weight: 700; white-space: nowrap;
+    background: rgba(255,255,255,.14); font-size: calc(var(--u) * 1.15); white-space: nowrap;
 }
 .cfk-pay2-arrow {
     display: flex; flex-direction: column; align-items: center;

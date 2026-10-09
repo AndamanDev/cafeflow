@@ -1021,10 +1021,7 @@ const CFKiosk = {
                         <span>${this.t('เหลือเวลา', 'Time left')} <b class="cfk-countdown" id="cfkLeft">${sec}</b> ${this.t('วินาที', 'sec')}</span>
                     </div>
                 </div>
-                <div class="cfk-pay2-guide">
-                    <b>${this.t('โอนแล้ว ยกสลิปแบบนี้', 'Paid? Show your slip like this')}</b>
-                    ${this.slipGuideSvg()}
-                </div>
+                ${this.slipHintHtml(this.t('โอนแล้ว ยกสลิปแบบนี้', 'Paid? Show your slip like this'))}
             </div>
             <div class="cfk-pay2-cam">
                 <div class="cfk-cam" id="cfkCam">
@@ -1044,22 +1041,17 @@ const CFKiosk = {
         </div>`;
     },
 
-    /** ภาพแนะนำ: มือถือแสดงสลิป (แถบเขียว · เครื่องหมายถูก · QR มุมล่าง) อยู่ในกรอบเล็ง */
-    slipGuideSvg() {
-        return `<svg class="cfk-pay2-art" viewBox="0 0 200 130" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round">
-                <path d="M46 30V18h14M154 30V18h-14M46 100v12h14M154 100v12h-14"/>
-            </g>
-            <rect x="74" y="10" width="52" height="108" rx="9" fill="#1F2937"/>
-            <rect x="78" y="16" width="44" height="96" rx="5" fill="#fff"/>
-            <rect x="78" y="16" width="44" height="10" rx="3" fill="#22C55E"/>
-            <path d="M94 40l5 5 9-10" fill="none" stroke="#22C55E" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <g fill="#D1D5DB"><rect x="84" y="54" width="32" height="3" rx="1.5"/><rect x="84" y="61" width="26" height="3" rx="1.5"/>
-               <rect x="84" y="68" width="30" height="3" rx="1.5"/></g>
-            <rect x="84" y="78" width="20" height="4" rx="2" fill="#111827"/>
-            <g fill="#111827"><rect x="104" y="90" width="14" height="14" rx="1.5"/></g>
-            <g fill="#fff"><rect x="106.5" y="92.5" width="4" height="4"/><rect x="111.5" y="97.5" width="4" height="4"/></g>
-        </svg>`;
+    /** แผงแนะนำข้าง QR / ข้างตัวนับหน้าสแกนสลิป: หัวข้อ · ภาพมือถือแสดงสลิป · ชิปวิธียก */
+    slipHintHtml(title) {
+        return `<div class="cfk-slip-hint">
+                    <div class="cfk-slip-title">${title}</div>
+                    ${CFKioskArt.slipHint()}
+                    <div class="cfk-slip-chips">
+                        <span>${this.t('หันจอสลิปเข้ากล้อง', 'Face the slip to the camera')}</span>
+                        <span>${this.t('ห่างราว 1 คืบ', 'About a hand-span away')}</span>
+                        <span>${this.t('ให้เห็น QR มุมสลิป', 'Keep the corner QR visible')}</span>
+                    </div>
+                </div>`;
     },
 
     /**
@@ -1138,10 +1130,7 @@ const CFKiosk = {
                         <span>${this.t('เหลือเวลา', 'Time left')} <b class="cfk-countdown" id="cfkSlipLeft">${this.cfg().kioskSlipScanSec || 90}</b> ${this.t('วินาที', 'sec')}</span>
                     </div>
                 </div>
-                <div class="cfk-pay2-guide">
-                    <b>${this.t('ยกสลิปแบบนี้', 'Show your slip like this')}</b>
-                    ${this.slipGuideSvg()}
-                </div>
+                ${this.slipHintHtml(this.t('ยกสลิปแบบนี้', 'Show your slip like this'))}
             </div>
             <div class="cfk-pay2-cam">
                 <div class="cfk-cam" id="cfkCam">
