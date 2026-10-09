@@ -5,10 +5,11 @@
  * ลบ:     ออเดอร์ทั้งหมด + ของที่ผูกกับออเดอร์ · รอบขาย · เลขคิว · change_log · audit_log
  *         session ที่หมดอายุ/ถูกยกเลิก (คนที่ล็อกอินอยู่ไม่หลุด) · ภาพสลิปใน data/slips
  *
+ *   ดับเบิลคลิก ops\clear-sales.bat          แสดงจำนวน → พิมพ์ YES → สำรอง → ลบ (วิธีที่แนะนำ)
  *   node src/db/clear-transactions.js         ดูว่าจะลบอะไรบ้าง (ไม่ลบจริง)
  *   node src/db/clear-transactions.js --yes   ลบจริง — ต้องมีไฟล์สำรองอายุไม่เกิน 15 นาทีใน backup/
  *
- * ⚠️ ลบแล้วไม่มีปุ่มย้อน ทางเดียวคือกู้จากไฟล์สำรอง (ops/restore.sh)
+ * ⚠️ ลบแล้วไม่มีปุ่มย้อน ทางเดียวคือกู้จากไฟล์สำรองใน backup/ (pg_restore)
  *    หลังล้าง ยังไม่มีรอบเปิด — ผู้จัดการต้องกด "เปิดรอบ" ที่หน้าปิดรอบก่อนคีออสก์จะรับออเดอร์
  */
 'use strict';
@@ -61,14 +62,17 @@ async function main() {
     console.log(`  ${'ภาพสลิป (ไฟล์)'.padEnd(22)} ${countSlipFiles(SLIP_DIR)}`);
 
     if (!yes) {
-        console.log('\nยังไม่ได้ลบอะไร — สำรองข้อมูลก่อน (ops/backup.sh) แล้วรันใหม่พร้อม --yes');
+        // ops\clear-sales.bat เรียกขั้นนี้ก่อนถาม YES — มีคำแนะนำของตัวเองแล้ว ไม่ต้องพิมพ์ซ้ำ
+        if (!process.argv.includes('--quiet-hint')) {
+            console.log('\nยังไม่ได้ลบอะไร — ใช้ ops\\clear-sales.bat (สำรองให้ก่อนลบ) หรือ node ops/backup.js แล้วรันใหม่พร้อม --yes');
+        }
         return;
     }
 
     const b = latestBackup();
     if (!b || Date.now() - b.t > BACKUP_MAX_AGE_MS) {
         console.error('\n!! ไม่พบไฟล์สำรองที่ทำภายใน 15 นาที ใน ' + BACKUP_DIR);
-        console.error('   รัน ops/backup.sh ก่อน (Git Bash) แล้วค่อยล้าง');
+        console.error('   รัน node ops/backup.js ก่อน (หรือใช้ ops\\clear-sales.bat ที่สำรองให้เอง) แล้วค่อยล้าง');
         process.exitCode = 1;
         return;
     }
@@ -84,7 +88,7 @@ async function main() {
             fs.rmSync(path.join(SLIP_DIR, ent), { recursive: true, force: true });
         }
     }
-    console.log('ล้างเรียบร้อย — เปิด npm start แล้วกด "เปิดรอบ" ที่หน้าปิดรอบ ก่อนคีออสก์จะรับออเดอร์');
+    console.log('ล้างเรียบร้อย — รีเฟรชทุกจอ แล้วกด "เปิดรอบ" ที่หน้าปิดรอบ ก่อนคีออสก์จะรับออเดอร์');
 }
 
 main()
