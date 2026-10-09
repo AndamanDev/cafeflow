@@ -303,15 +303,41 @@
     const pad = (n) => String(n).padStart(2, '0');
 
     /**
+     * ตัดแถบแจ้งเตือนของมือถือที่เด้งทับหัวสลิป — "รับเงินสำเร็จ · ได้รับ +1.00 บาท เข้าพร้อมเพย์ จากบัญชี… · ตอนนี้ · XXX-X-XX118-1"
+     * (เจอจริง 09/10/2569: แอปอีกธนาคารเด้งตอนลูกค้ายื่นสลิป → เลขบัญชีในแถบถูกนับเป็น "คนโอน"
+     *  คนโอนจริงเลื่อนไปเป็น "ผู้รับ" แล้วตัดสินว่าไม่ใช่บัญชีร้าน · และถ้าอ่านคำว่า "จำนวน" ไม่ออก
+     *  ยอดในแถบ (อาจเป็นเงินก้อนอื่นที่เข้าพอดี) จะถูกหยิบเป็นยอดสลิป)
+     * เริ่มตัดเฉพาะเมื่อเจอหัวแจ้งเตือนชัด ๆ (ได้รับ +… / รับเงินสำเร็จ — สลิปโอนจริงไม่มีคำพวกนี้)
+     * แล้วตัดบรรทัดต่อจากนั้นไม่เกิน 3 บรรทัดที่เป็นเนื้อแถบ (เข้าพร้อมเพย์ / จากบัญชี / ตอนนี้) จนถึงเลขบัญชีปิดหลักในแถบ
+     * คำว่า "จากบัญชี" ลำพังไม่ตัด — สลิปบางธนาคารใช้คำนี้ในเนื้อสลิปเอง
+     */
+    const BANNER_HEAD = /ได้รับ\s*\+|^\s*\+\s*[\d,]+\.\d{2}|รับเงินสำเร็จ/;
+    const BANNER_BODY = /ได้รับ\s*\+|เข้าพร้อมเพย์|จากบัญ[ชซ]ี|^\s*(?:ตอนนี้|now|เมื่อสักครู่)\s*$/i;
+    function stripBanner(txt) {
+        const out = [];
+        let until = -1;
+        txt.forEach((ln, i) => {
+            if (BANNER_HEAD.test(ln)) { until = i + 3; return; }
+            if (i <= until) {
+                if (MASKED.test(ln)) { until = -1; return; }      // เลขบัญชีในแถบ = ปลายแถบ
+                if (BANNER_BODY.test(ln)) { until = Math.max(until, i + 2); return; }
+            }
+            out.push(ln);
+        });
+        return out;
+    }
+
+    /**
      * เทียบข้อความจาก OCR กับออเดอร์
      *   lines     [{ text }] หรือ [string] จาก OCR
      *   expect    { total, scannedAt, orderAt }
      * คืน { amount, date, dateText, checks: { amount, date }, notes[], verdict }
      *   checks.* = 'PASS' | 'FAIL' | 'UNKNOWN' · verdict = PASS | WARN | FAIL
      */
+
     function evaluate(lines, expect) {
-        const txt = (lines || []).map((l) => (typeof l === 'string' ? l : l.text || ''))
-            .map((s) => s.normalize('NFC').replace(/ํา/g, 'ำ'));   // ํา → ำ
+        const txt = stripBanner((lines || []).map((l) => (typeof l === 'string' ? l : l.text || ''))
+            .map((s) => s.normalize('NFC').replace(/ํา/g, 'ำ')));   // ํา → ำ
         const notes = [];
         const checks = { amount: 'UNKNOWN', date: 'UNKNOWN' };
 
@@ -405,5 +431,5 @@
                  sender: parties.sender, receiver: parties.receiver };
     }
 
-    return { CFSlipRules: { evaluate, findAmount, findDate, findParties, receiverCheck, nameMatch, bankOf, refDate } };
+    return { CFSlipRules: { evaluate, findAmount, findDate, findParties, receiverCheck, nameMatch, bankOf, refDate, stripBanner } };
 });

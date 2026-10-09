@@ -1410,8 +1410,9 @@ const CFKiosk = {
                 }
                 return;
             }
-            // สลิปใบที่เพิ่งตรวจแล้วไม่ผ่าน — ลูกค้ายังถือค้างไว้ ไม่ต้องส่งซ้ำ ย้ำข้อความเดิมพอ
-            if (slip.ref === this._rejectedRef) return;
+            // สลิปใบที่เพิ่งตรวจแล้วไม่ผ่าน — ลูกค้ายังถือค้างไว้ พัก 6 วิก่อนรับใบเดิมอีกรอบ (ไม่ยิงซ้ำรัว ๆ)
+            // เดิมห้ามใบเดิมตลอดไป: กล้องอ่านพลาดครั้งเดียว (ภาพเบลอ/กลับด้าน → ยอด 0.27) ลูกค้าก็ติดอยู่หน้าเครื่อง
+            if (slip.ref === this._rejectedRef && Date.now() - this._rejectedAt < 6000) return;
             this.submitSlip(code.data, video);
         }, 200);
     },
@@ -1549,7 +1550,11 @@ const CFKiosk = {
             const res = r.slipId ? await this.waitSlipCheck(r.slipId, r.bank) : null;
             if (res && res.verdict === 'FAIL') {
                 // ยอด/วันที่ไม่ตรง — บอกลูกค้าตรงนี้ ให้สแกนใบที่ถูกต้องหรือแจ้งพนักงาน (กล้องยังเปิดอยู่)
+                // ใบเดิมไม่ผ่านครบ 3 ครั้ง → ส่งให้แคชเชียร์ตัดสิน (ออเดอร์รอตรวจอยู่แล้ว) ไม่ให้วนอยู่หน้าเครื่อง
+                this._rejectedN = r.ref === this._rejectedRef ? (this._rejectedN || 1) + 1 : 1;
                 this._rejectedRef = r.ref;
+                this._rejectedAt = Date.now();
+                if (this._rejectedN >= 3) { this.stopCam(); this.go('done', { kind: 'REVIEW' }); return; }
                 const why = (res.notes || []).filter((n, i) =>
                     (i === 0 && res.checks.amount === 'FAIL') || (i === 1 && res.checks.date === 'FAIL') ||
                     (i === 2 && res.checks.receiver === 'FAIL'));

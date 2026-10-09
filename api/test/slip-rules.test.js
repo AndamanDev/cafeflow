@@ -254,3 +254,21 @@ test('บรรทัดเดี่ยวยังมาก่อนคู่�
     const lines = ['โอนเงินสำเร็จ', '25 ก.ย. 69 11:54 น.', 'นาย ก', '12 บาท', '2569 10:00'];
     assert.deepStrictEqual(CFSlipRules.findDate(lines), { y: 2026, m: 9, d: 25, hh: 11, mm: 54 });
 });
+
+test('แถบแจ้งเตือนมือถือเด้งทับหัวสลิป — ไม่นับเลขบัญชี/ยอดในแถบ', () => {
+    // ภาพจริง 09/10/2569: แอปธนาคารอื่นเด้ง "รับเงินสำเร็จ" ทับ K PLUS → เดิมได้คนโอน "ตอนนี้ · 1181" ผู้รับเลื่อนผิด
+    const lines = ['15:37', 'แร62', 'รับเงินสำเร็จ', 'ได้รับ +1.00 บาท เข้าพร้อมเพย์ จากบัญซี กสิกรไทย', 'ตอนนี้',
+        'XXX-X-XX118-1', 'เอนเงนสาเรจ', '9 ต.ค. 69 15:37 น.', 'K+', 'นาย อนุวัฒน์ จ', 'ธ.กสิกรไทย', 'xxx-x-x3118-x',
+        'นายอนุวัฒน์ จันทร์รัศมี', 'รหัสพร้อมเพย์', 'XxX-xxx-8987', 'จำนวน:', '1.00 บาท', 'คาธรรมเนียม:', '0.00 บาท'];
+    const r = CFSlipRules.evaluate(lines, {
+        total: 1, orderAt: '2026-10-09T08:30:00Z', scannedAt: '2026-10-09T08:38:00Z', qrAt: '2026-10-09T08:35:00Z',
+        shop: { name: '', accounts: ['0801868987'] },
+    });
+    assert.strictEqual(r.sender.tail, '3118');
+    assert.strictEqual(r.receiver.tail, '8987');
+    assert.strictEqual(r.checks.receiver, 'PASS');
+    assert.strictEqual(r.verdict, 'PASS');
+    // สลิปที่ไม่มีแถบ — ไม่ตัดอะไร (คำว่า "จากบัญชี" ในเนื้อสลิปเองต้องอยู่ครบ)
+    const plain = ['โอนเงินสำเร็จ', 'โอนจากบัญชี', 'นาย ก', 'xxx-x-x1234-x'];
+    assert.deepStrictEqual(CFSlipRules.stripBanner(plain), plain);
+});

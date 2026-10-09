@@ -202,19 +202,25 @@ async function submitSlip(c, branchId, orderId, payload, ctx, image) {
         return { ok: false, status: 409, error: 'สลิปนี้ถูกใช้ชำระออเดอร์อื่นไปแล้ว กรุณาติดต่อพนักงาน' };
     }
 
-    // สลิปเดิมของออเดอร์เดิมสแกนซ้ำพร้อมภาพใหม่ = ลูกค้าถ่ายใหม่เพราะภาพแรกอ่านไม่ออก
-    // เปลี่ยนเป็นภาพใหม่แล้วอ่านอีกรอบ — เฉพาะเมื่อรอบก่อนอ่านไม่ออก (ไม่ทับผลที่ตัดสินไปแล้ว)
+    // สลิปเดิมของออเดอร์เดิมสแกนซ้ำพร้อมภาพใหม่ = ลูกค้าถ่ายใหม่เพราะภาพแรกอ่านไม่ออก/อ่านพลาด
+    // เปลี่ยนเป็นภาพใหม่แล้วอ่านอีกรอบ — รวมผล "ไม่ผ่าน" ด้วย (เดิมไม่รวม: OCR อ่านพลาดครั้งเดียว
+    // เช่นภาพกลับด้านได้ยอด 0.27 สลิปจริงก็ติด FAIL ตลอดไป ตรวจใหม่ไม่ได้อีกเลย)
+    // ห้ามทับเมื่อแคชเชียร์ตัดสินแล้ว (review_outcome) หรือกำลังอ่านอยู่ · ภาพเดิมเก็บไว้ใน checks.prevImages เป็นหลักฐาน
     if (dup && dup.order_id === o.id && image) {
-        const prev = (await c.query('SELECT ocr_status, verdict FROM payment_slip WHERE id = $1', [dup.id])).rows[0];
-        if (prev && (prev.ocr_status === 'ERROR' || (prev.ocr_status === 'DONE' && prev.verdict === 'WARN'))) {
+        const prev = (await c.query('SELECT ocr_status, verdict, review_outcome, image_path FROM payment_slip WHERE id = $1',
+            [dup.id])).rows[0];
+        if (prev && !prev.review_outcome &&
+            (prev.ocr_status === 'ERROR' || (prev.ocr_status === 'DONE' && ['WARN', 'FAIL'].includes(prev.verdict)))) {
             let img = null;
             try { img = saveSlipImage(image); } catch (err) { console.error('[slip] เก็บภาพสลิปไม่สำเร็จ:', err.message); }
             if (img) {
                 await c.query(
                     `UPDATE payment_slip SET image_path = $2, sha256 = $3, ocr_status = 'QUEUED',
-                            verdict = 'WARN', checks = checks - 'ocr', parsed_amount = NULL, parsed_tx_at = NULL
+                            verdict = 'WARN', checks = (checks - 'ocr') || jsonb_build_object('prevImages',
+                                COALESCE(checks->'prevImages', '[]'::jsonb) || to_jsonb($4::text)),
+                            parsed_amount = NULL, parsed_tx_at = NULL
                       WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM payment_slip WHERE sha256 = $3)`,
-                    [dup.id, img.rel, img.sha]);
+                    [dup.id, img.rel, img.sha, prev.image_path || '']);
             }
         }
     }
