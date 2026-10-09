@@ -17,13 +17,13 @@ const OCR_TIMEOUT_MS = 60000;          // ใบแรกหลังเปิ�
 const IDLE_MS = 2000;
 const DOWN_BACKOFF_MS = 30000;         // ocr-svc ไม่ตอบ — ไม่ต้องยิงถี่
 
-async function callOcr(url, file) {
+async function callOcr(url, file, flip) {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), OCR_TIMEOUT_MS);
     try {
         const r = await fetch(url.replace(/\/$/, '') + '/ocr', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: file }), signal: ctl.signal,
+            body: JSON.stringify({ path: file, flip: !!flip }), signal: ctl.signal,
         });
         const body = await r.json().catch(() => ({}));
         if (!r.ok) { const e = new Error(body.error || 'OCR ' + r.status); e.bad = true; throw e; }
@@ -71,10 +71,24 @@ async function processOne(pool, url, onDone) {
             [o.id])).rows[0] || {};
         const shop = await shopAccount(pool, o.branch_id);
         for (const t of qr.targets || []) if (t) shop.accounts.push(t);
-        const res = CFSlipRules.evaluate(out.lines || [], {
+        const expect = {
             total: Number(o.total), orderAt: o.created_at, scannedAt: slip.created_at,
             qrAt: qr.first_at || null, shop, ref: slip.parsed_ref, bankCode: slip.parsed_bank,
-        });
+        };
+        let res = CFSlipRules.evaluate(out.lines || [], expect);
+        // ภาพกลับด้านแบบกระจก (กล้องกลับภาพมาเอง / ตั้งสวิตช์ "พลิกภาพคืน" ผิด) อ่านไม่ออกทั้งใบ
+        // ขาดยอดหรือวันที่ → ลองพลิกซ้ายขวาแล้วอ่านใหม่ เลือกผลที่อ่านได้มากกว่า
+        // (เจอจริง 09/10/2569: ภาพจากคีออสก์ 2 ใบกลับด้าน · ใบหนึ่ง OCR มั่วได้ "0.27" จึงต้องดูวันที่ด้วย
+        //  ไม่ใช่รอเฉพาะตอนไม่เจออะไรเลย · ภาพปกติที่พลิกแล้วอ่านไม่ได้อะไร ผลเดิมชนะเสมอ)
+        let flipped = false;
+        const score = (r) => (r.amount != null ? 1 : 0) + (r.txAt != null ? 1 : 0);
+        if (score(res) < 2) {
+            const out2 = await callOcr(url, path.join(SLIP_DIR, slip.image_path), true).catch(() => null);
+            const res2 = out2 && CFSlipRules.evaluate(out2.lines || [], expect);
+            if (res2 && score(res2) > score(res)) {
+                out.lines = out2.lines; out.ms = (out.ms || 0) + (out2.ms || 0); res = res2; flipped = true;
+            }
+        }
         await pool.query(
             `UPDATE payment_slip SET ocr_status = 'DONE', ocr_engine = 'paddleocr', ocr_ms = $2,
                     ocr_raw = $3, parsed_amount = $4, parsed_tx_at = $5, verdict = $6,
@@ -82,7 +96,7 @@ async function processOne(pool, url, onDone) {
               WHERE id = $1`,
             [slip.id, out.ms || null, JSON.stringify(out.lines || []), res.amount, res.txAt,
              res.verdict, JSON.stringify({ checks: res.checks, notes: res.notes, dateText: res.dateText,
-                                           sender: res.sender, receiver: res.receiver })]);
+                                           sender: res.sender, receiver: res.receiver, flipped })]);
     } catch (err) {
         if (!err.bad) {
             // ต่อ ocr-svc ไม่ได้ — คืนเข้าคิว รอมันกลับมา

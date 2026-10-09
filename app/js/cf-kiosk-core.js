@@ -54,6 +54,15 @@ const CFKiosk = {
 
         this.stage = document.getElementById('cfkStage');
         this.stage.addEventListener('pointerdown', () => this.bumpIdle());
+        // เลื่อนจอ/ปัดนิ้ว = ยังใช้งานอยู่ (ไม่ได้แตะปุ่มก็นับ) — scroll ไม่ bubble จึงต้องดักแบบ capture
+        // กันยิงถี่: ลากนิ้วครั้งเดียวเกิด touchmove/scroll หลายสิบครั้ง นับใหม่ไม่เกินครึ่งวินาทีละครั้ง
+        const moved = () => {
+            if (Date.now() - (this._movedAt || 0) < 500) return;
+            this._movedAt = Date.now();
+            this.bumpIdle();
+        };
+        ['touchmove', 'wheel'].forEach((ev) => this.stage.addEventListener(ev, moved, { passive: true }));
+        this.stage.addEventListener('scroll', moved, { capture: true, passive: true });
 
         // ผู้จัดการแก้เมนู/ค่าตั้งจากหลังบ้าน → คีออสก์ต้องตามทันโดยไม่ต้องรีเฟรช
         CFStore.subscribe(() => this.onRemote());
@@ -210,15 +219,28 @@ const CFKiosk = {
     resetIdle() {
         clearTimeout(this._idle);
         this.hideStillThere();
+        // นาฬิกามุมขวาต้องเดินทุกหน้า (รวมหน้าสแกนสลิป) — เดิมเริ่มเฉพาะหน้าที่มี IDLE_KEY
+        // เข้าหน้าสแกนตรงโดยไม่ผ่านเมนู นาฬิกาจึงค้างไม่อัปเดต
+        if (!this._tickT) this._tickT = setInterval(() => this.tick(), 250);
         const key = this.IDLE_KEY[this.state.screen];
         if (!key) { this._idleAt = null; this.tick(); return; }
         const c = this.cfg();
         const sec = Number(c[key]) || Number(c.kioskIdleSec) || 90;
         this._idleAt = Date.now() + sec * 1000;
-        if (!this._tickT) this._tickT = setInterval(() => this.tick(), 250);
         this.tick();
     },
-    bumpIdle() { this.resetIdle(); },
+    /**
+     * ลูกค้าแตะ/เลื่อนจอ = ยังอยู่หน้าเครื่อง → นับเวลาใหม่
+     * หน้าสแกนสลิป: เส้นตายสแกนนับใหม่ด้วย (ลูกค้ายังพยายามสแกนอยู่ ไม่ควรถูกส่งให้พนักงานกลางคัน)
+     * ยกเว้น: กำลังตรวจสลิป / ดูภาพที่ถ่าย (มีตัวคุมเวลาของตัวเอง) · หน้า QR ก่อนสแกน (เวลาของ QR คือเวลาหมดอายุจริง
+     * ฝั่งเซิร์ฟเวอร์ แตะจอแล้วยืดไม่ได้ — _deadline เป็น Infinity อยู่แล้ว)
+     */
+    bumpIdle() {
+        if (this.camScreen() && this._deadline && isFinite(this._deadline) && !this._submitting && !this._paused) {
+            this.resetScanDeadline();
+        }
+        this.resetIdle();
+    },
 
     /** วินาทีที่เหลือของหน้าปัจจุบัน — null = หน้านี้ไม่มีตัวนับ (หน้าแรก) */
     secondsLeft() {
@@ -1368,7 +1390,8 @@ const CFKiosk = {
         // ตัวนับบนจอ — ตอนดูภาพที่ถ่าย (paused) เส้นตายไม่เดิน จึงไม่นับลง
         this._slipT = setInterval(() => {
             const el = document.getElementById('cfkSlipLeft');
-            if (el && !this._paused) el.textContent = Math.max(0, Math.ceil((this._deadline - Date.now()) / 1000));
+            // หยุดนับ (กำลังตรวจสลิป = Infinity) ไม่ต้องเขียนเลข — เดี๋ยวขึ้นคำว่า Infinity
+            if (el && !this._paused && isFinite(this._deadline)) el.textContent = Math.max(0, Math.ceil((this._deadline - Date.now()) / 1000));
         }, 1000);
 
         this._scan = setInterval(async () => {
@@ -1507,6 +1530,10 @@ const CFKiosk = {
     async submitSlip(payload, video) {
         if (this._submitting) return;
         this._submitting = true;
+        // ระหว่างตรวจสลิป (ถ่าย · ส่ง · OCR นานสุด ~25 วิ) หยุดนับ — เดิมเส้นตายเดินต่อ
+        // สลิปไม่ผ่านกลับมาหน้าสแกนแทบไม่เหลือเวลา · นาฬิกามุมขวาซ่อน (Infinity) แล้วเริ่มนับใหม่ใน finally
+        this._deadline = Infinity;
+        this.tick();
         if (this.state.screen === 'qr' && !this._qrScanned) {
             this._qrScanned = true;
             clearInterval(this._qr);
@@ -1558,6 +1585,10 @@ const CFKiosk = {
         } finally {
             this._submitting = false;
             this.setBusy(false);
+            // กลับมาสแกนต่อ (สลิปไม่ผ่าน / สลิปซ้ำ / ติดต่อเซิร์ฟเวอร์ไม่ได้) → ได้เวลาเต็มใหม่
+            // ดูภาพที่ถ่าย (paused) ยังไม่นับ — กด "ถ่ายใหม่" ค่อยเริ่ม (previewRetake)
+            if (this.camScreen() && !this._paused && this._scan) this.resetScanDeadline();
+            this.tick();
         }
     },
 

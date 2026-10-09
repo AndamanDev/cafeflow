@@ -224,3 +224,33 @@ test('โอน 23:59 แล้วสแกนตอน 00:00 วันถัด
         scannedAt: new Date('2022-09-22T17:00:30Z') });                        // 23:58 ออก QR · 00:00:30 สแกน
     assert.strictEqual(r.checks.date, 'PASS');
 });
+
+/* ── จากชุดทดสอบ 57 ใบ (09/10/2569) — โมเดลอ่านถูก แต่กฎแยกข้อมูลไม่รองรับรูปแบบ ── */
+
+test('วันที่กับเวลาอยู่คนละบรรทัด (ออมสิน / กรุงไทย)', () => {
+    const gsb = ['20.00', '0.00 ค่ารรรมเนียม', '18 มี.ค.2569', '16:35'];
+    assert.deepStrictEqual(CFSlipRules.findDate(gsb), { y: 2026, m: 3, d: 18, hh: 16, mm: 35 });
+    const ktb = ['80.00 บาn', '0.00 บาท', '18 มี.ค. 2569', '-16:35'];
+    assert.deepStrictEqual(CFSlipRules.findDate(ktb), { y: 2026, m: 3, d: 18, hh: 16, mm: 35 });
+    const ktb2 = ['348.00 บาท', 'จำนวนเงิน', 'วันที่ทำรายการ 18 มี.ค. 2569', '16:35'];
+    assert.deepStrictEqual(CFSlipRules.findDate(ktb2), { y: 2026, m: 3, d: 18, hh: 16, mm: 35 });
+});
+
+test('วันอยู่ท้ายบรรทัดก่อน เดือนมี colon ("วันที่21" | "มี.ค: 69 11:04 น.")', () => {
+    const lines = ['บัญชี xxx-x-×0436-× จำนวนเงิน 360.00 บาท วันที่21', 'มี.ค: 69 11:04 น.', 'ธ.กสิกรไทย'];
+    assert.deepStrictEqual(CFSlipRules.findDate(lines), { y: 2026, m: 3, d: 21, hh: 11, mm: 4 });
+});
+
+test('ยอดใช้จุดคั่นหลักพัน "3.000.00 บาท"', () => {
+    const lines = ['ชำระเงินสำเร็จ', 'K+', '18 มี.ค. 69 16:35 น.', 'เลขที่รายการ:', '016077163539AQR05819',
+        'จำนวน:', '3.000.00 บาท', 'ค่าธรรมเนียม:', '0.00 บาท'];
+    assert.strictEqual(CFSlipRules.findAmount(lines), 3000);
+    assert.strictEqual(CFSlipRules.findAmount(['จำนวนเงิน', '1.250.50 บาท', '0.00 บาท']), 1250.5);
+    // ยอดปกติแบบจุลภาคยังเหมือนเดิม
+    assert.strictEqual(CFSlipRules.findAmount(['จำนวนเงิน', '1,000.00 บาก']), 1000);
+});
+
+test('บรรทัดเดี่ยวยังมาก่อนคู่บรรทัด — ไม่หยิบวันที่ผิดจากการต่อบรรทัด', () => {
+    const lines = ['โอนเงินสำเร็จ', '25 ก.ย. 69 11:54 น.', 'นาย ก', '12 บาท', '2569 10:00'];
+    assert.deepStrictEqual(CFSlipRules.findDate(lines), { y: 2026, m: 9, d: 25, hh: 11, mm: 54 });
+});

@@ -31,6 +31,8 @@ from paddleocr import PaddleOCR  # noqa: E402  (ต้องตั้ง env ก
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SLIP_DIR = os.path.normcase(os.path.join(ROOT, 'data', 'slips'))
+# ชุดภาพทดสอบความแม่นยำ (ไม่ใช่สลิปของออเดอร์จริง) — แยกไว้ ไม่ปนกับภาพที่ระบบจัดการ
+DATASET_DIR = os.path.normcase(os.path.join(ROOT, 'data', 'slip-dataset'))
 PORT = int(os.environ.get('CF_OCR_PORT', '5101'))
 
 # โมเดลตัวเล็ก: หาตำแหน่งตัวหนังสือ (mobile_det) + อ่านภาษาไทย (th mobile_rec)
@@ -50,9 +52,18 @@ OCR = PaddleOCR(
 LOCK = threading.Lock()
 
 
-def read_lines(path):
+def read_lines(path, flip=False):
+    src = path
+    if flip:
+        # ภาพกลับด้านแบบกระจก → พลิกซ้ายขวาก่อนอ่าน (Node ขอเมื่ออ่านรอบแรกไม่เจอทั้งยอดและวันที่)
+        import cv2
+        import numpy as np
+        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError('เปิดภาพไม่ได้')
+        src = cv2.flip(img, 1)
     with LOCK:
-        res = OCR.predict(path)
+        res = OCR.predict(src)
     lines = []
     for r in res:
         for text, score in zip(r['rec_texts'], r['rec_scores']):
@@ -82,10 +93,11 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get('Content-Length') or 0)
             body = json.loads(self.rfile.read(n) or b'{}')
             path = os.path.normcase(os.path.abspath(str(body.get('path') or '')))
-            if not path.startswith(SLIP_DIR + os.sep) or not os.path.isfile(path):
+            inside = path.startswith(SLIP_DIR + os.sep) or path.startswith(DATASET_DIR + os.sep)
+            if not inside or not os.path.isfile(path):
                 return self._send(400, {'error': 'ไม่พบไฟล์ภาพสลิป'})
             t = time.time()
-            lines = read_lines(path)
+            lines = read_lines(path, bool(body.get('flip')))
             self._send(200, {'lines': lines, 'ms': int((time.time() - t) * 1000)})
         except Exception as e:  # ไม่ให้ภาพเสียใบเดียวทำโปรแกรมล่ม
             print('[ocr] error:', e, file=sys.stderr, flush=True)
