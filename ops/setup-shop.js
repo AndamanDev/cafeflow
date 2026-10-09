@@ -77,9 +77,35 @@ function stepEnv() {
     fs.copyFileSync(path.join(ROOT, '.env.example'), env);
 }
 
+/**
+ * ไม่ให้หน้าต่าง Docker Desktop เด้งทุกครั้งที่เปิดเครื่อง (= เอาติ๊ก "Open Docker Dashboard when
+ * Docker Desktop starts" ออก) · Docker อ่านค่าตอนเปิด จึงมีผลตั้งแต่เปิดเครื่องรอบถัดไป
+ * แก้เป็นข้อความตรง ๆ ไม่ parse/เขียน JSON ใหม่ — คงรูปแบบเดิมของไฟล์ Docker ไว้
+ * ตรรกะเดียวกับ DockerQuiet ใน run-cafeflow.ps1
+ */
+function dockerQuiet() {
+    const dir = path.join(process.env.APPDATA || '', 'Docker');
+    for (const [file, key] of [['settings-store.json', 'OpenUIOnStartupDisabled'], ['settings.json', 'openUIOnStartupDisabled']]) {
+        const f = path.join(dir, file);
+        try {
+            if (!fs.existsSync(f)) continue;
+            const txt = fs.readFileSync(f, 'utf8');
+            if (new RegExp(`"${key}"\\s*:\\s*true`).test(txt)) continue;
+            const off = new RegExp(`("${key}"\\s*:\\s*)false`);
+            const out = off.test(txt) ? txt.replace(off, '$1true')
+                : /^\s*\{\s*\}\s*$/.test(txt) ? `{ "${key}": true }`
+                : txt.replace(/^\s*\{/, `{\n  "${key}": true,`);
+            fs.writeFileSync(f, out, 'utf8');                      // Node เขียน UTF-8 ไม่มี BOM — Docker อ่าน BOM ไม่ได้
+            log('  ✓ ตั้ง Docker ไม่ให้เด้งหน้าต่างตอนเปิดเครื่อง');
+        } catch (err) {
+            log('  ⚠ ตั้ง Docker ไม่ให้เด้งหน้าต่างไม่ได้: ' + err.message);
+        }
+    }
+}
+
 async function stepDocker() {
     const ready = () => ok('docker', ['info']);
-    if (ready()) return skip('Docker', 'พร้อมแล้ว');
+    if (ready()) { dockerQuiet(); return skip('Docker', 'พร้อมแล้ว'); }
     const exe = [
         path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Docker', 'Docker', 'Docker Desktop.exe'),
         path.join(process.env.LOCALAPPDATA || '', 'Programs', 'DockerDesktop', 'Docker Desktop.exe'),
@@ -95,6 +121,7 @@ async function stepDocker() {
             + '     รอจนมุมซ้ายล่างขึ้น "Engine running" แล้วกดไฟล์ติดตั้งอีกครั้ง');
     }
     log('  ✓ Docker พร้อม');
+    dockerQuiet();          // หลัง Docker เปิดครั้งแรกเท่านั้นไฟล์ค่าตั้งถึงจะมี
 }
 
 async function stepDatabase() {

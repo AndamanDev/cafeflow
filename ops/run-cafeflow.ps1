@@ -67,7 +67,7 @@ function DockerUp { docker info *> $null; return ($LASTEXITCODE -eq 0) }
 # Settings › General › "Open Docker Dashboard when Docker Desktop starts" ออก
 # รุ่นใหม่เก็บใน settings-store.json (OpenUIOnStartupDisabled) รุ่นเก่า settings.json (openUIOnStartupDisabled)
 # แก้เป็นข้อความตรง ๆ ไม่ผ่าน ConvertTo-Json (PS 5.1 จัดรูป JSON ใหม่จนเพี้ยน) · เขียน UTF-8 ไม่มี BOM — Docker อ่าน BOM ไม่ได้
-# ต้องทำตอน Docker ยังไม่เปิด ไม่งั้น Docker เขียนค่าของมันทับ
+# Docker อ่านค่าตอนเปิด — ถ้า Docker เปิดเองตอน login มาก่อนแล้ว ค่าจะมีผลรอบเปิดเครื่องถัดไป
 function DockerQuiet {
     foreach ($f in "$env:APPDATA\Docker\settings-store.json", "$env:APPDATA\Docker\settings.json") {
         if (-not (Test-Path $f)) { continue }
@@ -87,6 +87,7 @@ function DockerQuiet {
         } catch { Log "!! ตั้งให้ Docker ไม่โชว์หน้าต่างไม่ได้: $($_.Exception.Message)" }
     }
 }
+DockerQuiet                 # เรียกทุกครั้ง — Docker อาจเปิดเองตอน login ก่อนสคริปต์นี้ (ค่าตั้ง AutoStart)
 Retry 'Docker' {
     param($n)
     if (DockerUp) { return $true }
@@ -103,7 +104,7 @@ Retry 'Docker' {
         Start-Sleep -Seconds 5
         $running = $null
     }
-    if (-not $running) { DockerQuiet; Log "เปิด Docker Desktop: $exe"; Start-Process $exe -WindowStyle Minimized }
+    if (-not $running) { Log "เปิด Docker Desktop: $exe"; Start-Process $exe -WindowStyle Minimized }
     WaitFor { DockerUp } 180
 } | Out-Null
 
