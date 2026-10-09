@@ -165,6 +165,10 @@ async function saveSettings(c, branchId, body, ctx) {
         if (key === 'displayHighlightSec' && !(Number.isInteger(value) && value >= 3 && value <= 60)) {
             throw new ApiError(400, 'เวลาสลับเมนูแนะนำต้องเป็น 3–60 วินาที');
         }
+        if ((key === 'shopPhone' && (typeof value !== 'string' || value.length > 40)) ||
+            (key === 'receiptFooter' && (typeof value !== 'string' || value.length > 200))) {
+            throw new ApiError(400, key === 'shopPhone' ? 'เบอร์โทรยาวเกินไป' : 'ข้อความท้ายใบเสร็จยาวได้ไม่เกิน 200 ตัวอักษร');
+        }
         if (key === 'dayStartHour' && !(Number.isInteger(value) && value >= 0 && value <= 12)) {
             throw new ApiError(400, 'เวลาเริ่มวันทำการต้องเป็น 00:00–12:00');
         }

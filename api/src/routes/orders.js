@@ -483,7 +483,7 @@ async function itemsForStation(c, orderId, station) {
         `SELECT i.*, COALESCE(m.mods, '[]'::jsonb) AS mods
            FROM order_item i
            LEFT JOIN LATERAL (
-               SELECT jsonb_agg(jsonb_build_object('label', label, 'short_label', short_label)
+               SELECT jsonb_agg(jsonb_build_object('label', label, 'short_label', short_label, 'price_delta', price_delta)
                       ORDER BY sort) AS mods
                  FROM order_item_modifier WHERE order_item_id = i.id
            ) m ON true
@@ -535,6 +535,7 @@ async function renderReceipt(c, branchId, o) {
     const doc = receipt({
         order: { ...o, orderNo: o.order_no }, items, payment: pay, branch, width,
         cashier: cashier ? cashier.name_th : null, dots: printer && printer.print_dots,
+        settings: await settingsOf(c, branchId),       // เบอร์โทรร้าน · ข้อความท้ายใบเสร็จ
     });
     const payload = escpos.document({
         bitmap: doc.bitmap, width: doc.width, height: doc.height,
@@ -945,7 +946,8 @@ function registerOrders(app, { pool, tx, query, branchId }) {
             const branch = (await c.query('SELECT * FROM branch WHERE id = $1', [branchId()])).rows[0];
             const items = await itemsForStation(c, o.id, null);
             const width = printer.paper_width || '80mm';
-            const doc = kioskTicket({ order: o, items, branch, kind, width, dots: printer.print_dots });
+            const doc = kioskTicket({ order: o, items, branch, kind, width, dots: printer.print_dots,
+                                      settings: await settingsOf(c, branchId()) });
 
             // USB = เสียบที่ตัวตู้ — เซิร์ฟเวอร์ส่งไม่ถึง ส่งภาพกลับให้เบราว์เซอร์บนตู้พิมพ์เอง
             // (Edge เปิดด้วย --kiosk-printing → ออกเครื่องพิมพ์หลักของ Windows ไม่ถามซ้ำ)

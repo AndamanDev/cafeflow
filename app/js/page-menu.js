@@ -822,7 +822,7 @@ const MenuPage = {
                     </tbody>
                 </table>
             </div>` : '<div class="ds-empty-sm">ยังไม่มีตัวเลือก — กด "เพิ่มตัวเลือก"</div>'}
-            <div class="ds-note">ตัวย่อใช้บนใบเสร็จกระดาษแคบ 58 มม. — สลิปครัวสะกดเต็มคำเสมอ ·
+            <div class="ds-note">ใบเสร็จและสลิปครัวพิมพ์ชื่อเต็มเสมอ — ตัวย่อใช้แค่ในรายการบนหน้าจอ ·
                 ตัวเลือกที่ใช้ในบิลแล้วลบไม่ได้ ให้ปิดใช้งานแทน</div>`;
     },
 
@@ -896,7 +896,7 @@ const MenuPage = {
             contentHtml: `
                 ${field('oName', 'ชื่อ (ไทย)', o && o.nameTh, 'placeholder="เช่น หวานน้อย 50%"')}
                 ${field('oNameEn', 'ชื่อ (อังกฤษ) — คีออสก์โหมดภาษาอังกฤษ', o && o.nameEn, 'placeholder="Less sweet 50%"')}
-                ${field('oShort', 'ตัวย่อบนใบเสร็จ (ไม่กรอก = ใช้ชื่อเต็ม)', o && o.shortLabel, 'maxlength="24" placeholder="ห.50%"')}
+                ${field('oShort', 'ตัวย่อบนหน้าจอ (ไม่บังคับ · ใบเสร็จพิมพ์ชื่อเต็ม)', o && o.shortLabel, 'maxlength="24" placeholder="ห.50%"')}
                 ${field('oPrice', 'ราคาเพิ่ม (บาท)', o ? o.priceDelta : 0, 'type="number" min="0" step="1"')}
                 <div class="cf-toggle-row">
                     ${this._od.single ? `<button type="button" class="ds-toggle ${this._od.isDefault ? 'is-on' : ''}" id="oDef"

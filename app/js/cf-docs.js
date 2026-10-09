@@ -30,61 +30,63 @@ const CFDocs = {
         const row = (l, r, cls) =>
             `<div class="cf-rc-row${cls ? ' ' + cls : ''}"><span>${l}</span><span>${r}</span></div>`;
 
-        /* ── หัวใบเสร็จ: 58 มม. ตัดที่อยู่ทิ้ง ── */
+        /* ── หัวร้าน (ตรงกับ shopHeader ใน api/src/print/raster.js) ── */
         let html = '<div class="cf-rc-center">';
         html += `<div class="cf-rc-lg">${e(s.shopName)}</div>`;
-        if (s.address && !narrow) html += `<div class="cf-rc-sm">${e(s.address)}</div>`;
+        if (s.address) html += `<div class="cf-rc-sm">${e(s.address)}</div>`;
+        if (s.shopPhone) html += `<div class="cf-rc-sm">โทร ${e(s.shopPhone)}</div>`;
         if (s.taxId) html += `<div class="cf-rc-sm">เลขประจำตัวผู้เสียภาษี ${e(s.taxId)}</div>`;
-        html += '<div class="cf-rc-sp">ใบเสร็จรับเงิน</div>';
+        html += `<div class="cf-rc-sp"><b>${s.vatRegistered ? 'ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน'}</b></div>`;
         html += '</div>';
-        html += '<div class="cf-rc-hr"></div>';
+        html += '<div class="cf-rc-hr cf-rc-solid"></div>';
 
-        html += row('เลขที่', `<b>${e(o.orderNo)}</b>`);
+        html += row('เลขที่', e(o.id));
         html += row('วันที่', CFApp.dateTime((o.ts && o.ts.paidAt) || o.createdAt));
+        html += row('คิว', e(o.orderNo) + ' · ' + (o.diningOption === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน'));
         if (o.cashierId) html += row('พนักงาน', e(CFApp.actorName(o.cashierId)));
-        html += row('รับที่', o.diningOption === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน');
         html += '<div class="cf-rc-hr"></div>';
 
-        /* ── รายการสินค้า ──────────────────────────────────
-           80 มม. : ชื่อ ×2 ... 120.00  แถวเดียว
-           58 มม. : ชื่อขึ้นบรรทัดเอง แล้ว 2 × ราคา อยู่บรรทัดถัดไป */
+        /* ── รายการ: "1 x ชื่อ (เย็น) ... 85.00" แล้วตัวเลือกบรรทัดละตัว นำด้วย "-" (ชื่อเต็ม ไม่ใช้ตัวย่อ) ── */
+        let count = 0;
         items.forEach((it) => {
-            const amount = CFApp.money(it.unitPrice * it.qty);
-            const nm = e(it.nameSnapshot) + e(CFApp.serveSuffix(it.serveType));
-            if (narrow) {
-                html += `<div class="cf-rc-name">${nm}</div>`;
-                html += row(`&nbsp;&nbsp;${it.qty} × ${CFApp.money(it.unitPrice)}`, amount);
-            } else {
-                html += row(`<span class="cf-rc-name">${nm} ×${it.qty}</span>`, amount);
-            }
-            // ใบเสร็จลูกค้าใช้ตัวย่อได้ — สลิปครัวห้าม (ดู kitchenSlipRoll)
-            const mods = (it.mods || []).map((m) => m.shortLabel || m.label).filter(Boolean);
-            if (mods.length) html += `<div class="cf-rc-mod">${e(mods.join(' · '))}</div>`;
+            count += it.qty;
+            html += row(`<span class="cf-rc-name">${it.qty} x ${e(it.nameSnapshot)}${e(CFApp.serveSuffix(it.serveType))}</span>`,
+                        CFApp.money(it.unitPrice * it.qty));
+            (it.mods || []).forEach((m) => {
+                const d = Number(m.priceDelta) || 0;
+                html += `<div class="cf-rc-mod">- ${e(m.label || m.shortLabel)}${d ? ` (+${d % 1 ? CFApp.money(d) : d})` : ''}</div>`;
+            });
         });
 
         html += '<div class="cf-rc-hr"></div>';
-        html += row('รวมทั้งสิ้น', CFApp.baht(o.total), 'cf-rc-lg');
+        html += row(`รวม ${count} รายการ`, CFApp.money(o.subtotal != null ? o.subtotal : o.total));
+        if (o.discount > 0) html += row('ส่วนลด', '-' + CFApp.money(o.discount));
         if (s.vatRegistered) {
             // ?? ไม่ใช่ || — ร้านที่ตั้ง 0% (อัตราศูนย์) ต้องแสดง 0% ไม่ใช่ 7%
             const rate = Number(s.vatPercent ?? 7);
             const vat = o.total - o.total / (1 + rate / 100);
-            html += row(`ภาษีมูลค่าเพิ่ม ${rate}% (รวมในราคา)`, CFApp.money(vat), 'cf-rc-sm');
+            html += row('มูลค่าก่อนภาษี', CFApp.money(o.total - vat), 'cf-rc-sm');
+            html += row(`ภาษีมูลค่าเพิ่ม ${rate}%`, CFApp.money(vat), 'cf-rc-sm');
         }
+        html += '<div class="cf-rc-hr cf-rc-solid"></div>';
+        html += row('ยอดสุทธิ', CFApp.baht(o.total), 'cf-rc-lg');
+        html += '<div class="cf-rc-hr cf-rc-solid"></div>';
 
         if (pay) {
-            html += '<div class="cf-rc-sp"></div>';
-            html += row(pay.method === 'CASH' ? 'เงินสด' : 'QR พร้อมเพย์', CFApp.baht(pay.amount));
+            html += row(pay.method === 'CASH' ? 'ชำระด้วยเงินสด' : 'ชำระด้วย QR พร้อมเพย์', CFApp.money(pay.amount));
             if (pay.received != null) {
-                html += row('รับมา', CFApp.baht(pay.received));
-                html += row('เงินทอน', `<b>${CFApp.baht(pay.change)}</b>`);
+                html += row('รับเงิน', CFApp.money(pay.received));
+                html += row('เงินทอน', `<b>${CFApp.money(pay.change)}</b>`);
             }
             if (pay.ref) html += `<div class="cf-rc-sm">อ้างอิง ${e(pay.ref)}</div>`;
+            html += '<div class="cf-rc-hr"></div>';
         }
 
-        html += '<div class="cf-rc-hr"></div>';
-        html += '<div class="cf-rc-center">ขอบคุณที่ใช้บริการ</div>';
+        html += '<div class="cf-rc-center"><b>ขอบคุณที่ใช้บริการ</b></div>';
+        String(s.receiptFooter || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 4)
+            .forEach((ln) => { html += `<div class="cf-rc-center cf-rc-sm">${e(ln)}</div>`; });
         if (o.reprintCount > 0) {
-            html += `<div class="cf-rc-center cf-rc-sm">(พิมพ์ซ้ำครั้งที่ ${o.reprintCount})</div>`;
+            html += `<div class="cf-rc-center cf-rc-sm">สำเนา — พิมพ์ซ้ำครั้งที่ ${o.reprintCount}</div>`;
         }
         return html;
     },
@@ -100,32 +102,33 @@ const CFDocs = {
 
         const items = CFOrders.items(orderId).filter((i) => i.station === station && i.itemStatus !== 'VOID');
 
-        let html = '<div class="cf-rc-center">';
-        html += `<div class="cf-rc-lg">*** ${e(CFApp.stationLabel(station))} ***</div>`;
-        html += '</div>';
-        html += '<div class="cf-rc-hr"></div>';
-
-        html += '<div class="cf-rc-center">';
-        html += `<div class="cf-rc-xl">${e(o.orderNo)}</div>`;
-        html += `<div class="cf-rc-sm">${CFApp.time(o.ts && o.ts.sentAt ? o.ts.sentAt : o.createdAt)} · ${e(o.kioskId)}</div>`;
-        html += '</div>';
-        html += '<div class="cf-rc-hr"></div>';
+        // หน้าตาเดียวกับ kitchenSlip ใน raster.js: สถานีแถบดำ · คิวตัวใหญ่ · "กลับบ้าน" แถบดำ · ไม่มีราคา
+        let html = `<div class="cf-rc-banner">${e(CFApp.stationLabel(station))}</div>`;
+        html += `<div class="cf-rc-center cf-rc-xl">คิว ${e(o.orderNo)}</div>`;
+        html += o.diningOption === 'TAKE_AWAY'
+            ? '<div class="cf-rc-banner cf-rc-item-lg">กลับบ้าน</div>'
+            : '<div class="cf-rc-center"><b>กินที่ร้าน</b></div>';
+        html += `<div class="cf-rc-row cf-rc-sm"><span>${o.kioskId ? 'สั่งที่ ' + e(o.kioskId) : ''}</span>
+                 <span>เวลา ${CFApp.time(o.ts && o.ts.sentAt ? o.ts.sentAt : o.createdAt)}</span></div>`;
+        html += '<div class="cf-rc-hr cf-rc-solid"></div>';
 
         if (!items.length) {
             html += '<div class="cf-rc-center cf-rc-sm">ไม่มีรายการของสถานีนี้</div>';
         }
-        items.forEach((it) => {
+        let count = 0;
+        items.forEach((it, i) => {
+            count += it.qty;
             html += `<div class="cf-rc-name cf-rc-item-lg">${it.qty} x ${e(it.nameSnapshot)}${e(CFApp.serveSuffix(it.serveType))}</div>`;
             // ⚠️ ครัวใช้ข้อมูลนี้ตัดสินใจผลิต — ต้องสะกดเต็มคำเสมอ แม้กระดาษ 58 มม.
-            // การย่อ "หวาน 25%" เป็น "ห.25%" คือการแลกความถูกต้องกับกระดาษไม่กี่มิลลิเมตร
             (it.mods || []).forEach((m) => {
                 html += `<div class="cf-rc-mod">- ${e(m.label)}</div>`;
             });
-            html += '<div class="cf-rc-sp"></div>';
+            if (i < items.length - 1) html += '<div class="cf-rc-hr"></div>';
         });
 
-        html += '<div class="cf-rc-hr"></div>';
-        html += `<div class="cf-rc-sm${narrow ? '' : ' cf-rc-center'}">พิมพ์ ${CFApp.timeSec(new Date().toISOString())}</div>`;
+        html += '<div class="cf-rc-hr cf-rc-solid"></div>';
+        html += `<div class="cf-rc-row cf-rc-sm"><span>รวม ${count} รายการ</span>
+                 <span>พิมพ์ ${CFApp.time(new Date().toISOString())}</span></div>`;
         return html;
     },
 

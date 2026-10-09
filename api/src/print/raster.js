@@ -67,11 +67,14 @@ function createSheet(widthDots) {
             const indent = o.indent || 0;
             measure.font = `${weight}${size}px "${fontFamily()}"`;
             const hang = typeof o.hang === 'string' ? measure.measureText(o.hang).width : (o.hang || 0);
+            // right = ข้อความชิดขวาบนบรรทัดแรก (เช่น ราคา) — บรรทัดแรกเว้นที่ให้มัน ชื่อยาวขึ้นบรรทัดใหม่ ไม่ทับราคา
+            const right = o.right != null ? String(o.right) : null;
+            const reserve = right ? measure.measureText(right).width + 14 : 0;
 
             const words = [...SEGMENTER.segment(String(text))].map((x) => x.segment);
             const lines = [];
             let cur = '';
-            const room = () => inner - indent - (lines.length ? hang : 0);
+            const room = () => inner - indent - (lines.length ? hang : reserve);
             for (const w of words) {
                 if (!cur && !w.trim()) continue;                   // ไม่ขึ้นบรรทัดด้วยช่องว่าง
                 if (measure.measureText(cur + w).width <= room()) { cur += w; continue; }
@@ -86,8 +89,12 @@ function createSheet(widthDots) {
 
             lines.forEach((ln, i) => {
                 const off = indent + (i ? hang : 0);
-                ops.push({ t: 'text', text: ln, size, weight, align: 'left', y,
-                           pad: pad + off, inner: inner - off });
+                if (i === 0 && right) {
+                    ops.push({ t: 'row', left: ln, right, size, weight, y, pad: pad + off, inner: inner - off });
+                } else {
+                    ops.push({ t: 'text', text: ln, size, weight, align: o.align || 'left', y,
+                               pad: pad + off, inner: inner - off });
+                }
                 y += Math.round(size * (o.lh || 1.3));
             });
             if (lines.length) y += Math.round(size * ((o.lh || 1.45) - (o.lh || 1.3)));
@@ -104,8 +111,20 @@ function createSheet(widthDots) {
         },
 
         rule(o = {}) {
-            ops.push({ t: 'rule', y, pad, inner, dashed: !!o.dashed });
-            y += 14;
+            ops.push({ t: 'rule', y, pad, inner, dashed: !!o.dashed, thick: !!o.thick });
+            y += o.thick ? 16 : 14;
+            return api;
+        },
+
+        /**
+         * แถบดำตัวขาว — สิ่งที่ห้ามพลาดบนสลิป เช่น "กลับบ้าน" ชื่อสถานี หรือสถานะการจ่าย
+         * มองจากระยะแขนเห็นทันที (มาตรฐานสลิปครัวของ POS ทั่วไป)
+         */
+        banner(text, o = {}) {
+            const size = o.size || 24;
+            const h = Math.round(size * 1.55);
+            ops.push({ t: 'banner', text: String(text), size, weight: o.bold === false ? '' : '700 ', y, h, pad, inner });
+            y += h + (o.after != null ? o.after : 8);
             return api;
         },
 
@@ -121,11 +140,21 @@ function createSheet(widthDots) {
             const fam = fontFamily();
 
             for (const op of ops) {
+                if (op.t === 'banner') {
+                    c.fillStyle = '#000';
+                    c.fillRect(op.pad, op.y, op.inner, op.h);
+                    c.fillStyle = '#fff';
+                    c.font = `${op.weight}${op.size}px "${fam}"`;
+                    const w = c.measureText(op.text).width;
+                    c.fillText(op.text, op.pad + (op.inner - w) / 2, op.y + (op.h - op.size * 1.12) / 2);
+                    c.fillStyle = '#000';
+                    continue;
+                }
                 if (op.t === 'rule') {
                     c.save();
                     if (op.dashed) c.setLineDash([4, 4]);
                     c.strokeStyle = '#000';
-                    c.lineWidth = 2;
+                    c.lineWidth = op.thick ? 4 : 2;
                     c.beginPath();
                     c.moveTo(op.pad, op.y + 6);
                     c.lineTo(op.pad + op.inner, op.y + 6);
@@ -197,39 +226,75 @@ const clock = (d) => new Date(d).toLocaleTimeString('th-TH', { hour: '2-digit', 
 const dateTime = (d) => new Date(d).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
 
 /* ══════════════════════════════════════════════════════════════════
-   สลิปครัว (§19) — สะกดเต็มคำเสมอ ไม่ว่ากระดาษจะแคบแค่ไหน
+   แบบใบพิมพ์ — ยึดหน้าตามาตรฐาน POS ร้านกาแฟทั่วไป (Loyverse / Ocha / FoodStory)
+   · ชื่อเมนูกับตัวเลือกสะกดเต็มคำเสมอ (ไม่ใช้ตัวย่อ) · ยาวก็ตัดบรรทัด ไม่ตัดทิ้ง
+   · ตัวเลือกขึ้นบรรทัดของตัวเอง นำด้วย "-" เยื้องใต้ชื่อเมนู
+   · ราคาชิดขวาตรงกันทุกบรรทัด
+   ══════════════════════════════════════════════════════════════════ */
+const SERVE_TH = { HOT: 'ร้อน', ICED: 'เย็น', FRAPPE: 'ปั่น' };
+const itemName = (it) => {
+    const serve = SERVE_TH[pick(it, 'serveType', 'serve_type')];
+    return pick(it, 'nameSnapshot', 'name_snapshot') + (serve ? ` (${serve})` : '');
+};
+const modsOf = (it) => (it.mods || []).map((m) => ({
+    label: pick(m, 'label', 'shortLabel', 'short_label'),
+    delta: Number(pick(m, 'priceDelta', 'price_delta') || 0),
+})).filter((m) => m.label);
+const whole = (n) => (Number(n) % 1 ? money(n) : String(Number(n)));     // +20 ไม่ใช่ +20.00 ในวงเล็บตัวเลือก
+const diningTh = (o) => (pick(o, 'diningOption', 'dining_option') === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน');
+
+/* ══════════════════════════════════════════════════════════════════
+   สลิปครัว (§19) — ครัวอ่านจากระยะแขน: สถานีแถบดำ · เลขคิวตัวใหญ่ · "กลับบ้าน" แถบดำ
+   ไม่มีราคา (ครัวไม่ต้องรู้) · สะกดเต็มคำเสมอ ไม่ว่ากระดาษจะแคบแค่ไหน
    ══════════════════════════════════════════════════════════════════ */
 function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots }) {
     const W = dots || WIDTH[width] || WIDTH['58mm'];
+    const narrow = W < 500;
     const s = createSheet(W);
-    const big = W >= 576 ? 30 : 26;
-
-    s.line(stationLabel || station, { size: big, bold: true, align: 'center' });
-    s.rule();
-    s.row(pick(order, 'orderNo', 'order_no') || '—',
-          clock(pick(order, 'sentAt', 'sent_at', 'createdAt', 'created_at') || Date.now()),
-          { size: big + 6, bold: true });
-    const dining = pick(order, 'diningOption', 'dining_option');
+    const big = narrow ? 26 : 30;
+    const when = pick(order, 'sentAt', 'sent_at', 'createdAt', 'created_at') || Date.now();
     const kiosk = pick(order, 'kioskId', 'kiosk_id');
-    s.line((dining === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน') +
-           (kiosk ? ' · ' + kiosk : ''), { size: 20 });
-    s.rule({ dashed: true });
 
-    for (const it of items) {
-        // ชื่อเมนูยาวต้องขึ้นบรรทัดใหม่ ไม่ใช่ถูกตัดเป็น "…" — ครัวอ่านผิดหนึ่งคำคือทำผิดหนึ่งแก้ว
-        const qty = `${it.qty} × `;
-        s.wrap(qty + pick(it, 'nameSnapshot', 'name_snapshot'), { size: big, bold: true, hang: qty });
-        const serve = { HOT: 'ร้อน', ICED: 'เย็น', FRAPPE: 'ปั่น' }[pick(it, 'serveType', 'serve_type')];
-        const ind = Math.round(big * 0.9);
-        if (serve) s.wrap('แบบ: ' + serve, { size: 21, indent: ind });
-        for (const m of it.mods || []) s.wrap('• ' + m.label, { size: 21, indent: ind, hang: '• ' });  // เต็มคำเสมอ
-        s.gap(6);
-    }
+    s.banner(stationLabel || station, { size: narrow ? 22 : 24 });
+    s.line('คิว ' + (pick(order, 'orderNo', 'order_no') || '—'),
+           { size: narrow ? 46 : 56, bold: true, align: 'center', lh: 1.2 });
+    if (diningTh(order) === 'กลับบ้าน') s.banner('กลับบ้าน', { size: big });
+    else s.line('กินที่ร้าน', { size: big - 4, bold: true, align: 'center' });
+    s.row(kiosk ? 'สั่งที่ ' + kiosk : '', 'เวลา ' + clock(when), { size: 18 });
+    s.rule({ thick: true });
 
-    s.rule();
-    s.line('พิมพ์ ' + clock(Date.now()), { size: 18, align: 'center' });
+    let count = 0;
+    items.forEach((it, i) => {
+        const qty = `${it.qty} x `;
+        count += Number(it.qty) || 0;
+        s.wrap(qty + itemName(it), { size: big, bold: true, hang: qty, lh: 1.25 });
+        for (const m of modsOf(it)) {
+            s.wrap('- ' + m.label, { size: narrow ? 21 : 23, indent: Math.round(big * 1.2), hang: '- ', lh: 1.3 });
+        }
+        if (i < items.length - 1) { s.gap(2); s.rule({ dashed: true }); }
+    });
+
+    s.rule({ thick: true });
+    s.row(`รวม ${count} รายการ`, 'พิมพ์ ' + clock(Date.now()), { size: 18 });
     const { canvas, height } = s.render();
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
+}
+
+/** หัวร้าน — ชื่อ · ที่อยู่ · โทร · เลขผู้เสียภาษี (บรรทัดที่ไม่มีข้อมูลไม่พิมพ์) */
+function shopHeader(s, branch, settings, narrow) {
+    s.wrap(branch.name_th || '', { size: narrow ? 28 : 32, bold: true, align: 'center', lh: 1.3 });
+    if (branch.address) s.wrap(branch.address, { size: narrow ? 16 : 18, align: 'center', lh: 1.25 });
+    if (settings && settings.shopPhone) s.line('โทร ' + settings.shopPhone, { size: narrow ? 16 : 18, align: 'center', lh: 1.35 });
+    if (branch.tax_id) s.line('เลขประจำตัวผู้เสียภาษี ' + branch.tax_id, { size: narrow ? 16 : 17, align: 'center', lh: 1.35 });
+}
+
+/** ท้ายใบ — ขอบคุณ + ข้อความที่ร้านตั้ง (Wi-Fi / LINE / IG) */
+function shopFooter(s, settings, narrow) {
+    s.line('ขอบคุณที่ใช้บริการ', { size: narrow ? 21 : 23, bold: true, align: 'center' });
+    const foot = String((settings && settings.receiptFooter) || '').trim();
+    for (const ln of foot.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 4)) {
+        s.wrap(ln, { size: narrow ? 16 : 18, align: 'center', lh: 1.3 });
+    }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -238,106 +303,113 @@ function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots
    ร้านที่ไม่ได้จดแต่ออกใบที่แสดงยอดภาษี = เรียกเก็บภาษีโดยไม่มีสิทธิ์
    ⚠️ แม่แบบเดียวกับ CFDocs.receiptRoll (ทางสำรองผ่านเบราว์เซอร์) — แก้ที่หนึ่งต้องแก้อีกที่
    ══════════════════════════════════════════════════════════════════ */
-function receipt({ order, items, payment, branch, width = '80mm', cashier, dots }) {
+function receipt({ order, items, payment, branch, width = '80mm', cashier, dots, settings }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
     const narrow = W < 500;           // 58 มม. (360–384 จุด) — 80 มม. ที่ 180 dpi ได้ 512 ยังนับเป็นกว้าง
     const s = createSheet(W);
-    const base = narrow ? 21 : 23;
+    const base = narrow ? 20 : 22;
+    const vat = !!branch.vat_registered;
 
-    s.line(branch.name_th, { size: narrow ? 26 : 30, bold: true, align: 'center' });
-    if (branch.address && !narrow) s.line(branch.address, { size: 18, align: 'center', lh: 1.3 });
-    if (branch.tax_id) s.line('เลขประจำตัวผู้เสียภาษี ' + branch.tax_id, { size: 17, align: 'center' });
-    s.gap(6);
-    s.line('ใบเสร็จรับเงิน', { size: base, align: 'center' });
+    shopHeader(s, branch, settings, narrow);
+    s.gap(4);
+    s.line(vat ? 'ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน',
+           { size: base + 2, bold: true, align: 'center' });
     s.rule();
 
-    s.row('เลขที่', pick(order, 'orderNo', 'order_no') || '—', { size: base });
-    s.row('วันที่', dateTime(pick(order, 'paidAt', 'paid_at', 'createdAt', 'created_at')), { size: base });
-    if (cashier) s.row('พนักงาน', cashier, { size: base });
-    s.row('รับที่', pick(order, 'diningOption', 'dining_option') === 'TAKE_AWAY'
-                    ? 'กลับบ้าน' : 'กินที่ร้าน', { size: base });
+    s.row('เลขที่', pick(order, 'id') || '—', { size: base - 2 });
+    s.row('วันที่', dateTime(pick(order, 'paidAt', 'paid_at', 'createdAt', 'created_at')), { size: base - 2 });
+    s.row('คิว', (pick(order, 'orderNo', 'order_no') || '—') + ' · ' + diningTh(order), { size: base - 2 });
+    if (cashier) s.row('พนักงาน', cashier, { size: base - 2 });
     s.rule({ dashed: true });
 
+    let count = 0;
     for (const it of items) {
-        const serve = { HOT: 'ร้อน', ICED: 'เย็น', FRAPPE: 'ปั่น' }[pick(it, 'serveType', 'serve_type')];
-        const name = pick(it, 'nameSnapshot', 'name_snapshot') + (serve ? ` (${serve})` : '');
-        if (narrow) {
-            // 58 มม. มีที่ราว 22 ตัวอักษร — ชื่อต้องได้บรรทัดของตัวเอง
-            s.line(name, { size: base });
-            s.row(`  ${it.qty} × ${money(it.unit_price)}`, money(it.qty * it.unit_price), { size: base });
-        } else {
-            s.row(`${name}  ×${it.qty}`, money(it.qty * it.unit_price), { size: base });
+        const qty = `${it.qty} x `;
+        count += Number(it.qty) || 0;
+        s.wrap(qty + itemName(it), { size: base, hang: qty, right: money(it.qty * pick(it, 'unitPrice', 'unit_price')), lh: 1.3 });
+        for (const m of modsOf(it)) {
+            s.wrap('- ' + m.label + (m.delta ? ` (+${whole(m.delta)})` : ''),
+                   { size: narrow ? 16 : 18, indent: Math.round(base * 1.4), hang: '- ', lh: 1.3 });
         }
-        // ใบเสร็จใช้ตัวย่อได้ ต่างจากสลิปครัว
-        const mods = (it.mods || []).map((m) => pick(m, 'shortLabel', 'short_label', 'label')).filter(Boolean);
-        if (mods.length) s.line('  ' + mods.join(' · '), { size: narrow ? 17 : 18 });
     }
+    s.rule({ dashed: true });
 
-    s.rule();
-    s.row('รวมทั้งสิ้น', '฿' + money(order.total), { size: base + 6, bold: true });
-    if (branch.vat_registered) {
+    const subtotal = Number(pick(order, 'subtotal') != null ? order.subtotal : order.total);
+    const discount = Number(pick(order, 'discount') || 0);
+    s.row(`รวม ${count} รายการ`, money(subtotal), { size: base });
+    if (discount > 0) s.row('ส่วนลด', '-' + money(discount), { size: base });
+    if (vat) {
         // ?? ไม่ใช่ || — ร้านที่ตั้ง 0% (อัตราศูนย์) ต้องพิมพ์ 0% ไม่ใช่ 7%
         const rate = Number(branch.vat_percent ?? 7);
-        const vat = Number(order.total) - Number(order.total) / (1 + rate / 100);
-        s.row(`ภาษีมูลค่าเพิ่ม ${rate}% (รวมในราคา)`, money(vat), { size: narrow ? 17 : 18 });
+        const v = Number(order.total) - Number(order.total) / (1 + rate / 100);
+        s.row(`มูลค่าก่อนภาษี`, money(Number(order.total) - v), { size: narrow ? 17 : 18 });
+        s.row(`ภาษีมูลค่าเพิ่ม ${rate}%`, money(v), { size: narrow ? 17 : 18 });
     }
+    s.rule();
+    s.row('ยอดสุทธิ', '฿' + money(order.total), { size: base + 8, bold: true, lh: 1.4 });
+    s.rule();
+
     if (payment) {
-        s.gap(4);
-        s.row(payment.method === 'CASH' ? 'เงินสด' : 'QR พร้อมเพย์', '฿' + money(payment.amount), { size: base });
+        s.row(payment.method === 'CASH' ? 'ชำระด้วยเงินสด' : 'ชำระด้วย QR พร้อมเพย์', money(payment.amount), { size: base });
         if (payment.received != null) {
-            s.row('รับมา', '฿' + money(payment.received), { size: base });
-            s.row('เงินทอน', '฿' + money(pick(payment, 'change', 'change_amount')), { size: base, bold: true });
+            s.row('รับเงิน', money(payment.received), { size: base });
+            s.row('เงินทอน', money(pick(payment, 'change', 'change_amount')), { size: base, bold: true });
         }
-        if (payment.ref) s.line('อ้างอิง ' + payment.ref, { size: 17 });
+        if (payment.ref) s.line('อ้างอิง ' + payment.ref, { size: 16 });
+        s.rule({ dashed: true });
     }
-    s.rule({ dashed: true });
-    s.line('ขอบคุณที่ใช้บริการ', { size: base, align: 'center' });
+
+    shopFooter(s, settings, narrow);
     const rp = pick(order, 'reprintCount', 'reprint_count');
-    if (rp > 0) {
-        s.line(`(พิมพ์ซ้ำครั้งที่ ${rp})`, { size: 17, align: 'center' });
-    }
+    if (rp > 0) s.line(`สำเนา — พิมพ์ซ้ำครั้งที่ ${rp}`, { size: 16, align: 'center' });
+    s.gap(4);
 
     const { canvas, height } = s.render();
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   ใบรับออเดอร์ (§12 Mode B) — พิมพ์ที่คีออสก์ทันทีที่ลูกค้าสั่งเสร็จ
+   บัตรคิว (§12 Mode B) — พิมพ์ที่คีออสก์ทันทีที่ลูกค้าสั่งเสร็จ
    เลขคิวต้องใหญ่ที่สุดในใบ: ลูกค้าใช้มันจับคู่กับจอเรียกคิว
+   สถานะการจ่ายเป็นแถบดำ — "ยังไม่ได้จ่าย" ห้ามมองข้าม
    ══════════════════════════════════════════════════════════════════ */
 const TICKET_STATUS = {
-    CASH:    ['กรุณาชำระเงินที่เคาน์เตอร์', 'แสดงใบนี้กับพนักงาน'],
+    CASH:    ['กรุณาชำระเงินที่เคาน์เตอร์', 'แสดงบัตรนี้กับพนักงาน'],
     REVIEW:  ['ส่งสลิปแล้ว รอพนักงานตรวจสอบ', 'ตรวจเสร็จแล้วส่งเข้าครัวทันที'],
-    TIMEOUT: ['กรุณาติดต่อพนักงานที่เคาน์เตอร์', 'แสดงใบนี้กับพนักงาน'],
-    PAID:    ['ชำระแล้ว', 'รอเรียกหมายเลขที่จอ'],
+    TIMEOUT: ['กรุณาติดต่อพนักงานที่เคาน์เตอร์', 'แสดงบัตรนี้กับพนักงาน'],
+    PAID:    ['ชำระเงินแล้ว', 'รอเรียกหมายเลขที่จอ'],
 };
 
-function kioskTicket({ order, items, branch, kind, width = '80mm', dots }) {
+function kioskTicket({ order, items, branch, kind, width = '80mm', dots, settings }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
     const narrow = W < 500;
     const s = createSheet(W);
-    const base = narrow ? 21 : 23;
+    const base = narrow ? 20 : 22;
 
-    s.line(branch.name_th, { size: narrow ? 24 : 28, bold: true, align: 'center' });
-    s.line('ใบรับออเดอร์', { size: base, align: 'center' });
+    s.wrap(branch.name_th || '', { size: narrow ? 26 : 30, bold: true, align: 'center', lh: 1.3 });
+    s.line('บัตรคิว', { size: base, align: 'center' });
     s.rule();
     s.line('หมายเลขคิว', { size: base, align: 'center' });
-    s.line(pick(order, 'orderNo', 'order_no') || '—', { size: narrow ? 72 : 96, bold: true, align: 'center', lh: 1.15 });
-    s.line((pick(order, 'diningOption', 'dining_option') === 'TAKE_AWAY' ? 'กลับบ้าน' : 'กินที่ร้าน') +
-           ' · ' + dateTime(pick(order, 'createdAt', 'created_at') || Date.now()), { size: 18, align: 'center' });
+    s.line(pick(order, 'orderNo', 'order_no') || '—', { size: narrow ? 80 : 104, bold: true, align: 'center', lh: 1.12 });
+    s.line(diningTh(order) + ' · ' + dateTime(pick(order, 'createdAt', 'created_at') || Date.now()),
+           { size: 18, align: 'center' });
     s.rule({ dashed: true });
 
     for (const it of items) {
-        const serve = { HOT: 'ร้อน', ICED: 'เย็น', FRAPPE: 'ปั่น' }[pick(it, 'serveType', 'serve_type')];
-        const name = pick(it, 'nameSnapshot', 'name_snapshot') + (serve ? ` (${serve})` : '');
-        s.wrap(`${it.qty} × ${name}`, { size: base, hang: `${it.qty} × ` });
+        const qty = `${it.qty} x `;
+        s.wrap(qty + itemName(it), { size: base, hang: qty, right: money(it.qty * pick(it, 'unitPrice', 'unit_price')), lh: 1.3 });
+        for (const m of modsOf(it)) {
+            s.wrap('- ' + m.label, { size: narrow ? 16 : 17, indent: Math.round(base * 1.4), hang: '- ', lh: 1.25 });
+        }
     }
     s.rule();
-    s.row('ยอดรวม', '฿' + money(order.total), { size: base + 6, bold: true });
+    s.row('ยอดรวม', '฿' + money(order.total), { size: base + 6, bold: true, lh: 1.4 });
     s.gap(6);
     const [head, sub] = TICKET_STATUS[kind] || TICKET_STATUS.CASH;
-    s.wrap(head, { size: base + 2, bold: true });
-    s.line(sub, { size: 18 });
+    s.banner(head, { size: narrow ? 20 : 22 });
+    s.line(sub, { size: 18, align: 'center' });
+    const foot = String((settings && settings.receiptFooter) || '').trim().split(/\r?\n/)[0];
+    if (foot) { s.gap(4); s.wrap(foot, { size: 16, align: 'center' }); }
     s.gap(4);
 
     const { canvas, height } = s.render();

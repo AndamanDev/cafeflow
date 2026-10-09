@@ -874,10 +874,26 @@ const DashPage = {
                 </div>
             </div>
 
-            <div class="ds-section-label">เวลา</div>
-            ${num('kioskIdleSec', 'กลับหน้าแรกเมื่อไม่มีการใช้งาน (วินาที)')}
-            ${num('kioskDoneSec', 'ปิดหน้าสรุปออเดอร์อัตโนมัติ (วินาที)')}
-            ${num('qrTimeoutSec', 'หมดเวลาสแกน QR (วินาที)')}
+            <div class="ds-section-label">เวลาแต่ละหน้า (วินาที)</div>
+            <div class="ds-note" style="margin-top:0">ไม่มีใครแตะจอจนครบเวลา → ขึ้นกล่อง "ยังสั่งอยู่ไหม?" แล้วกลับหน้าแรก (ล้างตะกร้า) ·
+                แตะจอเมื่อไหร่เริ่มนับใหม่ · ตัวเลขนับถอยหลังแสดงที่มุมขวาบนของทุกหน้า</div>
+            <div class="cf-num-grid">
+                ${num('kioskSecDining', 'เลือกกินที่ร้าน/กลับบ้าน')}
+                ${num('kioskSecMenu', 'เลือกเมนู')}
+                ${num('kioskSecItem', 'เลือกตัวเลือกสินค้า')}
+                ${num('kioskSecCart', 'ตะกร้า')}
+                ${num('kioskSecUpsell', 'เมนูแนะนำเพิ่ม')}
+                ${num('kioskSecPay', 'เลือกวิธีชำระเงิน')}
+                ${num('kioskSecQrExpired', 'หน้า QR หมดเวลา')}
+                ${num('kioskWarnSec', 'เตือน "ยังสั่งอยู่ไหม?" ก่อนหมด')}
+            </div>
+            <div class="ds-section-label">เวลาที่เกี่ยวกับการจ่ายเงิน (วินาที)</div>
+            <div class="cf-num-grid">
+                ${num('qrTimeoutSec', 'สแกน QR จ่ายเงิน')}
+                ${num('kioskSlipScanSec', 'สแกนสลิป (หมดแล้วส่งพนักงานตรวจ)')}
+                ${num('kioskDoneSec', 'หน้าเสร็จสิ้น (บัตรคิว)')}
+            </div>
+            <div class="ds-note">หน้าที่เกี่ยวกับเงินไม่ถามว่ายังอยู่ไหม — หมดเวลา QR ไปหน้า "โอนแล้วหรือยัง?" · สลิปส่งให้พนักงานดูแทน</div>
 
             <div class="ds-note" style="margin-top:14px">
                 <i data-lucide="info" class="icon-sm"></i>
@@ -911,7 +927,8 @@ const DashPage = {
 
     saveKioskSettings() {
         const d = this._kd;
-        ['kioskIdleSec', 'kioskDoneSec', 'qrTimeoutSec'].forEach((k) => {
+        ['kioskIdleSec', 'kioskDoneSec', 'qrTimeoutSec', 'kioskSecDining', 'kioskSecMenu', 'kioskSecItem', 'kioskSecCart',
+         'kioskSecUpsell', 'kioskSecPay', 'kioskSecQrExpired', 'kioskWarnSec', 'kioskSlipScanSec'].forEach((k) => {
             const el = document.getElementById('kn-' + k);
             if (el) { const n = parseInt(el.value, 10); if (!isNaN(n) && n > 0) d[k] = n; }
         });
@@ -1134,7 +1151,13 @@ const DashPage = {
                     <label class="sip-label">ที่อยู่</label>
                     <textarea class="sip-textarea" id="shAddr" rows="3">${e(s.address || '')}</textarea>
                 </div>
+                ${field('shPhone', 'เบอร์โทรร้าน (พิมพ์บนใบเสร็จ · ไม่มีเว้นว่างได้)', s.shopPhone, 'inputmode="tel" placeholder="076-123-456"')}
                 ${field('shTax', 'เลขประจำตัวผู้เสียภาษี (13 หลัก · ไม่มีเว้นว่างได้)', s.taxId, 'inputmode="numeric"')}
+                <div class="sip-field">
+                    <label class="sip-label">ข้อความท้ายใบเสร็จ (ไม่เกิน 4 บรรทัด — เช่น รหัส Wi-Fi, LINE, IG)</label>
+                    <textarea class="sip-textarea" id="shFooter" rows="3" maxlength="200"
+                              placeholder="Wi-Fi: CafeFlow รหัส 12345678&#10;LINE @cafeflow">${e(s.receiptFooter || '')}</textarea>
+                </div>
                 ${field('shPp', 'พร้อมเพย์ของร้าน (เบอร์โทร 10 หลัก หรือเลข 13 หลัก)', s.promptpayId, 'inputmode="numeric"')}
                 <div class="sip-field">
                     <label class="sip-label">เริ่มนับเลขออเดอร์ใหม่ (A001) ทุกวัน เวลา</label>
@@ -1169,6 +1192,7 @@ const DashPage = {
         const body = { shopName: v('shName'), address: v('shAddr'),
                        taxId: digits(v('shTax')), promptpayId: digits(v('shPp')),
                        shopAccountName: v('shAccName'),
+                       shopPhone: v('shPhone'), receiptFooter: v('shFooter'),
                        shopAccountNos: v('shAccNos').split(',').map(digits).filter(Boolean).join(', '),
                        dayStartHour: parseInt(v('shDayStart'), 10) };
         if (!body.shopName) { showToast('ต้องใส่ชื่อร้าน', 'error'); return; }

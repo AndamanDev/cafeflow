@@ -134,6 +134,8 @@ const CFKiosk = {
     reset() {
         if (this._newVersion) { location.reload(); return; }
         clearTimeout(this._idle); clearInterval(this._qr); clearInterval(this._doneT);
+        this._qrLeft = null; this._doneLeft = null; this._deadline = null;
+        this.hideStillThere();
         this.state.stack = [];
         this.state.cart = [];
         this._orderCart = null;
@@ -197,13 +199,86 @@ const CFKiosk = {
        ตัวจับเวลาไม่มีการใช้งาน
        หน้า pay/qr/done มีตัวนับของตัวเอง ห้ามให้ idle มาตัดกลางคัน
        ══════════════════════════════════════════════════════ */
+    /**
+     * หน้าที่ใช้ตัวจับเวลาแบบ "ไม่มีใครแตะจอ" — ตั้งเวลาแยกแต่ละหน้าที่ ตั้งค่าคีออสก์ › เวลา
+     * แตะจอเมื่อไหร่นับใหม่ · เหลือ kioskWarnSec ขึ้นกล่อง "ยังสั่งอยู่ไหม?" (แบบ KFC) · หมดแล้วกลับหน้าแรก
+     * หน้า QR / สแกนสลิป / เสร็จสิ้น มีตัวนับของตัวเอง (เงินเกี่ยวข้อง) — ที่นี่แค่อ่านมาโชว์มุมขวาบน
+     */
+    IDLE_KEY: { dining: 'kioskSecDining', menu: 'kioskSecMenu', item: 'kioskSecItem', cart: 'kioskSecCart',
+                upsell: 'kioskSecUpsell', pay: 'kioskSecPay', qrexpired: 'kioskSecQrExpired' },
+
     resetIdle() {
         clearTimeout(this._idle);
-        if (['attract', 'pay', 'qr', 'qrexpired', 'slip', 'done'].includes(this.state.screen)) return;
-        const sec = this.cfg().kioskIdleSec || 90;
-        this._idle = setTimeout(() => this.reset(), sec * 1000);
+        this.hideStillThere();
+        const key = this.IDLE_KEY[this.state.screen];
+        if (!key) { this._idleAt = null; this.tick(); return; }
+        const c = this.cfg();
+        const sec = Number(c[key]) || Number(c.kioskIdleSec) || 90;
+        this._idleAt = Date.now() + sec * 1000;
+        if (!this._tickT) this._tickT = setInterval(() => this.tick(), 250);
+        this.tick();
     },
     bumpIdle() { this.resetIdle(); },
+
+    /** วินาทีที่เหลือของหน้าปัจจุบัน — null = หน้านี้ไม่มีตัวนับ (หน้าแรก) */
+    secondsLeft() {
+        const s = this.state.screen;
+        if (this.IDLE_KEY[s]) return this._idleAt ? Math.ceil((this._idleAt - Date.now()) / 1000) : null;
+        if (s === 'qr' && !this._qrScanned) return this._qrLeft != null ? this._qrLeft : null;
+        if ((s === 'qr' || s === 'slip') && this._deadline && isFinite(this._deadline)) {
+            return Math.ceil((this._deadline - Date.now()) / 1000);
+        }
+        if (s === 'done') return this._doneLeft != null ? this._doneLeft : null;
+        return null;
+    },
+
+    tick() {
+        const left = this.secondsLeft();
+        const el = document.getElementById('cfkClock');
+        const warn = Number(this.cfg().kioskWarnSec) || 15;
+        if (el) {
+            el.hidden = left == null;
+            if (left != null) {
+                const v = Math.max(0, left);
+                el.querySelector('b').textContent = v >= 60 ? Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0') : v;
+                el.classList.toggle('low', v <= warn);
+            }
+        }
+        if (!this.IDLE_KEY[this.state.screen] || left == null) return;
+        if (document.getElementById('cfkBusy')) return;          // กำลังส่งออเดอร์ — ห้ามล้างกลางคัน
+        if (left <= 0) { this.reset(); return; }
+        if (left <= warn) this.showStillThere(left);
+    },
+
+    /** กล่อง "ยังสั่งอยู่ไหม?" — แตะตรงไหนก็ได้ = สั่งต่อ (bumpIdle ผ่าน pointerdown ของ stage) */
+    showStillThere(left) {
+        let el = document.getElementById('cfkStill');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'cfkStill';
+            el.className = 'cfk-still';
+            el.innerHTML = `<div class="cfk-still-card">
+                <div class="cfk-still-title">${this.t('ยังสั่งอยู่ไหม?', 'Are you still there?')}</div>
+                <div class="cfk-still-sub">${this.t('จะกลับหน้าแรกและล้างตะกร้าใน', 'Returning to start and clearing your cart in')}</div>
+                <div class="cfk-still-num" id="cfkStillNum"></div>
+                <div class="cfk-still-btns">
+                    <button class="cfk-btn cfk-btn-ghost" onclick="CFKiosk.reset()">${this.t('เริ่มใหม่', 'Start over')}</button>
+                    <button class="cfk-btn cfk-btn-primary" onclick="CFKiosk.bumpIdle()">${this.t('สั่งต่อ', 'Continue')}</button>
+                </div>
+            </div>`;
+            this.stage.appendChild(el);
+        }
+        document.getElementById('cfkStillNum').textContent = Math.max(0, left);
+    },
+    hideStillThere() {
+        const el = document.getElementById('cfkStill');
+        if (el) el.remove();
+    },
+
+    /** นาฬิกามุมขวาบน — tick() เติมตัวเลขทุก 250 ms */
+    clockHtml() {
+        return `<span class="cfk-clock" id="cfkClock" hidden>${CFKioskArt.icon('timer')}<b></b></span>`;
+    },
 
     toast(msg, ms) {
         const el = document.getElementById('cfkToast');
@@ -372,6 +447,7 @@ const CFKiosk = {
                 ${o.sub ? `<span>${e(o.sub)}</span>` : ''}
             </div>
             ${o.mode && this.state.dining ? this.modeChipHtml() : ''}
+            ${this.clockHtml()}
             ${o.noLang ? '' : this.langBtn()}
         </div>`;
     },
@@ -1094,8 +1170,10 @@ const CFKiosk = {
         let left = sec;
         const el0 = document.getElementById('cfkLeft');
         if (el0) el0.textContent = left;
+        this._qrLeft = left;
         this._qr = setInterval(() => {
             left--;
+            this._qrLeft = left;
             const el = document.getElementById('cfkLeft');
             if (el) el.textContent = Math.max(0, left);
             if (left <= 0) { clearInterval(this._qr); this.go('qrexpired'); }
@@ -1739,7 +1817,7 @@ const CFKiosk = {
 
         return `
         <div class="cfk-top"><div class="cfk-top-title"><b>${e(v.title)}</b>
-            <span>${e(this.diningLabel())}</span></div></div>
+            <span>${e(this.diningLabel())}</span></div>${this.clockHtml()}</div>
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center"><div class="cfk-panel">
                 <div class="cfk-done-ico ${v.tone}">
@@ -1810,8 +1888,10 @@ const CFKiosk = {
     startDone(sec) {
         clearInterval(this._doneT);
         let left = sec;
+        this._doneLeft = left;
         this._doneT = setInterval(() => {
             left--;
+            this._doneLeft = left;
             const el = document.getElementById('cfkDoneLeft');
             if (el) el.textContent = left;
             if (left <= 0) { clearInterval(this._doneT); this.reset(); }

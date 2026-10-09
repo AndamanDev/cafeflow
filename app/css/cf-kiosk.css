@@ -989,3 +989,29 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
     min-height: 22px; text-align: center;
     font-size: 15px; color: var(--text-secondary);
 }
+
+/* ── นาฬิกานับถอยหลังมุมขวาบน + กล่อง "ยังสั่งอยู่ไหม?" (แบบ KFC) ── */
+.cfk-clock {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: calc(var(--u) * .5);
+    padding: calc(var(--u) * .6) calc(var(--u) * 1.2); min-height: calc(var(--u) * 5); box-sizing: border-box;
+    border-radius: 999px; background: var(--brand-bg); color: var(--text-secondary);
+    font-size: calc(var(--u) * 1.8); font-variant-numeric: tabular-nums;
+}
+.cfk-clock[hidden] { display: none; }
+.cfk-clock svg { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
+.cfk-clock b { min-width: 2ch; text-align: right; }
+.cfk-clock.low { background: var(--status-warning-soft); color: var(--status-warning-strong); }
+
+.cfk-still {
+    position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+    background: rgba(17, 17, 17, .55); padding: calc(var(--u) * 3);
+}
+.cfk-still-card {
+    width: min(100%, calc(var(--u) * 56)); background: #fff; border-radius: calc(var(--u) * 2.4);
+    padding: calc(var(--u) * 4) calc(var(--u) * 3.5); text-align: center;
+}
+.cfk-still-title { font-size: calc(var(--u) * 3.6); font-weight: 800; color: #111; }
+.cfk-still-sub   { font-size: calc(var(--u) * 1.9); color: var(--text-secondary); margin-top: calc(var(--u) * 1); }
+.cfk-still-num   { font-size: calc(var(--u) * 10); font-weight: 800; color: var(--status-warning-strong);
+                   line-height: 1.1; margin: calc(var(--u) * 1.5) 0 calc(var(--u) * 2.5); font-variant-numeric: tabular-nums; }
+.cfk-still-btns  { display: grid; grid-template-columns: 1fr 1.4fr; gap: calc(var(--u) * 1.5); }

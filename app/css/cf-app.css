@@ -512,3 +512,19 @@
 .cf-when { display: inline-flex; align-items: center; gap: 3px; color: var(--blue); font-weight: 600; }
 .cf-when svg { width: 12px; height: 12px; }
 .cf-margin { font-size: 12.5px; color: var(--primary-dark); font-weight: 600; white-space: nowrap; }
+
+/* ── ใบพิมพ์ผ่านเบราว์เซอร์ (ทางสำรอง) ให้หน้าตาตรงกับใบที่เครื่องพิมพ์วาด ── */
+.cf-rc-hr.cf-rc-solid { border-top-style: solid; border-top-width: 2px; }
+.cf-rc-banner {
+    background: #000; color: #fff; text-align: center; font-weight: 800; padding: 3px 6px; margin: 4px 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.cf-rc-mod { padding-left: 1.2em; }
+@media print {
+    /* กฎพิมพ์บังคับตัวอักษรดำทั้งใบ — แถบดำต้องคงตัวขาว */
+    body.ds-printing.print-roll #dsPrintStage .cf-rc-banner,
+    body.ds-printing.print-roll #dsPrintStage .cf-rc-banner * { color: #fff !important; background: #000 !important; }
+}
+
+.cf-num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.cf-num-grid .sip-field { margin-bottom: 10px; }
