@@ -872,10 +872,12 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 .cfk-busy.is-clear { background: transparent; }
 /* หัวข้อใหญ่กลางการ์ด — ใช้ที่หน้า "โอนเงินไปแล้วหรือยัง?" (screen_qrexpired) */
 .cfk-slipwait-title { font-size: calc(var(--u) * 2.8); font-weight: 700; text-align: center; }
+/* ภาพที่ถ่ายได้ ค้างไว้แทนภาพสดระหว่างตรวจ (CFKiosk.freezeCam) — อยู่ใต้กล่อง loading */
+.cfk-cam-shot { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; }
 .cfk-cambusy {
     position: absolute; inset: 0; z-index: 2;
     display: grid; place-items: center;
-    background: rgba(0, 0, 0, .55);
+    background: rgba(0, 0, 0, .3);           /* บาง — ยังเห็นภาพที่ถ่ายได้รอบการ์ด */
 }
 .cfk-cambusy-box {
     width: min(86%, calc(var(--u) * 46)); display: grid; justify-items: center; gap: calc(var(--u) * 1);

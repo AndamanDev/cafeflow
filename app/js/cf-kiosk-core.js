@@ -1551,6 +1551,7 @@ const CFKiosk = {
         this.slipSteps('capture');
         try {
             const image = video ? await this.captureBest(video) : null;
+            this.freezeCam(image, video);
             this.slipSteps('send');
             const r = await CFApi.post('/api/orders/' + encodeURIComponent(this.state.orderId) + '/slip', { payload, image }, { timeout: 60000 });   // อัปโหลดภาพเต็มขนาด — Wi-Fi ช้าใช้เวลานานกว่าคำขอทั่วไป
             this._slipSent = true;
@@ -1669,9 +1670,35 @@ const CFKiosk = {
         el.innerHTML = html;
     },
 
+    /**
+     * ถ่ายเสร็จ → กล่องกล้องค้างไว้ที่ภาพที่ถ่ายได้ (ภาพเดียวกับที่ส่งไปตรวจ) แทนภาพสด
+     * ลูกค้าเห็นว่าเครื่องกำลังตรวจภาพไหน · ขยับมือถือหรือเก็บมือถือแล้วภาพไม่เปลี่ยนตาม
+     * ถ่ายไม่ได้ (ไม่มีภาพ) → หยุดวิดีโอไว้ที่เฟรมล่าสุดแทน · คืนภาพสดใน slipStepsDone
+     */
+    freezeCam(image, video) {
+        const cam = document.getElementById('cfkCam');
+        if (!cam) return;
+        if (video) video.pause();
+        if (!image) return;
+        let img = document.getElementById('cfkCamShot');
+        if (!img) {
+            img = document.createElement('img');
+            img.id = 'cfkCamShot';
+            img.className = 'cfk-cam-shot';
+            img.alt = this.t('ภาพสลิปที่ถ่ายได้', 'Photo of your slip');
+            cam.appendChild(img);
+        }
+        img.src = image;
+    },
+
     slipStepsDone() {
         const el = document.getElementById('cfkCamBusy');
         if (el) el.remove();
+        const shot = document.getElementById('cfkCamShot');
+        if (shot) shot.remove();
+        // กลับมาสแกนต่อ (สลิปไม่ผ่าน / ถ่ายใหม่) — ภาพสดต้องเดินอีกครั้ง
+        const video = document.getElementById('cfkVideo');
+        if (video && video.paused && video.srcObject) video.play().catch(() => {});
         this.setBusy(false);
     },
 
