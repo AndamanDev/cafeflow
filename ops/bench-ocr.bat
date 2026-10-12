@@ -29,9 +29,7 @@ if exist "ocr-svc\.venv-ov\Scripts\python.exe" (
   echo     Already installed - skipped.
 ) else (
   echo     Installing - needs internet, 3-10 minutes...
-  py -3.11 -m venv ocr-svc\.venv-ov
-  ocr-svc\.venv-ov\Scripts\python.exe -m pip install -q --upgrade pip
-  ocr-svc\.venv-ov\Scripts\python.exe -m pip install -q -r ocr-svc\requirements-openvino.txt
+  call ocr-svc\setup-openvino.bat --no-pause
 )
 
 set PYTHONIOENCODING=utf-8

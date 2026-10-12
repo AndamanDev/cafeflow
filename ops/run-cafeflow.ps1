@@ -133,14 +133,27 @@ Retry 'API' {
 } | Out-Null
 
 # ── 4. ตัวอ่านสลิป OCR (พอร์ต 5101) ──────────────────────────────
-$py = Join-Path $Root 'ocr-svc\.venv\Scripts\python.exe'
-if (-not (Test-Path $py)) {
+# ตัวรัน: openvino (.venv-ov — เร็วกว่า ~3 เท่า) ถ้าติดตั้งไว้ ไม่งั้น paddle (.venv)
+# บังคับใช้ตัวเดิม: ใส่ CF_OCR_ENGINE=paddle ใน .env · openvino เปิดไม่ขึ้น 2 ครั้ง → สลับเป็น paddle เอง
+$pyPd = Join-Path $Root 'ocr-svc\.venv\Scripts\python.exe'
+$pyOv = Join-Path $Root 'ocr-svc\.venv-ov\Scripts\python.exe'
+$ocrEngine = 'auto'
+$envFile = Join-Path $Root '.env'
+if (Test-Path $envFile) {
+    $m = Select-String -Path $envFile -Pattern '^\s*CF_OCR_ENGINE\s*=\s*(\w+)' | Select-Object -First 1
+    if ($m) { $ocrEngine = $m.Matches[0].Groups[1].Value.ToLower() }
+}
+if (-not (Test-Path $pyPd) -and -not (Test-Path $pyOv)) {
     Log 'ยังไม่ได้ติดตั้งตัวอ่านสลิป (ocr-svc\setup.bat) — ข้าม ร้านขายได้ปกติ'
 } else {
     $env:PYTHONIOENCODING = 'utf-8'
     Retry 'ตัวอ่านสลิป' {
+        param($n)
         if (PortBusy 5101) { return $true }
-        StartHidden $py @('server.py') (Join-Path $Root 'ocr-svc') 'ocr'
+        $useOv = ($ocrEngine -ne 'paddle') -and (Test-Path $pyOv) -and ($n -le 2 -or -not (Test-Path $pyPd))
+        $env:CF_OCR_ENGINE = $(if ($useOv) { 'openvino' } else { 'paddle' })
+        Log "ตัวอ่านสลิป: $($env:CF_OCR_ENGINE)"
+        StartHidden $(if ($useOv) { $pyOv } else { $pyPd }) @('server.py') (Join-Path $Root 'ocr-svc') 'ocr'
         # โหลดโมเดลครั้งแรกช้า
         if (WaitFor { PortBusy 5101 } 120) { return $true }
         Log "!! ตัวอ่านสลิปไม่ขึ้น: $(LastLines 'ocr')"

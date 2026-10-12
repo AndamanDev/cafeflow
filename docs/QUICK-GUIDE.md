@@ -69,6 +69,21 @@ ocr-svc\.venv\Scripts\python.exe -m pip list | findstr paddle
 ❌ เห็น `3.3.1` → บรรทัดที่ 3 ไม่สำเร็จ เช็กเน็ตแล้ววางใหม่
 ❌ บรรทัดที่ 3 ขึ้นว่าหา path ไม่เจอ → เครื่องนี้ยังไม่เคยลงตัวอ่านสลิป ให้ดับเบิลคลิก `D:\cafeflow\ocr-svc\setup.bat` แทน
 
+### ⚡ ครั้งเดียว: ตัวอ่านสลิปแบบเร็ว (OpenVINO) — เครื่องที่ติดตั้งก่อน 12 ต.ค. 2569 (บ่าย)
+
+อ่านสลิปเร็วขึ้นราว 3 เท่า (i3-6100U: 3.3 → 1.0 วิ/ใบ) · ความแม่นเท่าเดิม · ต้องมีเน็ต ~200 MB
+
+| ทำ | ต้องเห็น |
+|---|---|
+| ดับเบิลคลิก `D:\cafeflow\ocr-svc\setup-openvino.bat` | `Done. Run ops\restart-api.bat to start using the fast engine.` |
+| ดับเบิลคลิก `restart-api.bat` | `OK - CafeFlow API restarted with the new code.` |
+| เปิดเบราว์เซอร์ที่เครื่องหลัก: `http://127.0.0.1:5101/health` | `"engine": "openvino"` |
+
+- เคยกด `bench-ocr.bat` แล้ว = ติดตั้งไว้แล้ว ข้ามข้อแรกได้ (กดซ้ำก็ไม่เสียหาย)
+- ขึ้น `OPENVINO SETUP FAILED` → ร้านยังใช้ตัวอ่านแบบเดิมได้ตามปกติ เช็กเน็ตแล้วกดใหม่
+- ขึ้น `"engine": "paddleocr"` → ตัวแบบเร็วเปิดไม่ขึ้น ระบบสลับกลับตัวเดิมเอง ส่ง `logs\ocr.err.log` ให้ช่าง
+- **อยากกลับไปใช้ตัวเดิม:** เปิดไฟล์ `D:\cafeflow\.env` ด้วย Notepad เพิ่มบรรทัด `CF_OCR_ENGINE=paddle` → บันทึก → `restart-api.bat`
+
 ---
 
 ## 4. ระบบค้าง / หน้าเว็บเข้าไม่ได้ / สลิปไม่ตรวจ

@@ -10,6 +10,8 @@ py -3.11 -m venv .venv || goto :fail
 .venv\Scripts\python.exe -m pip install --upgrade pip || goto :fail
 .venv\Scripts\python.exe -m pip install -r requirements.txt || goto :fail
 .venv\Scripts\python.exe server.py --warmup || goto :fail
+rem fast engine (OpenVINO, ~3x faster) - optional: if it fails the normal engine above is used
+call setup-openvino.bat --no-pause
 echo.
 echo Done. Start the reader with start.bat
 pause

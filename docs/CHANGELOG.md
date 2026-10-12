@@ -24,8 +24,20 @@
 | ~09:30 | Auto | **คู่มือใหม่แบบกดไฟล์** `docs/QUICK-GUIDE.md` — หน้าเดียว แยกตามสถานการณ์ · วิธีอัปเดต Paddle เครื่องเก่า |
 | ~10:30–11:30 | **Plan** → Auto | ทดลองเร่งเครื่องร้าน i3-6100U (ลด thread · ย่อภาพ · ตัดกรอบสลิป) — **ไม่ช่วยทั้งหมด** ไม่แก้โปรเจกต์ · ~5 วิคือเพดานของเครื่องนี้ |
 | ~11:40–12:40 | **Plan** → Auto | **OpenVINO เร็วกว่าตัวปัจจุบัน ~3 เท่า** (1.0 vs 3.4 วิ จำกัด CPU เหมือน i3) ความแม่นเท่าเดิม · จูน cache/ชุดอ่าน · ภาพขาวดำ (ไม่ผ่าน) · ชุดวัด `ops/bench-ocr.bat` ไว้วัดบน i3 จริง |
+| ~12:45–13:15 | Auto | **ใช้ OpenVINO กับตัวอ่านสลิปจริง** — วัดบน i3 ร้าน 3.31 → 1.04 วิ/ใบ ตรงกัน 15/15 · เลือกเอง/สลับกลับ paddle เองถ้าเปิดไม่ขึ้น · `restart-api`/`update-cafeflow` รีสตาร์ทตัวอ่านสลิปด้วย |
 
 ### รายละเอียด
+
+#### ~12:45–13:15 · Auto — ใช้ OpenVINO กับตัวอ่านสลิปจริง
+- **ผลวัดบนเครื่องร้าน i3-6100U** (`bench-ocr.bat` สลิปจริงของเครื่องนั้น 15 ใบ): Paddle 3.31 วิ (2.53–4.70) · **OpenVINO 1.04 วิ (0.83–1.35)** เร็วกว่า 69% · อ่านค่าตรงกัน 15/15 → ผ่านเกณฑ์ ทำขั้น D ตามแผน
+- `ocr-svc/server.py`: ตัวรันเลือกด้วย `CF_OCR_ENGINE` (`openvino` → `ov_engine.py` · อื่น ๆ → PaddleOCR เดิม) · import ตามตัวที่ใช้ (venv OpenVINO ไม่มี paddle) · `read_lines` เปิดภาพด้วย OpenCV ทุกครั้งแล้วพลิกถ้าขอ · `/health` และผล `/ocr` บอก `engine`
+- `ops/run-cafeflow.ps1`: ใช้ `ocr-svc\.venv-ov` (OpenVINO) ถ้ามี · ไม่มี = `.venv` (paddle) · `.env` `CF_OCR_ENGINE=paddle` = บังคับตัวเดิม · OpenVINO เปิดไม่ขึ้น 2 ครั้ง → ครั้งต่อไปสลับเป็น paddle เอง · log `ตัวอ่านสลิป: openvino|paddle` ใน `logs/start.log`
+- `ops/restart-api.bat` · `ops/update-cafeflow.bat`: หยุดพอร์ต 5101 (ตัวอ่านสลิป) ด้วย — เดิมหยุดแค่ API ตัวอ่านสลิปจึงรันโค้ดเก่าค้างจนรีบูต
+- ใหม่ `ocr-svc/setup-openvino.bat` (สร้าง `.venv-ov` · ติดตั้ง · warmup ตอนมีเน็ต) · `ocr-svc/setup.bat` เรียกต่อท้าย (ล้มก็ใช้ paddle ต่อ) · `ops/bench-ocr.bat` เรียกตัวเดียวกัน
+- `api/src/ocr/worker.js`: `payment_slip.ocr_engine` บันทึกตัวที่อ่านจริง (`openvino` / `paddleocr`)
+- **ทดสอบเครื่อง dev:** รีสตาร์ท → `/health` `"engine":"openvino"` · `POST /ocr` 0.36–0.57 วิ/ครั้ง ค่าอ่านเหมือนเดิม (รวมภาพกลับด้าน) · ใส่ `CF_OCR_ENGINE=paddle` → `paddleocr` · เอาออก → `openvino` (คืน `.env` ตรงทุก byte) · `npm test` 46/46 · `.bat` ทุกไฟล์ CRLF (sed ของ Git Bash แปลงเป็น LF — แก้กลับแล้ว)
+- **เครื่องร้านเดิม:** `update-cafeflow.bat` → `ocr-svc\setup-openvino.bat` (ข้ามได้ถ้าเคยกด bench-ocr) → `restart-api.bat` → `http://127.0.0.1:5101/health` ต้องเห็น `openvino` — เขียนไว้ใน `docs/QUICK-GUIDE.md` ข้อ 3 · เครื่องติดตั้งใหม่ได้เอง (setup.bat)
+- ไฟล์: `ocr-svc/server.py` · `ocr-svc/ov_engine.py` · `ocr-svc/setup-openvino.bat` (ใหม่) · `ocr-svc/setup.bat` · `ops/run-cafeflow.ps1` · `ops/restart-api.bat` · `ops/update-cafeflow.bat` · `ops/bench-ocr.bat` · `api/src/ocr/worker.js` · `.env.example` · `docs/QUICK-GUIDE.md`
 
 #### ~11:40–12:40 · Plan → Auto — เร่งตัวอ่านสลิปให้สุดบน CPU เดิม (OpenVINO)
 - **ผู้ใช้:** ไม่มีงบเปลี่ยน CPU อยากให้เร็วที่สุดและถูกต้องที่สุด · เสนอให้ลองภาพขาวดำ

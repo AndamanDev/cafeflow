@@ -1,9 +1,10 @@
 """
-CafeFlow — ตัวอ่านสลิปแบบ OpenVINO (ตัวเร่งของ Intel) · ยังเป็นตัวทดลอง ใช้กับ bench/ เท่านั้น
+CafeFlow — ตัวอ่านสลิปแบบ OpenVINO (ตัวเร่งของ Intel) · server.py ใช้เมื่อ CF_OCR_ENGINE=openvino
 ══════════════════════════════════════════════════════════════════
-โมเดลเดียวกับ server.py (PP-OCRv5_mobile_det + th_PP-OCRv5_mobile_rec) แปลงเป็น ONNX ไว้ใน onnx/
+โมเดลเดียวกับตัว paddle (PP-OCRv5_mobile_det + th_PP-OCRv5_mobile_rec) แปลงเป็น ONNX ไว้ใน onnx/
 ขั้นเตรียมภาพ/หาบรรทัด/ถอดตัวอักษรใช้ RapidOCR — ตั้งค่าให้ตรงกับ inference.yml ของ PaddleOCR
-วัด 12/10/2569 สลิปจริง 57 ใบ จำกัด 4 thread: ~1.0 วิ/ใบ (Paddle + mkldnn ~3.4 วิ) · ค่าที่อ่านได้เท่าเดิม
+วัด 12/10/2569: เครื่องร้าน i3-6100U 1.04 วิ/ใบ (paddle + mkldnn 3.31) ตรงกัน 15/15 ใบ ·
+               dev จำกัด 4 thread สลิป 57 ใบ 1.02 วิ (paddle 3.37) ไม่มีใบที่เดิมถูกแล้วใหม่ผิด
 
 ที่มาของไฟล์ใน onnx/ (แปลงครั้งเดียว — บน Windows paddle2onnx DLL ชน ต้องทำใน Docker):
     docker run --rm -v %USERPROFILE%\\.paddlex\\official_models:/models:ro -v %CD%\\onnx:/out python:3.11 bash -c

@@ -6,14 +6,15 @@ rem  Use after "git pull" / copying new code. Without this the running
 rem  API keeps the OLD code (new buttons answer "Route ... not found").
 rem  Pages already open in browsers reload by themselves.
 rem
-rem  1. stop the program listening on port 8080 (the API)
+rem  1. stop the API (port 8080) and the slip reader (port 5101), so new
+rem     slip reader code / engine (OpenVINO) is picked up too
 rem  2. run the CafeFlow startup task again (it starts only what is down)
 rem  3. wait until http://127.0.0.1:8080/api/health answers
 rem ================================================================
 chcp 65001 >nul
-echo Stopping CafeFlow API (port 8080)...
+echo Stopping CafeFlow API (port 8080) and the slip reader (port 5101)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+  "Get-NetTCPConnection -LocalPort 8080,5101 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
 timeout /t 2 /nobreak >nul
 
 echo Starting CafeFlow again...

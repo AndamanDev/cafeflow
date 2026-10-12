@@ -97,7 +97,7 @@ goto :end
 
 :stop_api
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+  "Get-NetTCPConnection -LocalPort 8080,5101 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
 ping -n 4 127.0.0.1 >nul
 exit /b 0
 

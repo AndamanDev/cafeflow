@@ -96,13 +96,14 @@ async function processOne(pool, url, onDone) {
             }
         }
         await pool.query(
-            `UPDATE payment_slip SET ocr_status = 'DONE', ocr_engine = 'paddleocr', ocr_ms = $2,
+            `UPDATE payment_slip SET ocr_status = 'DONE', ocr_engine = $8, ocr_ms = $2,
                     ocr_raw = $3, parsed_amount = $4, parsed_tx_at = $5, verdict = $6,
                     checks = COALESCE(checks, '{}'::jsonb) || jsonb_build_object('ocr', $7::jsonb)
               WHERE id = $1`,
             [slip.id, out.ms || null, JSON.stringify(out.lines || []), res.amount, res.txAt,
              res.verdict, JSON.stringify({ checks: res.checks, notes: res.notes, dateText: res.dateText,
-                                           sender: res.sender, receiver: res.receiver, flipped })]);
+                                           sender: res.sender, receiver: res.receiver, flipped }),
+             out.engine || 'paddleocr']);   // openvino | paddleocr — ไว้ดูย้อนหลังว่าใบไหนอ่านด้วยตัวไหน
     } catch (err) {
         if (!err.bad) {
             // ต่อ ocr-svc ไม่ได้ — คืนเข้าคิว รอมันกลับมา
