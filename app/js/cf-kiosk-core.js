@@ -87,30 +87,9 @@ const CFKiosk = {
         b.classList.toggle('cfk-portrait', o !== 'LANDSCAPE');
         b.classList.toggle('cfk-frame', c.kioskFrame !== false);
         b.classList.toggle('cfk-noart', c.kioskImages === false);
-        // ภาพกล้องบนจอ: กลับซ้ายขวาเมื่อ "กระจก" กับ "กล้องกลับภาพมาเอง" เปิดอย่างใดอย่างหนึ่ง (เปิดทั้งคู่ = หักล้างกัน)
-        // + หมุน 180° เมื่อกล้องติดกลับหัว · การถอดรหัส QR ใช้ภาพจริงเสมอ (jsQR อ่านได้ทุกทิศ)
-        const sx = (c.kioskCamMirror === true) !== (c.kioskCamFlip === true) ? -1 : 1;
-        b.style.setProperty('--cfk-cam-tf', (c.kioskCamRotate180 === true ? 'rotate(180deg) ' : '') + `scaleX(${sx})`);
 
         const st = document.getElementById('cfkStage');
         if (st) st.style.setProperty('--scale', c.kioskScale || 1);
-    },
-
-    /**
-     * กล้องของเครื่องนี้กลับภาพแบบกระจกมาเอง (ไดรเวอร์/ตั้งค่าในตัวกล้อง) — ตั้งที่ ตั้งค่าคีออสก์ (kioskCamFlip)
-     * ต้องพลิกคืนทั้งภาพบนจอและภาพหลักฐาน ไม่งั้น OCR อ่านตัวหนังสือกลับด้านไม่ออก
-     * (ตรวจเองจาก QR ไม่ได้ — jsQR อ่าน QR กลับด้านได้และคืนมุมแบบจัดเรียงแล้ว จึงไม่รู้ว่ากลับ)
-     */
-    camFlip() { return this.cfg().kioskCamFlip === true; },
-    /** กล้องติดกลับหัว — หมุนภาพหลักฐานคืน 180° (ตั้งที่ ตั้งค่าคีออสก์ kioskCamRotate180) */
-    camRot() { return this.cfg().kioskCamRotate180 === true; },
-
-    /** วาดเฟรมจากกล้องลง canvas — พลิกซ้ายขวาเมื่อ flip · หมุน 180° เมื่อ rot (พลิก + หมุน = กลับบนล่างอย่างเดียว) */
-    drawFrame(ctx, video, w, h, flip, rot) {
-        const a = (flip ? -1 : 1) * (rot ? -1 : 1), d = rot ? -1 : 1;
-        ctx.setTransform(a, 0, 0, d, a < 0 ? w : 0, d < 0 ? h : 0);
-        ctx.drawImage(video, 0, 0, w, h);
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
     },
 
     /**
@@ -1440,14 +1419,15 @@ const CFKiosk = {
 
     /**
      * ถ่ายภาพเฟรมนี้เก็บเป็นหลักฐาน — เต็มความละเอียดของกล้อง (ไม่ใช่ภาพย่อที่ใช้ถอดรหัส)
-     * และไม่กลับด้านแบบกระจก ตัวหนังสือบนสลิปจะได้อ่านออก (กล้องที่กลับภาพมาเองก็พลิกคืนให้)
+     * ภาพตามที่กล้องส่งมาตรง ๆ ไม่พลิก/หมุน (ไม่มีสวิตช์กลับกล้องแล้ว 12/10/2569)
+     * กล้องที่กลับภาพมาเอง → ตัวอ่านสลิปพลิกอ่านเองเมื่ออ่านไม่ออก แล้วจำด้านไว้ใช้ใบถัดไป (api/src/ocr/worker.js)
      */
     snapSlip(video) {
         const c = document.createElement('canvas');
         const scale = Math.min(1, 1600 / video.videoWidth);
         c.width = Math.round(video.videoWidth * scale);
         c.height = Math.round(video.videoHeight * scale);
-        this.drawFrame(c.getContext('2d'), video, c.width, c.height, this.camFlip(), this.camRot());
+        c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
         return c;
     },
 

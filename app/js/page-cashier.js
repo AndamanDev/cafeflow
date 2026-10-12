@@ -488,8 +488,7 @@ const CashierPage = {
                 <div id="slipCamWrap" hidden style="margin-top:8px">
                     <video id="slipCamVideo" playsinline muted
                            style="display:block;width:100%;max-height:300px;object-fit:contain;
-                                  background:#111;border-radius:8px;
-                                  ${this.slipCamMirror() ? 'transform:scaleX(-1)' : ''}"></video>
+                                  background:#111;border-radius:8px"></video>
                 </div>
                 <div class="ds-note" id="slipScanMsg" style="margin-top:6px">
                     หันจอมือถือลูกค้า (หน้าสลิป) เข้าหากล้องของเครื่องนี้ หรือเลือกรูปสลิปที่ลูกค้าส่งมา
@@ -501,14 +500,6 @@ const CashierPage = {
         if (!el) return;
         el.textContent = text;
         el.style.color = bad ? 'var(--danger, #c0392b)' : '';
-    },
-
-    /**
-     * ภาพกล้องบนจอแบบกระจกไหม — ใช้ค่าเดียวกับคีออสก์ (kioskCamMirror) สองจอจึงเหมือนกันเสมอ
-     * มีผลแค่ภาพบนจอ ภาพหลักฐานเป็นภาพจริงเสมอ (ตัวหนังสือไม่กลับด้าน OCR อ่านยอดได้)
-     */
-    slipCamMirror() {
-        return Object.assign({}, CF_KIOSK_DEFAULTS, CFStore.settings()).kioskCamMirror === true;
     },
 
     /** วาดภาพ (video หรือ img) ลง canvas ย่อให้ด้านยาวไม่เกิน max */
