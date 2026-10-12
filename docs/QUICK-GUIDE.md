@@ -80,6 +80,7 @@ ocr-svc\.venv\Scripts\python.exe -m pip list | findstr paddle
 | เปิดเบราว์เซอร์ที่เครื่องหลัก: `http://127.0.0.1:5101/health` | `"engine": "openvino"` |
 
 - เคยกด `bench-ocr.bat` แล้ว = ติดตั้งไว้แล้ว ข้ามข้อแรกได้ (กดซ้ำก็ไม่เสียหาย)
+- ⚠️ **ต้องกด `restart-api.bat` หลัง `update-cafeflow.bat` เสมอในรอบนี้** — `update-cafeflow.bat` ตัวเก่า (รอบแรกที่ดึงโค้ดนี้) ไม่รีสตาร์ทตัวอ่านสลิป จึงยังขึ้น `"paddleocr"` · ครั้งต่อ ๆ ไปไม่ต้องแล้ว
 - ขึ้น `OPENVINO SETUP FAILED` → ร้านยังใช้ตัวอ่านแบบเดิมได้ตามปกติ เช็กเน็ตแล้วกดใหม่
 - ขึ้น `"engine": "paddleocr"` → ตัวแบบเร็วเปิดไม่ขึ้น ระบบสลับกลับตัวเดิมเอง ส่ง `logs\ocr.err.log` ให้ช่าง
 - **อยากกลับไปใช้ตัวเดิม:** เปิดไฟล์ `D:\cafeflow\.env` ด้วย Notepad เพิ่มบรรทัด `CF_OCR_ENGINE=paddle` → บันทึก → `restart-api.bat`

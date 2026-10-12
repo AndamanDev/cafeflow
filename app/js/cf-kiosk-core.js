@@ -87,8 +87,10 @@ const CFKiosk = {
         b.classList.toggle('cfk-portrait', o !== 'LANDSCAPE');
         b.classList.toggle('cfk-frame', c.kioskFrame !== false);
         b.classList.toggle('cfk-noart', c.kioskImages === false);
-        b.classList.toggle('cfk-cam-mirror', c.kioskCamMirror === true);
-        b.classList.toggle('cfk-cam-flip', c.kioskCamFlip === true);
+        // ภาพกล้องบนจอ: กลับซ้ายขวาเมื่อ "กระจก" กับ "กล้องกลับภาพมาเอง" เปิดอย่างใดอย่างหนึ่ง (เปิดทั้งคู่ = หักล้างกัน)
+        // + หมุน 180° เมื่อกล้องติดกลับหัว · การถอดรหัส QR ใช้ภาพจริงเสมอ (jsQR อ่านได้ทุกทิศ)
+        const sx = (c.kioskCamMirror === true) !== (c.kioskCamFlip === true) ? -1 : 1;
+        b.style.setProperty('--cfk-cam-tf', (c.kioskCamRotate180 === true ? 'rotate(180deg) ' : '') + `scaleX(${sx})`);
 
         const st = document.getElementById('cfkStage');
         if (st) st.style.setProperty('--scale', c.kioskScale || 1);
@@ -100,10 +102,13 @@ const CFKiosk = {
      * (ตรวจเองจาก QR ไม่ได้ — jsQR อ่าน QR กลับด้านได้และคืนมุมแบบจัดเรียงแล้ว จึงไม่รู้ว่ากลับ)
      */
     camFlip() { return this.cfg().kioskCamFlip === true; },
+    /** กล้องติดกลับหัว — หมุนภาพหลักฐานคืน 180° (ตั้งที่ ตั้งค่าคีออสก์ kioskCamRotate180) */
+    camRot() { return this.cfg().kioskCamRotate180 === true; },
 
-    /** วาดเฟรมจากกล้องลง canvas — พลิกคืนเมื่อ flip เป็นจริง */
-    drawFrame(ctx, video, w, h, flip) {
-        ctx.setTransform(flip ? -1 : 1, 0, 0, 1, flip ? w : 0, 0);
+    /** วาดเฟรมจากกล้องลง canvas — พลิกซ้ายขวาเมื่อ flip · หมุน 180° เมื่อ rot (พลิก + หมุน = กลับบนล่างอย่างเดียว) */
+    drawFrame(ctx, video, w, h, flip, rot) {
+        const a = (flip ? -1 : 1) * (rot ? -1 : 1), d = rot ? -1 : 1;
+        ctx.setTransform(a, 0, 0, d, a < 0 ? w : 0, d < 0 ? h : 0);
         ctx.drawImage(video, 0, 0, w, h);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
     },
@@ -1442,7 +1447,7 @@ const CFKiosk = {
         const scale = Math.min(1, 1600 / video.videoWidth);
         c.width = Math.round(video.videoWidth * scale);
         c.height = Math.round(video.videoHeight * scale);
-        this.drawFrame(c.getContext('2d'), video, c.width, c.height, this.camFlip());
+        this.drawFrame(c.getContext('2d'), video, c.width, c.height, this.camFlip(), this.camRot());
         return c;
     },
 

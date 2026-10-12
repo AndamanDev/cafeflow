@@ -725,11 +725,9 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 /* ภาพกล้องไม่กลับด้านเป็นค่าเริ่มต้น — ตัวหนังสือบนสลิปอ่านได้ปกติ
    เปิดแบบกระจกได้ที่ ตั้งค่าคีออสก์ (kioskCamMirror) · การถอดรหัสใช้ภาพจริงเสมอ ไม่เกี่ยวกับตรงนี้ */
 .cfk-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.cfk-cam-mirror .cfk-cam video { transform: scaleX(-1); }
-/* กล้องบางรุ่นกลับภาพมาเองจากไดรเวอร์ — พลิกคืนด้วย kioskCamFlip (cfk-cam-flip)
-   เปิดพร้อม kioskCamMirror จึงหักล้างกัน */
-.cfk-cam-flip .cfk-cam video { transform: scaleX(-1); }
-.cfk-cam-mirror.cfk-cam-flip .cfk-cam video { transform: none; }
+/* กระจก (kioskCamMirror) · กล้องกลับภาพมาเอง (kioskCamFlip) · กล้องติดกลับหัว (kioskCamRotate180)
+   รวมเป็นค่าเดียวใน CFKiosk.applyOrientation → --cfk-cam-tf */
+.cfk-cam video { transform: var(--cfk-cam-tf, none); }
 /* กรอบเล็งกว้างเกือบเต็มภาพ — ลูกค้าอาจยกมือถือหรือแท็บเล็ต/iPad มาก็ได้ ทั้งแนวตั้งและแนวนอน
    ห้ามเป็นสี่เหลี่ยมเล็ก ๆ: ลูกค้าจะเล็งแค่ QR มุมสลิป ภาพหลักฐานจะไม่เห็นยอดเงินกับชื่อ */
 .cfk-cam-frame {
