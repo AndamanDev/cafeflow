@@ -171,19 +171,51 @@ async function stepSeed() {
     if (r.code !== 0) stop('seed ไม่สำเร็จ — ถ่ายรูปหน้าจอส่งช่าง');
 }
 
-/** ตัวอ่านสลิป — ไม่มีก็ขายได้ จึงล้มแล้วแค่เตือน ไม่หยุด */
+/**
+ * ตัวอ่านสลิป — ไม่มีก็ขายได้ จึงล้มแล้วแค่เตือน ไม่หยุด
+ *   ตัวปกติ  .venv     PaddleOCR (setup.bat — เรียก setup-openvino.bat ต่อท้ายเอง)
+ *   ตัวเร็ว   .venv-ov  OpenVINO เร็วกว่า ~3 เท่า (i3-6100U 3.3 → 1.0 วิ/ใบ) · run-cafeflow.ps1 เลือกให้เองถ้ามี
+ * เครื่องที่ติดตั้งตัวปกติไว้ก่อนแล้ว (กดไฟล์ติดตั้งซ้ำ) → ลงเฉพาะตัวเร็วเพิ่ม
+ * คืน { paddle, ov, ovNew } — ovNew = เพิ่งลงตัวเร็ว ต้องรีสตาร์ทตัวอ่านสลิปที่เปิดค้างอยู่
+ */
 function stepOcr() {
     const dir = path.join(ROOT, 'ocr-svc');
     const py = path.join(dir, '.venv', 'Scripts', 'python.exe');
-    if (fs.existsSync(py) && ok(py, ['-c', 'import paddleocr'], { cwd: dir })) return skip('ตัวอ่านสลิป');
-    doing('ติดตั้งตัวอ่านสลิป (โหลดราว 900 MB · 10–30 นาที อย่าปิดหน้าต่าง)');
-    // stdin = nul → คำสั่ง pause ใน setup.bat ผ่านเองไม่ค้าง
-    const r = run('cmd.exe', ['/c', 'setup.bat'], { cwd: dir, inherit: true });
-    if (r.code !== 0) {
-        log('  ⚠ ติดตั้งตัวอ่านสลิปไม่สำเร็จ — ร้านขายได้ แต่ยังตรวจสลิปจากภาพไม่ได้ · กดไฟล์ติดตั้งอีกครั้งเพื่อลองใหม่');
-        return false;
+    const pyOv = path.join(dir, '.venv-ov', 'Scripts', 'python.exe');
+    const paddleOk = () => fs.existsSync(py) && ok(py, ['-c', 'import paddleocr'], { cwd: dir });
+    const ovOk = () => fs.existsSync(pyOv) && ok(pyOv, ['-c', 'import openvino, rapidocr'], { cwd: dir });
+    const had = ovOk();
+    // stdin = nul → คำสั่ง pause ในไฟล์ .bat ผ่านเองไม่ค้าง
+    if (!paddleOk()) {
+        doing('ติดตั้งตัวอ่านสลิป (โหลดราว 1.1 GB · 10–30 นาที อย่าปิดหน้าต่าง)');
+        // path เต็มเสมอ — เครื่องที่ตั้ง NoDefaultCurrentDirectoryInExePath ไว้ cmd ไม่รันไฟล์ในโฟลเดอร์ปัจจุบันจากชื่อเปล่า ๆ
+        if (run('cmd.exe', ['/c', path.join(dir, 'setup.bat')], { cwd: dir, inherit: true }).code !== 0) {
+            log('  ⚠ ติดตั้งตัวอ่านสลิปไม่สำเร็จ — ร้านขายได้ แต่ยังตรวจสลิปจากภาพไม่ได้ · กดไฟล์ติดตั้งอีกครั้งเพื่อลองใหม่');
+            return { paddle: false, ov: ovOk(), ovNew: false };
+        }
+    } else if (had) {
+        skip('ตัวอ่านสลิป', 'มีทั้งตัวปกติและตัวเร็ว (OpenVINO)');
+        return { paddle: true, ov: true, ovNew: false };
+    } else {
+        doing('ติดตั้งตัวอ่านสลิปแบบเร็ว (OpenVINO · โหลดราว 200 MB)');
+        run('cmd.exe', ['/c', path.join(dir, 'setup-openvino.bat'), '--no-pause'], { cwd: dir, inherit: true });
     }
-    return true;
+    const ov = ovOk();
+    if (!ov) log('  ⚠ ตัวอ่านสลิปแบบเร็ว (OpenVINO) ติดตั้งไม่สำเร็จ — ใช้ตัวปกติไปก่อน (ช้ากว่า ~3 เท่า) · กดไฟล์ติดตั้งอีกครั้งตอนเน็ตดี');
+    return { paddle: true, ov, ovNew: ov && !had };
+}
+
+/** ตัวอ่านสลิปที่เปิดอยู่ใช้ตัวไหน — openvino | paddleocr | null (ยังไม่ขึ้น) */
+function ocrEngine() {
+    return new Promise((resolve) => {
+        const req = http.get('http://127.0.0.1:5101/health', { timeout: 3000 }, (res) => {
+            let body = '';
+            res.on('data', (c) => { body += c; });
+            res.on('end', () => { try { resolve(JSON.parse(body).engine || null); } catch (e) { resolve(null); } });
+        });
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+    });
 }
 
 function stepAutostart() {
@@ -207,8 +239,14 @@ function stepFirewall() {
     if (r.code !== 0) log('  ⚠ เปิดไฟร์วอลล์ไม่สำเร็จ (ต้องรันแบบ admin) — ทำเองตามคู่มือขั้นที่ 10.3');
 }
 
-async function stepStart() {
+async function stepStart(restartOcr) {
     const health = () => httpOk(`http://127.0.0.1:${API_PORT}/api/health`);
+    if (restartOcr) {
+        // เพิ่งลงตัวเร็ว — ตัวอ่านสลิปที่เปิดค้างอยู่ยังเป็นตัวปกติ ปิดให้ตัวเปิดระบบเลือกใหม่
+        run('powershell', ['-NoProfile', '-Command',
+            'Get-NetTCPConnection -LocalPort 5101 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }']);
+        if (await health()) { run('schtasks', ['/Run', '/TN', 'CafeFlow']); return log('  ✓ เปิดตัวอ่านสลิปใหม่ (แบบเร็ว)'); }
+    }
     if (await health()) return skip('เปิดระบบ', 'ทำงานอยู่');
     doing('เปิดระบบ (Docker → ฐานข้อมูล → API → ตัวอ่านสลิป) รอสูงสุด 3 นาที');
     run('schtasks', ['/Run', '/TN', 'CafeFlow']);
@@ -237,11 +275,15 @@ async function main() {
     stepPackages();
     stepMigrate();
     await stepSeed();
-    const ocrOk = stepOcr();
+    const ocr = stepOcr();
     stepAutostart();
     stepNoSleep();
     stepFirewall();
-    await stepStart();
+    await stepStart(ocr.ovNew);
+    // ตัวอ่านสลิปโหลดโมเดลหลัง API — รอดูว่าขึ้นด้วยตัวไหน (ไม่เกิน 2 นาที)
+    let engine = null;
+    if (ocr.paddle || ocr.ov) await waitFor(async () => (engine = await ocrEngine()) !== null, 120);
+    log(`  ตัวอ่านสลิป: ${engine === 'openvino' ? 'แบบเร็ว (OpenVINO) ✓' : engine === 'paddleocr' ? 'แบบปกติ (PaddleOCR)' : 'ยังไม่ขึ้น'}`);
 
     spawn('explorer.exe', [`http://localhost:${API_PORT}/app/login.html`], { detached: true, stdio: 'ignore' }).unref();
 
@@ -252,7 +294,11 @@ async function main() {
 ════════════════════════════════════════════════════════
   IP เครื่องนี้: ${ips.join(' หรือ ') || '(หาไม่เจอ — พิมพ์ ipconfig)'}
   จออื่นในร้านเปิด: http://${ips[0] || '<IP เครื่องนี้>'}:${API_PORT}/app/login.html
-${ocrOk === false ? '\n  ⚠ ตัวอ่านสลิปยังไม่ได้ติดตั้ง — กดไฟล์ติดตั้งอีกครั้งเพื่อลองใหม่\n' : ''}
+  ตัวอ่านสลิป: ${engine === 'openvino' ? 'แบบเร็ว (OpenVINO) ✓'
+    : engine === 'paddleocr' ? 'แบบปกติ — ⚠ ตัวเร็วยังไม่ได้ลง กดไฟล์ติดตั้งอีกครั้งตอนเน็ตดี'
+    : !ocr.paddle ? '⚠ ยังไม่ได้ติดตั้ง — กดไฟล์ติดตั้งอีกครั้งเพื่อลองใหม่'
+    : '⚠ ยังไม่ขึ้น — รีสตาร์ทเครื่อง 1 ครั้ง ถ้ายังไม่ขึ้นส่ง logs\\ocr.err.log ให้ช่าง'}
+
   ยังต้องทำเอง (ดู docs\\INSTALL-EASY.md):
    1. ให้ Windows login เอง — Win+R พิมพ์ netplwiz เอาติ๊กออก
    2. BIOS: Restore on AC Power Loss = Power On

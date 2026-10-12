@@ -92,13 +92,24 @@
         // "บาท" อ่านเพี้ยนเป็น บาn บาก นาท — จับ บา / นาท / THB
         const BAHT = /^\s*(?:บา|นาท|thb)/i;
         const INT_BAHT = /(?:^|[^\d.,])((?:\d{1,3}(?:,\d{3})+|\d{1,7}))\s*(?:บา|นาท|thb)/gi;
+        // เวลาบนสลิปที่ OCR อ่านโคลอนเป็นจุด "06.38 น" หน้าตาเหมือนยอดเงิน — ข้าม
+        // (เจอจริง 12/10/2569: K+ ยอด 40.00 แต่อ่าน "จำนวน" ไม่ออก เลยหยิบเวลา 06.38 เป็นยอด)
+        //   · บรรทัดนั้นเป็นวันเวลาที่ findDate อ่านได้ และตัวเลขตรงกับชั่วโมง/นาทีพอดี
+        //   · หรือมี "น" (นาฬิกา) ต่อท้าย — "นาท" คือ "บาท" ที่อ่านเพี้ยน ยังเป็นยอดเงิน
+        const isTime = (ln, num, rest) => {
+            const t = /^(\d{1,2})\.(\d{2})$/.exec(num);
+            if (!t || +t[1] > 23 || +t[2] > 59) return false;
+            if (/^\s*น(?!า)/.test(rest)) return true;
+            const d = findDate([ln]);
+            return !!d && d.hh === +t[1] && d.mm === +t[2];
+        };
         const found = [];
         lines.forEach((ln, i) => {
             let m;
             MONEY.lastIndex = 0;
             while ((m = MONEY.exec(' ' + ln)) !== null) {
                 const v = Number(m[1].replace(/,/g, ''));
-                if (v > 0) found.push({ v, i });
+                if (v > 0 && !isTime(ln, m[1], (' ' + ln).slice(MONEY.lastIndex))) found.push({ v, i });
             }
             if (MONEY.test(' ' + ln)) return;
             INT_BAHT.lastIndex = 0;
@@ -114,8 +125,9 @@
             }
         });
         if (!found.length) return null;
-        // "จำนวน" มักอ่านเพี้ยน (จ้านวน / จํานวน) — จับแค่ท้ายคำ "นวน" หรือ Amount
-        const k = lines.findIndex((ln) => /นวน|amount/i.test(ln));
+        // "จำนวน" มักอ่านเพี้ยน (จ้านวน / จํานวน / จ้ำนรน:) — จับท้ายคำ "นวน" หรือ Amount
+        // หรือป้ายสั้นขึ้นต้นด้วย จ ลงท้าย ":" (ไม่ใช่ "จาก:")
+        const k = lines.findIndex((ln) => /นวน|amount/i.test(ln) || /^\s*จ(?!าก)[^\s\d:]{2,6}\s*:\s*$/.test(ln));
         const after = k >= 0 ? found.find((f) => f.i >= k) : null;
         return (after || found[0]).v;
     }
