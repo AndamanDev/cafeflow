@@ -36,8 +36,10 @@ DATASET_DIR = os.path.normcase(os.path.join(ROOT, 'data', 'slip-dataset'))
 PORT = int(os.environ.get('CF_OCR_PORT', '5101'))
 
 # โมเดลตัวเล็ก: หาตำแหน่งตัวหนังสือ (mobile_det) + อ่านภาษาไทย (th mobile_rec)
-# วัดกับสลิปจริงแล้ว เร็วกว่าตัวใหญ่ 4 เท่า (~6 วิ/ใบ บน CPU) และอ่านยอดเงินจากภาพเบลอได้ดีกว่า
-# enable_mkldnn=False: oneDNN ของ Paddle 3.3 บน Windows พังกับโมเดลชุดนี้ (NotImplementedError)
+# วัดกับสลิปจริงแล้ว เร็วกว่าตัวใหญ่ 4 เท่า และอ่านยอดเงินจากภาพเบลอได้ดีกว่า
+# enable_mkldnn=True (ตัวเร่ง CPU oneDNN): ~1.9 วิ/ใบ — ปิดไว้ ~8.9 วิ/ใบ (สลิปจริง 56 ใบ ผลอ่านตรงกันทุกใบ 12/10/2569)
+# ★ ต้องคู่กับ paddlepaddle 3.2.2 (requirements.txt) — 3.3.x เปิด mkldnn แล้วพัง
+#   (NotImplementedError ConvertPirAttribute2RuntimeAttribute) ห้ามอัปเกรดโดยไม่วัดใหม่
 print('[ocr] กำลังโหลดโมเดล…', flush=True)
 OCR = PaddleOCR(
     lang='th',
@@ -46,7 +48,7 @@ OCR = PaddleOCR(
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
     use_textline_orientation=False,
-    enable_mkldnn=False,
+    enable_mkldnn=True,
 )
 # โมเดลตัวเดียวทำงานพร้อมกันหลายงานไม่ได้ — ต่อคิวทีละใบ
 LOCK = threading.Lock()
