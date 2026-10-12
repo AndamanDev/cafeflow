@@ -125,7 +125,7 @@ const CashierPage = {
             `<div class="cf-oc-note ${cls}"><i data-lucide="${icon}" class="icon-sm"></i><span>${text}</span></div>`;
         if (slip) {
             const bad = slip.verdict === 'FAIL';
-            return bad ? note('danger', 'alert-octagon', 'มีสลิป — ยอดหรือวันที่ไม่ตรง')
+            return bad ? note('danger', 'alert-octagon', 'มีสลิป — ยอด วันที่ หรือผู้รับไม่ตรง')
                        : note('ok', 'receipt', 'มีสลิปแล้ว — รอดูเงินเข้า');
         }
         return o.status === 'PAYMENT_TIMEOUT'

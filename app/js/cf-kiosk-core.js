@@ -1077,7 +1077,7 @@ const CFKiosk = {
             else this.go('qr');
         } finally {
             this._submitting = false;
-            this.setBusy(false);
+            this.slipStepsDone();
         }
     },
 
@@ -1091,10 +1091,10 @@ const CFKiosk = {
                 el.className = 'cfk-busy';
                 this.stage.appendChild(el);
             }
-            if (typeof text === 'object' && text && text.html) el.innerHTML = text.html;
+            if (typeof text === 'object' && text && 'html' in text) el.innerHTML = text.html;
             else el.textContent = text || this.t('กำลังทำงาน…', 'Working…');
-            // solid = ปิดพื้นหลังทั้งจอ (ตอนตรวจสลิป — ไม่ให้ภาพกล้อง/ปุ่มด้านหลังแย่งสายตา)
-            el.classList.toggle('is-solid', !!(text && text.solid));
+            // clear = ม่านใส กันการกดอย่างเดียว (ตอนตรวจสลิป — ตัว loading อยู่บนกล่องกล้องในหน้าเดิม)
+            el.classList.toggle('is-clear', !!(text && text.clear));
         } else if (el) {
             el.remove();
         }
@@ -1514,9 +1514,9 @@ const CFKiosk = {
 
     /**
      * อ่าน QR ได้ตอนที่มือลูกค้ายังขยับ — เฟรมนั้นมักเบลอ
-     * เก็บต่ออีก ~0.6 วิ (ลูกค้าถือนิ่งขึ้นเองเมื่อเห็นว่าเครื่องกำลังทำงาน) แล้วเลือกเฟรมที่คมที่สุด
+     * เก็บต่ออีก ~0.4 วิ (ลูกค้าถือนิ่งขึ้นเองเมื่อเห็นว่าเครื่องกำลังทำงาน) แล้วเลือกเฟรมที่คมที่สุด
      */
-    async captureBest(video, ms = 600) {
+    async captureBest(video, ms = 400) {
         try {
             let best = null, bestScore = -1;
             const until = Date.now() + ms;
@@ -1605,7 +1605,7 @@ const CFKiosk = {
             });
         } finally {
             this._submitting = false;
-            this.setBusy(false);
+            this.slipStepsDone();
             // กลับมาสแกนต่อ (สลิปไม่ผ่าน / สลิปซ้ำ / ติดต่อเซิร์ฟเวอร์ไม่ได้) → ได้เวลาเต็มใหม่
             // เปิดกล่องสแกนไม่ได้อยู่ (paused) ยังไม่นับ — กด "สแกนใหม่/ถ่ายใหม่" ค่อยเริ่ม (slipDialogRetry)
             if (this.camScreen() && !this._paused && this._scan) this.resetScanDeadline();
@@ -1631,34 +1631,47 @@ const CFKiosk = {
     },
 
     /**
-     * การ์ดขั้นตอนระหว่างรอ — ลูกค้าเห็นว่าผ่านอะไรไปแล้ว และกำลังทำอะไรอยู่
-     *   capture  ถ่ายภาพสลิป (~0.6 วิ) · send ส่งให้ร้านตรวจ · check ตรวจยอด/วันที่ (OCR 5–10 วิ)
+     * loading ระหว่างตรวจสลิป — ขึ้นทับกล่องกล้องในหน้าสแกนเลย ไม่เปลี่ยนไปหน้าตรวจสลิปแยก
+     *   capture  ถ่ายภาพสลิป (~0.4 วิ) · send ส่งให้ร้านตรวจ · check ตรวจยอด/วันที่ (OCR)
+     * ทั้งจอมีม่านใสกันการกด (setBusy clear) — ลูกค้ายังเห็นยอดเงิน/ออเดอร์ของตัวเองอยู่
      * ★ ไม่โชว์ตัวเลขวินาที — เวลาจริงขึ้นกับเครื่อง เลขหมดแล้วยังไม่เสร็จ ลูกค้าจะนึกว่าค้าง
-     *   ใช้แถบ loading วิ่งไม่รู้จบแทน · รอนานเกิน 12 วิ เปลี่ยนข้อความเป็น "อีกสักครู่"
+     *   ใช้แถบ loading วิ่งไม่รู้จบแทน · รอนานเกิน 8 วิ เปลี่ยนข้อความเป็น "อีกสักครู่"
      */
     slipSteps(phase, o = {}) {
         const e = CFApp.esc;
-        const order = ['capture', 'send', 'check'];
-        const at = order.indexOf(phase);
-        const step = (i, doneText, activeText) => {
-            const st = i < at ? 'done' : i === at ? 'active' : 'todo';
-            const mark = st === 'done' ? '✓' : st === 'active' ? '<span class="cfk-spin"></span>' : '';
-            return `<li class="cfk-step is-${st}"><span class="cfk-step-mark">${mark}</span>
-                    <span>${st === 'done' ? doneText : activeText}</span></li>`;
-        };
-        this.setBusy(true, { solid: true, html: `
-            <div class="cfk-slipwait" role="status" aria-live="polite">
-                <div class="cfk-slipwait-title">${at < 2 ? this.t('กำลังรับสลิป', 'Receiving your slip') : this.t('กำลังตรวจสลิป', 'Checking your slip')}</div>
-                <ol class="cfk-steps">
-                    ${step(0, this.t('ถ่ายภาพสลิปแล้ว', 'Photo taken'), this.t('ถือมือถือนิ่ง ๆ กำลังถ่ายภาพสลิป', 'Hold still — taking a photo of the slip'))}
-                    ${step(1, this.t('อ่านสลิปแล้ว', 'Slip read') + (o.bank ? ' · ' + e(o.bank) : '') + this.t(' · ยังไม่เคยใช้', ' · not used before'), this.t('กำลังอ่านสลิป', 'Reading the slip'))}
-                    ${step(2, '', this.t('กำลังตรวจยอดเงินและวันที่', 'Checking the amount and date'))}
-                </ol>
-                ${at === 2 ? `
+        const text = {
+            capture: this.t('ถือมือถือนิ่ง ๆ กำลังถ่ายภาพสลิป', 'Hold still — taking a photo of the slip'),
+            send: this.t('กำลังอ่านสลิป', 'Reading the slip'),
+            check: this.t('กำลังตรวจยอดเงินและวันที่', 'Checking the amount and date'),
+        }[phase];
+        const sub = phase !== 'check' ? ''
+            : (o.bank ? e(o.bank) + ' · ' : '') + ((o.elapsed || 0) < 8 ? this.t('กรุณารอสักครู่ · เก็บมือถือได้เลย', 'Please wait · you can put your phone away')
+                                                                       : this.t('อีกสักครู่ ใกล้เสร็จแล้ว', 'Almost done'));
+        const html = `
+            <div class="cfk-cambusy-box" role="status" aria-live="polite">
+                <span class="cfk-spin"></span>
+                <div class="cfk-cambusy-title">${phase === 'check' ? this.t('กำลังตรวจสลิป', 'Checking your slip') : this.t('กำลังรับสลิป', 'Receiving your slip')}</div>
+                <div class="cfk-cambusy-text">${text}</div>
+                ${sub ? `<div class="cfk-cambusy-sub">${sub}</div>` : ''}
                 <div class="cfk-slipwait-bar is-loading"><span></span></div>
-                <div class="cfk-slipwait-left">${(o.elapsed || 0) < 12 ? this.t('กรุณารอสักครู่', 'Please wait a moment') : this.t('อีกสักครู่ ใกล้เสร็จแล้ว', 'Almost done')}</div>
-                <div class="cfk-slipwait-note">${this.t('เก็บมือถือได้เลย ไม่ต้องถือค้างไว้', 'You can put your phone away now')}</div>` : ''}
-            </div>` });
+            </div>`;
+        const cam = document.getElementById('cfkCam');
+        if (!cam) return this.setBusy(true, { html });
+        this.setBusy(true, { clear: true, html: '' });
+        let el = document.getElementById('cfkCamBusy');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'cfkCamBusy';
+            el.className = 'cfk-cambusy';
+            cam.appendChild(el);
+        }
+        el.innerHTML = html;
+    },
+
+    slipStepsDone() {
+        const el = document.getElementById('cfkCamBusy');
+        if (el) el.remove();
+        this.setBusy(false);
     },
 
     async _pollSlip(slipId, until) {
@@ -1669,7 +1682,7 @@ const CFKiosk = {
             } catch (err) {
                 return null;
             }
-            await new Promise((ok) => setTimeout(ok, 700));
+            await new Promise((ok) => setTimeout(ok, 300));      // ถี่ขึ้น — ผลเสร็จแล้วลูกค้าไม่ต้องรอรอบถัดไป
         }
         return null;
     },
@@ -1765,7 +1778,7 @@ const CFKiosk = {
             this.go(saved.length ? 'cart' : 'menu');
         } finally {
             this._submitting = false;
-            this.setBusy(false);
+            this.slipStepsDone();
         }
     },
 
@@ -1792,7 +1805,7 @@ const CFKiosk = {
             this.go('done', { kind: 'CASH' });
         } finally {
             this._submitting = false;
-            this.setBusy(false);
+            this.slipStepsDone();
         }
     },
 
@@ -1832,7 +1845,7 @@ const CFKiosk = {
             this.go('done', { kind: reason && hasSlip ? 'HELP' : 'TIMEOUT' });
         } finally {
             this._submitting = false;
-            this.setBusy(false);
+            this.slipStepsDone();
         }
     },
 

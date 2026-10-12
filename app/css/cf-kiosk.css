@@ -867,25 +867,26 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 /* ปุ่มเรียงแนวตั้ง — หน้าหมดเวลามีสามทางเลือก วางแถวเดียวแล้วปุ่มเล็กเกินนิ้ว */
 .cfk-actionbar-stack { flex-direction: column; }
 
-/* ── การ์ดขั้นตอนระหว่างตรวจสลิป (CFKiosk.slipSteps) ──
-   พื้นหลังทึบทั้งจอ: ลูกค้ามองแค่การ์ด ไม่เห็นภาพกล้องค้าง/ปุ่มที่กดไม่ได้อยู่ด้านหลัง */
-.cfk-busy.is-solid { background: var(--bg-page, #F4F5F4); }
-.cfk-slipwait {
-    width: min(88%, calc(var(--u) * 56)); display: grid; gap: calc(var(--u) * 1.4);
-    background: #fff; border: 1px solid var(--brand-border, #DFDFDF); border-radius: calc(var(--u) * 1.6);
-    padding: calc(var(--u) * 2.4); text-align: left; color: var(--text-primary);
-}
+/* ── loading ระหว่างตรวจสลิป (CFKiosk.slipSteps) ──
+   ขึ้นทับกล่องกล้องในหน้าสแกนเลย ไม่เปลี่ยนหน้า · ทั้งจอมีม่านใส (is-clear) กันการกดอย่างเดียว */
+.cfk-busy.is-clear { background: transparent; }
+/* หัวข้อใหญ่กลางการ์ด — ใช้ที่หน้า "โอนเงินไปแล้วหรือยัง?" (screen_qrexpired) */
 .cfk-slipwait-title { font-size: calc(var(--u) * 2.8); font-weight: 700; text-align: center; }
-.cfk-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u) * 1); }
-.cfk-step { display: flex; align-items: center; gap: calc(var(--u) * 1); font-size: calc(var(--u) * 1.6); font-weight: 600; }
-.cfk-step.is-todo { color: var(--text-light, #9AA3A0); font-weight: 500; }
-.cfk-step.is-done { color: var(--primary-dark, #058739); }
-.cfk-step-mark {
-    width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); flex: none; border-radius: 50%;
-    display: grid; place-items: center; font-size: calc(var(--u) * 1.4); font-weight: 700;
-    border: 2px solid currentColor;
+.cfk-cambusy {
+    position: absolute; inset: 0; z-index: 2;
+    display: grid; place-items: center;
+    background: rgba(0, 0, 0, .55);
 }
-.cfk-step.is-done .cfk-step-mark { background: var(--primary, #06C755); border-color: var(--primary, #06C755); color: #fff; }
+.cfk-cambusy-box {
+    width: min(86%, calc(var(--u) * 46)); display: grid; justify-items: center; gap: calc(var(--u) * 1);
+    background: #fff; border-radius: calc(var(--u) * 1.6);
+    padding: calc(var(--u) * 2.4) calc(var(--u) * 2.4) calc(var(--u) * 2); text-align: center; color: var(--text-primary);
+}
+.cfk-cambusy-box .cfk-spin { width: calc(var(--u) * 5); height: calc(var(--u) * 5); border-width: calc(var(--u) * .5); }
+.cfk-cambusy-title { font-size: calc(var(--u) * 2.6); font-weight: 700; }
+.cfk-cambusy-text { font-size: calc(var(--u) * 1.7); font-weight: 600; color: var(--primary-dark, #058739); }
+.cfk-cambusy-sub { font-size: calc(var(--u) * 1.4); color: var(--text-muted, #6B7280); }
+.cfk-cambusy-box .cfk-slipwait-bar { width: 100%; }
 .cfk-spin {
     width: 60%; height: 60%; border-radius: 50%; border: 3px solid rgba(6,199,85,.25);
     border-top-color: var(--primary, #06C755); animation: cfk-rot .8s linear infinite;
@@ -896,8 +897,6 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 .cfk-slipwait-bar span { display: block; height: 100%; width: 35%; border-radius: 99px; background: var(--primary, #06C755); }
 .cfk-slipwait-bar.is-loading span { animation: cfk-load 1.3s ease-in-out infinite; }
 @keyframes cfk-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
-.cfk-slipwait-left { font-size: calc(var(--u) * 1.8); font-weight: 600; text-align: center; }
-.cfk-slipwait-note { font-size: calc(var(--u) * 1.3); color: var(--text-muted, #6B7280); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .cfk-spin { animation: none; } .cfk-slipwait-bar.is-loading span { animation: none; width: 100%; opacity: .5; } }
 
 /* QR จริงจากเซิร์ฟเวอร์ — ต้องใหญ่พอให้กล้องมือถือจับได้จากระยะยืน

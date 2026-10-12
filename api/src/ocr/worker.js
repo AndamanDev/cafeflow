@@ -48,6 +48,9 @@ async function shopAccount(pool, branchId) {
     return { name: kv.shopAccountName || '', accounts };
 }
 
+// ภาพที่อ่านออกล่าสุดต้องพลิกไหม — ใบถัดไปลองด้านนี้ก่อน (จำในหน่วยความจำ รีสตาร์ตแล้วเริ่มด้านปกติ)
+let flipFirst = false;
+
 /** อ่านหนึ่งใบ — คืน true ถ้ามีงานทำ */
 async function processOne(pool, url, onDone) {
     // จองงานแบบกันสองตัวหยิบใบเดียวกัน (เผื่อวันหน้ารันหลาย process)
@@ -63,7 +66,9 @@ async function processOne(pool, url, onDone) {
     const o = (await pool.query('SELECT id, branch_id, total, created_at FROM cf_order WHERE id = $1',
         [slip.order_id])).rows[0];
     try {
-        const out = await callOcr(url, path.join(SLIP_DIR, slip.image_path));
+        const file = path.join(SLIP_DIR, slip.image_path);
+        let flipped = flipFirst;
+        const out = await callOcr(url, file, flipped);
         // QR ที่ร้านออกให้ออเดอร์นี้ — เวลาออกใบแรก (สลิปก่อนหน้านั้นคือสลิปเก่า)
         // และเลขพร้อมเพย์ที่ใช้ตอนนั้น (ร้านเปลี่ยนเลขทีหลังก็ยังเทียบถูก)
         const qr = (await pool.query(
@@ -80,13 +85,14 @@ async function processOne(pool, url, onDone) {
         // ขาดยอดหรือวันที่ → ลองพลิกซ้ายขวาแล้วอ่านใหม่ เลือกผลที่อ่านได้มากกว่า
         // (เจอจริง 09/10/2569: ภาพจากคีออสก์ 2 ใบกลับด้าน · ใบหนึ่ง OCR มั่วได้ "0.27" จึงต้องดูวันที่ด้วย
         //  ไม่ใช่รอเฉพาะตอนไม่เจออะไรเลย · ภาพปกติที่พลิกแล้วอ่านไม่ได้อะไร ผลเดิมชนะเสมอ)
-        let flipped = false;
         const score = (r) => (r.amount != null ? 1 : 0) + (r.txAt != null ? 1 : 0);
         if (score(res) < 2) {
-            const out2 = await callOcr(url, path.join(SLIP_DIR, slip.image_path), true).catch(() => null);
+            const out2 = await callOcr(url, file, !flipped).catch(() => null);
             const res2 = out2 && CFSlipRules.evaluate(out2.lines || [], expect);
             if (res2 && score(res2) > score(res)) {
-                out.lines = out2.lines; out.ms = (out.ms || 0) + (out2.ms || 0); res = res2; flipped = true;
+                out.lines = out2.lines; out.ms = (out.ms || 0) + (out2.ms || 0); res = res2; flipped = !flipped;
+                // กล้องตัวเดิมก็กลับด้านแบบเดิมทุกใบ — ใบถัดไปอ่านด้านนี้ก่อน ไม่ต้องเสีย OCR สองรอบ (~6 วิ/รอบ)
+                flipFirst = flipped;
             }
         }
         await pool.query(
