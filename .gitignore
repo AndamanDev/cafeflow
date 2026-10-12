@@ -21,6 +21,8 @@ api/out/
 
 # ตัวอ่านสลิป — Python venv ติดตั้งด้วย ocr-svc/setup.bat (ราว 900 MB)
 ocr-svc/.venv/
+# ตัวอ่านสลิปแบบ OpenVINO (ตัวทดลอง) — ops/bench-ocr.bat ติดตั้ง
+ocr-svc/.venv-ov/
 __pycache__/
 
 # log ของ ops/start-cafeflow.ps1
