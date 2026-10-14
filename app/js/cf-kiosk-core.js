@@ -1362,8 +1362,9 @@ const CFKiosk = {
             this._cam = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
             });
-            // โฟกัสใกล้ + ลดแสง (เฉพาะกล้องที่รองรับ) — รายละเอียดใน CFApp.tuneCamera
+            // โฟกัสใกล้ + ปรับแสงตามจอมือถือ (เฉพาะกล้องที่รองรับ) — รายละเอียดใน CFApp.tuneCamera
             console.info('[kiosk] กล้อง', CFApp.tuneCamera(this._cam));
+            this._exp = this._cam.cfExposure || null;
         } catch (err) {
             console.warn('[kiosk] เปิดกล้องไม่ได้', err);
             this.camMsg(this.t('เปิดกล้องไม่ได้ กรุณาแจ้งพนักงานที่เคาน์เตอร์', 'Could not open the camera — please ask our staff at the counter'), true);
@@ -1411,6 +1412,7 @@ const CFKiosk = {
         clearInterval(this._scan);
         clearInterval(this._slipT);
         this._scan = null;
+        this._exp = null;
         if (this._cam) {
             this._cam.getTracks().forEach((t) => t.stop());
             this._cam = null;
@@ -1483,9 +1485,11 @@ const CFKiosk = {
     liveHint(canvas) {
         this._hintTick = (this._hintTick || 0) + 1;
         if (this._hintTick % 5) return;
+        const st = this.frameStats(canvas);
+        // ปรับแสงกล้องก่อนเช็กกล่องข้อความ — ตอนกล่องแดง/เหลืองค้างอยู่ก็ยังต้องปรับ
+        if (this._exp) this._exp.update(st);
         const el = document.getElementById('cfkCamMsg');
         if (!el || !el.classList.contains('cfk-note')) return;
-        const st = this.frameStats(canvas);
         const kind = st.screen < 0.15 ? null
             : st.glare > 0.12 ? 'glare'
             : st.sharp < 40 ? 'blur' : null;

@@ -261,7 +261,7 @@ const CFApp = {
      * ปรับกล้องสำหรับอ่านจอมือถือที่ยื่นมาห่าง ~25 ซม. (ทำได้แค่กับกล้องที่รองรับ — ไม่รองรับก็เงียบ ๆ)
      *   โฟกัส: มีออโต้ต่อเนื่องใช้อันนั้น · ไม่มีแต่ตั้งเองได้ → ล็อกระยะใกล้ 25 ซม.
      *          (เว็บแคมส่วนใหญ่ตั้งโฟกัสไว้ไกล มือถือที่อยู่ใกล้จึงเบลอเสมอ)
-     *   แสง: จอมือถือสว่างในตัว กล้องมักรับแสงเกินจนพื้นขาวกลืนตัวหนังสือ — ลดลงราว 1 สต็อป
+     *   แสง: ตัวปรับตามจอมือถือ (CFApp.autoExposure) — แขวนไว้ที่ stream.cfExposure ให้หน้าที่วัดภาพเรียก update
      * คืนสรุปสั้น ๆ ไว้ log ดูว่ากล้องรุ่นนี้ทำอะไรได้บ้าง
      */
     tuneCamera(stream) {
@@ -275,11 +275,80 @@ const CFApp = {
             const d = Math.min(caps.focusDistance.max, Math.max(caps.focusDistance.min, 0.25));
             set({ focusMode: 'manual', focusDistance: d }); done.push('focus=near ' + d);
         } else done.push('focus=fixed');
-        if (caps.exposureCompensation && caps.exposureCompensation.min < 0) {
-            set({ exposureCompensation: Math.max(caps.exposureCompensation.min, -1) }); done.push('ev=-1');
+        if (stream) {
+            stream.cfExposure = this.autoExposure(stream);
+            done.push('exposure=' + stream.cfExposure.how);
         }
         const st = track && track.getSettings ? track.getSettings() : {};
         return (st.width || '?') + 'x' + (st.height || '?') + ' ' + done.join(' ');
+    },
+
+    /**
+     * ปรับแสงกล้องตามจอมือถือที่ยื่นมา — วัดเฉพาะกลางภาพ (ตัวเลขจาก frameStats ของคีออสก์) ไม่ใช่ทั้งภาพ
+     * แบบเดียวกับแตะจอมือถือเพื่อวัดแสง: ร้านสว่าง ผนังขาว กล้องวัดทั้งภาพแล้วจอมือถือจ้าจนตัวหนังสือหาย
+     *
+     * ช่องทางตามที่กล้องรองรับ: ev (exposureCompensation) → time (ตั้งเวลารับแสงเอง) → brightness → none
+     *   เว็บแคมบน Windows ส่วนใหญ่ไม่มี ev — เดิมสั่ง -1 EV อย่างเดียว กล้องร้านจึงไม่เคยลดแสงจริง
+     * update(st): มีจอมือถือ + จุดขาวจ้า > 4% → ลด 1 ขั้น · จ้าหายแล้ว (< 0.5%) → ค่อยเพิ่มกลับหาค่าเริ่ม
+     *   ช่วงห่างกันกว้างกันแกว่งขึ้นลง · ห้ามต่ำกว่าพื้น (ภาพมืดจนสลิปอ่านไม่ออก)
+     *   ไม่เห็นมือถือเกิน 5 วิ → กลับค่าเริ่ม ลูกค้าคนถัดไปเริ่มใหม่
+     */
+    autoExposure(stream) {
+        const track = stream && stream.getVideoTracks()[0];
+        const none = { how: 'none', update() {}, reset() {} };
+        if (!track || !track.getCapabilities) return none;
+        const caps = track.getCapabilities();
+        const cur = track.getSettings ? track.getSettings() : {};
+        const apply = (c) => track.applyConstraints({ advanced: [c] }).catch(() => {});
+
+        let ch = null;
+        const ev = caps.exposureCompensation, et = caps.exposureTime, br = caps.brightness;
+        if (ev && ev.min < 0) {
+            const step = ev.step || 0.5;
+            ch = { how: 'ev', start: Math.max(ev.min, -1), floor: Math.max(ev.min, -3),
+                   down: (v) => v - step, up: (v) => v + step,
+                   set: (v) => apply({ exposureCompensation: v }) };
+        } else if (caps.exposureMode && caps.exposureMode.includes('manual') && et && cur.exposureTime > 0) {
+            // ค่าเริ่ม = ออโต้ของกล้องเอง · ลดเมื่อไหร่ค่อยสลับเป็นตั้งเอง กลับถึงค่าเริ่มแล้วคืนให้ออโต้
+            const auto = caps.exposureMode.includes('continuous');
+            const start = cur.exposureTime;
+            ch = { how: 'time', start, floor: Math.max(et.min, start / 8),
+                   down: (v) => v * 0.8, up: (v) => (v * 1.25 >= start ? start : v * 1.25),
+                   set: (v) => apply(v >= start && auto ? { exposureMode: 'continuous' }
+                                                       : { exposureMode: 'manual', exposureTime: v }) };
+        } else if (br && typeof cur.brightness === 'number' && br.max > br.min) {
+            const step = Math.max(br.step || 1, (br.max - br.min) / 16);
+            const start = cur.brightness;
+            ch = { how: 'brightness', start, floor: Math.max(br.min, start - (br.max - br.min) / 2),
+                   down: (v) => v - step, up: (v) => v + step,
+                   set: (v) => apply({ brightness: v }) };
+        }
+        if (!ch) return none;
+
+        let v = ch.start, lastSeen = 0, lastAdj = 0;
+        const go = (next) => {
+            next = Math.min(ch.start, Math.max(ch.floor, next));
+            if (next === v) return;
+            v = next;
+            ch.set(v);
+            console.info('[camera] แสง', ch.how, '=', Math.round(v * 100) / 100);
+        };
+        if (ch.how === 'ev') ch.set(v);           // คงค่าเดิม: เริ่มที่ -1 EV เพราะจอมือถือสว่างในตัว
+        return {
+            how: ch.how,
+            reset() { lastSeen = 0; go(ch.start); },
+            update(st) {
+                const now = Date.now();
+                if (!st || st.screen < 0.15) {
+                    if (lastSeen && now - lastSeen > 5000) this.reset();
+                    return;
+                }
+                lastSeen = now;
+                if (now - lastAdj < 1000) return;
+                if (st.glare > 0.04) { lastAdj = now; go(ch.down(v)); }
+                else if (st.glare < 0.005 && v < ch.start) { lastAdj = now; go(ch.up(v)); }
+            },
+        };
     },
 
     /** สีชิปประจำสถานี — ให้จำได้ด้วยสายตาทั้งแอป */

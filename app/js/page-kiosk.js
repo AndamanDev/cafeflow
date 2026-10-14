@@ -26,6 +26,7 @@ const KioskBoot = {
                     จับคู่เครื่องนี้
                 </button>
                 <div class="cf-pair-msg" id="pairMsg">${msg ? CFApp.esc(msg) : ''}</div>
+                <div class="cf-pair-msg">เซิร์ฟเวอร์ที่ต่ออยู่: ${CFApp.esc(location.host)}</div>
             </div>`;
         gate.hidden = false;
         setTimeout(() => document.getElementById('pairCode')?.focus(), 100);
@@ -43,7 +44,9 @@ const KioskBoot = {
             CFApi.stopWaiting();
             await this.start(res.deviceId);
         } catch (err) {
-            msg.textContent = err.message || 'จับคู่ไม่สำเร็จ';
+            // รหัสถูกแต่เปิดคนละเซิร์ฟเวอร์กับเครื่องที่ออกรหัส ก็ได้ 401 เหมือนรหัสผิด (คนละฐานข้อมูล)
+            msg.textContent = (err.message || 'จับคู่ไม่สำเร็จ') + (err.status === 401
+                ? ' — ตรวจว่าตู้เปิดที่อยู่ของเครื่องที่ออกรหัส (ตอนนี้เปิด ' + location.host + ')' : '');
             input.value = '';
             input.focus();
         }
