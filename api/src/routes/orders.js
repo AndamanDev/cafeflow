@@ -328,7 +328,9 @@ async function transition(c, branchId, orderId, newStatus, opts, ctx) {
     // ชำระแล้ว → บันทึกการชำระ + ส่งเข้าครัวทันที (§44 "Verify Before Forward")
     // ออกจากขั้นรอตรวจ = แคชเชียร์ตัดสินแล้ว — บันทึกคู่กับผลที่ระบบอ่านจากสลิป ใช้วัดความแม่นจริง
     // (บันทึกเฉพาะสลิปใบล่าสุด: ใบก่อนหน้าที่ไม่ผ่านแล้วลูกค้าสแกนใบใหม่ ไม่ใช่ใบที่ถูกตัดสิน)
-    if (o.status === 'PAYMENT_REVIEW' && ['PAID', 'PAYMENT_FAILED', 'CANCELLED'].includes(newStatus)) {
+    // ระบบปิดบิลเองเพราะสลิปผ่าน (autoConfirmSlip) ไม่ใช่คนตัดสิน — ไม่บันทึก ไม่งั้นสถิติความแม่นนับตัวเองว่าถูก
+    if (o.status === 'PAYMENT_REVIEW' && ['PAID', 'PAYMENT_FAILED', 'CANCELLED'].includes(newStatus) &&
+        ctx.actorKind !== 'SYSTEM') {
         await c.query(
             `UPDATE payment_slip SET review_outcome = $2, reviewed_by = $3, reviewed_at = now()
               WHERE id = (SELECT max(id) FROM payment_slip WHERE order_id = $1)`,

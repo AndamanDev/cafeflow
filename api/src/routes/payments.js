@@ -150,9 +150,9 @@ async function expireDueQr(pool, branchId, publishFn) {
  * รับสลิปที่ลูกค้าสแกนจากจอมือถือที่คีออสก์
  *
  * ทำได้แค่ในร้าน (ไม่ใช้เน็ต): ตรวจว่าเป็น QR สลิปจริงในเชิงรูปแบบ และสลิปใบนี้
- * ไม่เคยถูกใช้กับออเดอร์อื่น — แล้วส่งออเดอร์ไปรอแคชเชียร์ยืนยัน (PAYMENT_REVIEW)
- * ไม่ตั้งเป็น PAID เอง เพราะ QR บนสลิปไม่มียอดเงินและบัญชีปลายทาง
- * (ถ้าวันหน้าต่อบริการตรวจสลิปกับธนาคาร จุดนี้คือที่ที่จะตัดสินใจส่งเข้าครัวได้เลย)
+ * ไม่เคยถูกใช้กับออเดอร์อื่น — แล้วส่งออเดอร์ไปรอตรวจ (PAYMENT_REVIEW)
+ * ไม่ตั้งเป็น PAID ตรงนี้ เพราะ QR บนสลิปไม่มียอดเงินและบัญชีปลายทาง
+ * ต้องรอ OCR อ่านภาพสลิป — ผ่านครบแล้ว autoConfirmSlip ปิดบิลให้ · ไม่ผ่าน/อ่านไม่ออก แคชเชียร์ตัดสิน
  */
 /**
  * ภาพสลิปที่กล้องคีออสก์ถ่ายไว้ตอนอ่าน QR ได้ — เก็บเป็นหลักฐานให้แคชเชียร์/เจ้าของร้านดูย้อนหลัง
@@ -255,6 +255,22 @@ async function submitSlip(c, branchId, orderId, payload, ctx, image) {
     await touch(c, branchId, 'orders', o.id, 'update');
     return { ok: true, slipId: slipId ? String(slipId) : null, ref: slip.ref, bank: slip.bankName,
              duplicateScan: !!dup };
+}
+
+/**
+ * OCR ตรวจสลิปผ่านครบ (ยอด · วันที่ · บัญชีผู้รับ · สลิปไม่ซ้ำ) → ปิดบิลเอง ส่งเข้าครัวทันที
+ * ผู้ใช้เลือก 14/10/2569: เปิดตลอด ไม่มีสวิตช์ ไม่มีเพดานยอด — แลกกับความเสี่ยงสลิปปลอมที่ทำยอด/ชื่อ/วันที่ได้ตรง
+ * (ระบบไม่ได้ตรวจกับธนาคาร) · ทำเฉพาะออเดอร์ที่ยังรอตรวจ: แคชเชียร์ตัดสินไปก่อนแล้ว ไม่แตะ
+ * ผู้ทำรายการคือ SYSTEM — transition จึงไม่บันทึก review_outcome (สถิติความแม่นนับเฉพาะที่คนตัดสิน)
+ */
+async function autoConfirmSlip(c, branchId, orderId, slip) {
+    const { transition } = require('./orders');
+    const o = (await c.query('SELECT status FROM cf_order WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+        [orderId, branchId])).rows[0];
+    if (!o || o.status !== 'PAYMENT_REVIEW') return false;
+    await transition(c, branchId, orderId, 'PAID', { method: 'QR', ref: slip.ref || null, bank: slip.bank || null },
+        { actorKind: 'SYSTEM', actorUserId: null, deviceId: null, ip: null, user: null });
+    return true;
 }
 
 function registerPayments(app, deps) {
@@ -425,4 +441,4 @@ function registerPayments(app, deps) {
     app.addHook('onClose', async () => { if (timer) clearInterval(timer); });
 }
 
-module.exports = { registerPayments, issueQr, expireDueQr, submitSlip };
+module.exports = { registerPayments, issueQr, expireDueQr, submitSlip, autoConfirmSlip };

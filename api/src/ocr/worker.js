@@ -65,6 +65,7 @@ async function processOne(pool, url, onDone) {
 
     const o = (await pool.query('SELECT id, branch_id, total, created_at FROM cf_order WHERE id = $1',
         [slip.order_id])).rows[0];
+    let verdict = null;
     try {
         const file = path.join(SLIP_DIR, slip.image_path);
         let flipped = flipFirst;
@@ -104,6 +105,7 @@ async function processOne(pool, url, onDone) {
              res.verdict, JSON.stringify({ checks: res.checks, notes: res.notes, dateText: res.dateText,
                                            sender: res.sender, receiver: res.receiver, flipped }),
              out.engine || 'paddleocr']);   // openvino | paddleocr — ไว้ดูย้อนหลังว่าใบไหนอ่านด้วยตัวไหน
+        verdict = res.verdict;
     } catch (err) {
         if (!err.bad) {
             // ต่อ ocr-svc ไม่ได้ — คืนเข้าคิว รอมันกลับมา
@@ -114,7 +116,7 @@ async function processOne(pool, url, onDone) {
             "UPDATE payment_slip SET ocr_status = 'ERROR', ocr_raw = $2 WHERE id = $1",
             [slip.id, JSON.stringify({ error: err.message })]);
     }
-    if (onDone && o) await onDone(o);
+    if (onDone && o) await onDone(o, { verdict, ref: slip.parsed_ref, bank: slip.parsed_bank });
     return true;
 }
 

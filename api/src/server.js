@@ -214,11 +214,17 @@ async function start() {
     });
 
     // อ่านสลิปด้วย OCR เบื้องหลัง — อ่านเสร็จแล้วบอกทุกจอให้การ์ดแคชเชียร์อัปเดตเอง
+    // สลิปผ่านครบ (ยอด · วันที่ · ผู้รับ) → ปิดบิลและส่งเข้าครัวเลย ไม่ต้องรอแคชเชียร์กด
     const { startOcrWorker } = require('./ocr/worker');
     const { touch } = require('./routes/orders');
+    const { autoConfirmSlip } = require('./routes/payments');
     startOcrWorker(pool, {
         url: process.env.CF_OCR_URL,
-        onDone: async (o) => {
+        onDone: async (o, slip) => {
+            if (slip && slip.verdict === 'PASS') {
+                await tx((c) => autoConfirmSlip(c, o.branch_id, o.id, slip))
+                    .catch((err) => app.log.warn(`[slip] ปิดบิลอัตโนมัติไม่สำเร็จ ${o.id}: ${err.message}`));
+            }
             await touch(pool, o.branch_id, 'orders', o.id, 'update');
             publish(o.branch_id, { entity: 'orders', op: 'update', id: o.id });
         },
