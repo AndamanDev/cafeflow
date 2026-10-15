@@ -969,15 +969,22 @@ const DashPage = {
                           : '<span class="text-light">—</span>';
 
         const weak = new Set((this._weak || []).map((w) => w.id));
-        const users = CFStore.all('users').map((u) => `<tr>
+        // เพดานยืนยันแทนมีผลเฉพาะแคชเชียร์ (CFPerms.overrideLimitFor) — บทบาทอื่นไม่ต้องโชว์ตัวเลข
+        const limitText = (u) => u.role === 'ADMIN' || u.role === 'MANAGER' ? 'ไม่จำกัด'
+            : u.role !== 'CASHIER' ? '—'
+            : u.overrideLimit == null ? 'ตามค่าร้าน' : CFApp.baht(u.overrideLimit);
+        // ใช้งานอยู่ขึ้นก่อน · ปิดใช้งานแล้วจาง ๆ ไว้ท้าย (ลบจริงไม่ได้ — ประวัติขายยังอ้างอยู่)
+        const list = CFStore.all('users').slice().sort((a, b) => (b.active - a.active) || a.username.localeCompare(b.username));
+        const users = list.map((u) => `<tr style="${u.active ? '' : 'opacity:.55'}">
                 <td><div class="td-name">${e(u.name)}</div><div class="td-sub">${e(u.username)}</div></td>
-                <td><span class="sip-chip sip-chip-muted">${e(CF_ROLE_LABEL[u.role])}</span></td>
-                <td>${u.overrideLimit == null ? 'ไม่จำกัด' : CFApp.baht(u.overrideLimit)}</td>
+                <td><span class="sip-chip sip-chip-muted">${e(CF_ROLE_LABEL[u.role])}</span>
+                    ${u.active ? '' : '<span class="status-badge inactive">ปิดใช้งาน</span>'}</td>
+                <td>${limitText(u)}</td>
                 <td class="cf-nowrap">
                     ${weak.has(u.id) ? '<span class="status-badge danger">รหัสตั้งต้น</span>' : ''}
-                    <button class="btn btn-outline btn-sm" onclick="DashPage.resetPassword('${e(u.id)}')">
-                        ตั้งรหัสผ่านใหม่
-                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="DashPage.editUser('${e(u.id)}')">แก้ไข</button>
+                    ${u.active ? `<button class="btn btn-outline btn-sm" onclick="DashPage.resetPassword('${e(u.id)}')">
+                        ตั้งรหัสผ่านใหม่</button>` : ''}
                 </td>
             </tr>`).join('');
 
@@ -1009,9 +1016,103 @@ const DashPage = {
                     <i data-lucide="shield-alert" class="icon-sm"></i>
                     ตารางนี้บังคับใช้ที่หน้าจอเท่านั้น — ระบบจริงต้องตรวจสิทธิ์ซ้ำที่เซิร์ฟเวอร์
                 </div>`,
-            footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
+            footerHtml: `
+                <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
+                <button class="btn btn-primary" onclick="DashPage.editUser(null)">
+                    <i data-lucide="user-plus" class="icon-sm"></i> เพิ่มผู้ใช้</button>`,
             onOpen: () => refreshIcons(),
         });
+    },
+
+    /**
+     * เพิ่ม / แก้ไขผู้ใช้ (แอดมิน) — id = null คือเพิ่มใหม่
+     * ชื่อผู้ใช้ตั้งแล้วแก้ไม่ได้ (ใช้ล็อกอิน + อยู่ในประวัติ) · ลบไม่ได้ ปิดใช้งานแทน
+     * กันพลาดที่เซิร์ฟเวอร์: แอดมินคนสุดท้าย · ลดสิทธิ์/ปิดบัญชีตัวเอง
+     */
+    editUser(id) {
+        const e = CFApp.esc;
+        const u = id ? CFStore.byId('users', id) : null;
+        if (id && !u) return;
+        const me = CFAuth.session() && CFAuth.session().userId;
+        const self = u && u.id === me;
+        const role = u ? u.role : 'CASHIER';
+        const roleOpts = Object.keys(CF_PERMS).map((r) =>
+            `<option value="${r}" ${r === role ? 'selected' : ''}>${e(CF_ROLE_LABEL[r])}</option>`).join('');
+        Drawer.open({
+            title: u ? 'แก้ไขผู้ใช้ — ' + e(u.name) : 'เพิ่มผู้ใช้',
+            width: '480px',
+            contentHtml: `
+                <div class="sip-field">
+                    <label class="sip-label">ชื่อผู้ใช้ (ใช้ล็อกอิน)</label>
+                    ${u ? `<input class="sip-input" value="${e(u.username)}" disabled>
+                           <div class="ds-hint">ตั้งแล้วเปลี่ยนไม่ได้</div>`
+                        : `<input class="sip-input" id="ufUser" autocomplete="off" placeholder="เช่น somchai"
+                                  oninput="this.value=this.value.toLowerCase()">
+                           <div class="ds-hint">3–30 ตัว · a-z 0-9 . _ -</div>`}
+                </div>
+                <div class="sip-field">
+                    <label class="sip-label">ชื่อที่แสดง</label>
+                    <input class="sip-input" id="ufName" value="${u ? e(u.name) : ''}" placeholder="เช่น สมชาย ใจดี">
+                </div>
+                <div class="sip-field">
+                    <label class="sip-label">บทบาท</label>
+                    <select class="sip-select" id="ufRole" ${self ? 'disabled' : ''}
+                            onchange="document.getElementById('ufLimitBox').hidden = this.value !== 'CASHIER'">${roleOpts}</select>
+                    ${self ? '<div class="ds-hint">เปลี่ยนบทบาทของตัวเองไม่ได้ — ให้แอดมินอีกคนทำ</div>' : ''}
+                </div>
+                <div class="sip-field" id="ufLimitBox" ${role === 'CASHIER' ? '' : 'hidden'}>
+                    <label class="sip-label">เพดานยืนยันแทน (บาท)</label>
+                    <input class="sip-input" id="ufLimit" type="number" min="0" step="1"
+                           value="${u && u.overrideLimit != null ? e(u.overrideLimit) : ''}" placeholder="ว่าง = ใช้ค่าตั้งของร้าน">
+                    <div class="ds-hint">ยอดสูงสุดที่แคชเชียร์คนนี้กดยืนยันการชำระแทนระบบได้</div>
+                </div>
+                ${u ? `
+                <label class="flex gap-sm" style="align-items:center;margin-top:8px;${self ? 'opacity:.6' : ''}">
+                    <input type="checkbox" id="ufActive" ${u.active ? 'checked' : ''} ${self ? 'disabled' : ''}>
+                    <span>ใช้งานอยู่ <span class="ds-hint">— เอาออก = ปิดบัญชี เข้าระบบไม่ได้ทันที (ประวัติยังอยู่ครบ)</span></span>
+                </label>` : `
+                <div class="sip-field">
+                    <label class="sip-label">รหัสผ่านเริ่มต้น (อย่างน้อย 6 ตัว)</label>
+                    <input class="sip-input" id="ufPw" type="password" autocomplete="new-password">
+                </div>
+                <div class="sip-field">
+                    <label class="sip-label">พิมพ์อีกครั้ง</label>
+                    <input class="sip-input" id="ufPw2" type="password" autocomplete="new-password">
+                </div>`}
+                <div class="ds-note" style="margin-top:12px">
+                    เปลี่ยนบทบาทหรือปิดใช้งาน → คนนั้นถูกออกจากระบบทุกเครื่องทันที · ดูสิทธิ์แต่ละบทบาทได้ที่ตารางหน้าก่อน
+                </div>`,
+            footerHtml: `
+                <button class="btn btn-outline" onclick="DashPage.openUsers()">กลับ</button>
+                <button class="btn btn-primary" id="ufSave" onclick="DashPage.saveUser(${u ? `'${e(u.id)}'` : 'null'})">บันทึก</button>`,
+            onOpen: () => setTimeout(() => document.getElementById(u ? 'ufName' : 'ufUser')?.focus(), 50),
+        });
+    },
+
+    async saveUser(id) {
+        const v = (x) => { const el = document.getElementById(x); return el ? el.value : undefined; };
+        const body = { name: v('ufName'), role: v('ufRole'), overrideLimit: v('ufLimit') };
+        if (id) {
+            const a = document.getElementById('ufActive');
+            if (a && !a.disabled) body.active = a.checked;
+        } else {
+            body.username = v('ufUser');
+            body.password = v('ufPw');
+            if (body.password !== v('ufPw2')) { showToast('รหัสผ่านสองช่องไม่ตรงกัน', 'error'); return; }
+        }
+        const btn = document.getElementById('ufSave');
+        btn.disabled = true;
+        try {
+            const res = id ? await CFStore.cmd('patch', '/api/users/' + encodeURIComponent(id), body)
+                           : await CFStore.cmd('post', '/api/users', body);
+            showToast(id ? 'บันทึกแล้ว' + (res && res.kicked ? ' — คนนั้นถูกออกจากระบบ ต้องเข้าใหม่' : '')
+                         : 'เพิ่มผู้ใช้ ' + body.username + ' แล้ว', 'success', 4000);
+            await this.loadWeak();
+            this.openUsers();
+        } catch (err) {
+            showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 5000);
+            btn.disabled = false;
+        }
     },
 
     /* ══════════════════════════════════════════════════════

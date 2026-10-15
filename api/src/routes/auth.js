@@ -8,6 +8,8 @@
  *   GET  /api/auth/me
  *   POST /api/auth/password          { current, next }  เปลี่ยนรหัสของตัวเอง
  *   POST /api/users/:id/password     { next }           แอดมินตั้งรหัสให้คนอื่น
+ *   POST  /api/users                 { username, name, role, password, overrideLimit }   แอดมินเพิ่มผู้ใช้
+ *   PATCH /api/users/:id             { name, role, overrideLimit, active }              แก้ไข / ปิดใช้งาน (ไม่มีลบ)
  *   GET  /api/users/weak-passwords                      บัญชีที่ยังใช้รหัสตั้งต้น
  *
  * session token ถูก hash ก่อนเก็บลงฐาน — ฐานข้อมูลรั่วแล้วคนอ่านยังสวมสิทธิ์ไม่ได้
@@ -77,7 +79,7 @@ function passwordProblem(pw, username) {
 
 const hashPassword = (pw) => argon2.hash(pw, { type: argon2.argon2id });
 
-function registerAuth(app, { query, branchId }) {
+function registerAuth(app, { query, tx, branchId }) {
     const { CFPerms } = require('../../../shared/cf-perms.js');
     const fail = (reply, code, msg) => reply.code(code).send({ error: msg });
 
@@ -138,6 +140,125 @@ function registerAuth(app, { query, branchId }) {
             [t.id, me.token_hash]);
         await auditPw(req, me, t, 'ตั้งรหัสผ่านใหม่ให้ ' + t.username);
         return { ok: true };
+    });
+
+    /* ══════════════════════════════════════════════════════
+       จัดการผู้ใช้ (§29) — แอดมินเท่านั้น (USER_MANAGE)
+       ★ ไม่มีการลบจริง: ออเดอร์ · การชำระ · รอบขาย · audit อ้าง app_user อยู่ (FK 7 จุด) → ปิดใช้งานแทน
+       ★ ห้ามเหลือแอดมินที่ใช้งานได้ 0 คน — ไม่งั้นไม่มีใครเข้ามาจัดการผู้ใช้ได้อีกเลย (ต้องแก้ฐานเอง)
+       ★ ห้ามลดสิทธิ์/ปิดบัญชีตัวเอง — กดพลาดแล้วหลุดจากหน้าที่กำลังแก้อยู่
+       เปลี่ยนบทบาท/ปิดใช้งาน → ตัด session ของคนนั้น (สิทธิ์ใหม่มีผลทันที ไม่ต้องรอ 12 ชม.)
+       ══════════════════════════════════════════════════════ */
+    const { CF_PERMS, CF_ROLE_LABEL } = require('../../../shared/cf-perms.js');
+    const ROLES = Object.keys(CF_PERMS);
+    const roleTh = (r) => CF_ROLE_LABEL[r] || r;          // ประวัติอ่านเป็นภาษาคน ไม่ใช่ "ADMIN → CASHIER"
+    const USERNAME = /^[a-z0-9._-]{3,30}$/;
+
+    async function requireAdmin(req, reply) {
+        const me = await currentUser(query, req);
+        if (!me) { fail(reply, 401, 'ยังไม่ได้เข้าสู่ระบบ'); return null; }
+        if (!CFPerms.can(me.role, 'USER_MANAGE')) { fail(reply, 403, 'บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้'); return null; }
+        return me;
+    }
+
+    /** ตรวจค่าที่แก้ได้ · cur = แถวเดิมตอนแก้ (ฟิลด์ที่ไม่ส่งมาใช้ค่าเดิม) — คืน { error } หรือ { name, role, limit, active } */
+    function userFields(body, cur) {
+        const pick = (k, d) => (body[k] !== undefined ? body[k] : d);
+        const name = String(pick('name', cur && cur.name_th) || '').trim();
+        if (!name) return { error: 'ต้องใส่ชื่อที่แสดง' };
+        if (name.length > 60) return { error: 'ชื่อยาวเกิน 60 ตัวอักษร' };
+        const role = String(pick('role', cur && cur.role) || '');
+        if (!ROLES.includes(role)) return { error: 'บทบาทไม่ถูกต้อง' };
+        // เพดานยืนยันแทนมีผลเฉพาะแคชเชียร์ (CFPerms.overrideLimitFor) · ว่าง = ใช้ค่าตั้งของร้าน
+        let limit = pick('overrideLimit', cur ? cur.override_limit : null);
+        limit = role !== 'CASHIER' || limit === '' || limit == null ? null : Number(limit);
+        if (limit != null && !(isFinite(limit) && limit >= 0)) return { error: 'เพดานยืนยันแทนต้องเป็นตัวเลข 0 ขึ้นไป' };
+        const active = pick('active', cur ? cur.active : true) !== false;
+        return { name, role, limit, active };
+    }
+
+    async function afterUserChange(c, me, req, userId, reason, payload, op) {
+        const { audit, touch } = require('./orders');
+        await audit(c, branchId(), {
+            eventType: 'USER_UPDATE', actorKind: 'USER', actorUserId: me.id,
+            ip: (req.ip || '').replace(/^::ffff:/, '') || null, reason, payload,
+        });
+        await touch(c, branchId(), 'users', userId, op);
+    }
+
+    app.post('/api/users', async (req, reply) => {
+        const me = await requireAdmin(req, reply);
+        if (!me) return;
+        const body = req.body || {};
+        const username = String(body.username || '').trim().toLowerCase();
+        if (!USERNAME.test(username)) {
+            return fail(reply, 400, 'ชื่อผู้ใช้ 3–30 ตัว ใช้ได้เฉพาะ a-z 0-9 . _ -');
+        }
+        const f = userFields(body, null);
+        if (f.error) return fail(reply, 400, f.error);
+        const bad = passwordProblem(body.password, username);
+        if (bad) return fail(reply, 400, bad);
+
+        const id = 'U-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+        const hash = await hashPassword(String(body.password));
+        try {
+            await tx(async (c) => {
+                await c.query(
+                    `INSERT INTO app_user (id, branch_id, username, password_hash, name_th, role, override_limit, active)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,true)`,
+                    [id, branchId(), username, hash, f.name, f.role, f.limit]);
+                await afterUserChange(c, me, req, id, 'เพิ่มผู้ใช้ ' + username + ' · ' + roleTh(f.role),
+                    { userId: id, username, role: f.role }, 'insert');
+            });
+        } catch (err) {
+            if (err.code === '23505') return fail(reply, 409, 'ชื่อผู้ใช้ "' + username + '" มีอยู่แล้ว');
+            throw err;
+        }
+        require('./stream').publish(branchId(), { entity: 'users', op: 'insert', id });
+        return { ok: true, id };
+    });
+
+    app.patch('/api/users/:id', async (req, reply) => {
+        const me = await requireAdmin(req, reply);
+        if (!me) return;
+        const out = await tx(async (c) => {
+                const cur = (await c.query('SELECT * FROM app_user WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+                    [req.params.id, branchId()])).rows[0];
+                if (!cur) return { code: 404, error: 'ไม่พบผู้ใช้' };
+                const f = userFields(req.body || {}, cur);
+                if (f.error) return { code: 400, error: f.error };
+
+                const losesAdmin = cur.role === 'ADMIN' && cur.active && (f.role !== 'ADMIN' || !f.active);
+                if (cur.id === me.id && (losesAdmin || !f.active || f.role !== cur.role)) {
+                    return { code: 400, error: 'เปลี่ยนบทบาทหรือปิดบัญชีของตัวเองไม่ได้ — ให้แอดมินอีกคนทำ' };
+                }
+                if (losesAdmin) {
+                    // ล็อกแถวแอดมินทั้งหมด — สองคนลดสิทธิ์กันเองพร้อมกันต้องไม่เหลือ 0
+                    const left = (await c.query(
+                        `SELECT id FROM app_user WHERE branch_id = $1 AND role = 'ADMIN' AND active AND id <> $2 FOR UPDATE`,
+                        [branchId(), cur.id])).rows.length;
+                    if (!left) return { code: 400, error: 'ต้องมีแอดมินที่ใช้งานได้อย่างน้อย 1 คน' };
+                }
+
+                await c.query(
+                    `UPDATE app_user SET name_th = $2, role = $3, override_limit = $4, active = $5, updated_at = now()
+                      WHERE id = $1`, [cur.id, f.name, f.role, f.limit, f.active]);
+                const kicked = f.role !== cur.role || (cur.active && !f.active);
+                if (kicked) {
+                    await c.query('UPDATE session SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [cur.id]);
+                }
+                const what = [];
+                if (f.name !== cur.name_th) what.push('ชื่อ');
+                if (f.role !== cur.role) what.push('บทบาท ' + roleTh(cur.role) + ' → ' + roleTh(f.role));
+                if (String(f.limit) !== String(cur.override_limit == null ? null : Number(cur.override_limit))) what.push('เพดานยืนยันแทน');
+                if (f.active !== cur.active) what.push(f.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน');
+                await afterUserChange(c, me, req, cur.id, 'แก้ไขผู้ใช้ ' + cur.username + (what.length ? ' · ' + what.join(' · ') : ''),
+                    { userId: cur.id, username: cur.username, role: f.role, active: f.active }, 'update');
+                return { ok: true, kicked };
+            });
+        if (out.error) return fail(reply, out.code, out.error);
+        require('./stream').publish(branchId(), { entity: 'users', op: 'update', id: req.params.id });
+        return out;
     });
 
     /** บัญชีที่ยังใช้รหัสตั้งต้น — หน้าภาพรวมใช้เตือนแอดมินก่อนเปิดร้าน */

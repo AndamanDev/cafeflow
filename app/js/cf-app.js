@@ -455,6 +455,7 @@ const CFApp = {
             PRODUCT_UPDATE: 'แก้ไขสินค้า', SHIFT_CLOSE: 'ปิดรอบ', SHIFT_OPEN: 'เปิดรอบ',
             DEVICE_UPDATE: 'ตั้งค่าอุปกรณ์', QR_ISSUED: 'ออก QR ชำระเงิน',
             SETTINGS_UPDATE: 'แก้ค่าตั้ง', SLIP_REJECTED: 'ปฏิเสธสลิป', USER_PASSWORD: 'เปลี่ยนรหัสผ่าน',
+            USER_UPDATE: 'แก้ไขผู้ใช้',
             CALL_STAFF: 'ลูกค้าเรียกพนักงาน', CALL_STAFF_ACK: 'รับทราบการเรียกพนักงาน',
         }[ev] || 'กิจกรรมระบบ';
     },

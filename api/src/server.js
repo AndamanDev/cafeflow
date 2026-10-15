@@ -190,7 +190,7 @@ app.post('/api/devices/:id/heartbeat', async (req, reply) => {
 });
 
 registerStream(app, () => BRANCH_ID);
-registerAuth(app, { query, branchId: () => BRANCH_ID });
+registerAuth(app, { query, tx, branchId: () => BRANCH_ID });
 const helpers = registerOrders(app, { pool, tx, query, branchId: () => BRANCH_ID });
 registerAdmin(app, { pool, tx, query, branchId: () => BRANCH_ID, helpers });
 registerCatalog(app, { tx, branchId: () => BRANCH_ID, helpers });
