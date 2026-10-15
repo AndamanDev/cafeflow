@@ -577,26 +577,6 @@ body.cfk-landscape .cfk-item-banner { display: none; }
                     text-transform: uppercase; color: var(--text-muted); }
 
 .cfk-optgroup { margin-top: calc(var(--u) * 1.5); }
-/* แถว "ปรับแต่งเพิ่มเติม" — กลุ่มไม่บังคับพับไว้ (แบบตู้ฟาสต์ฟู้ด) · บอกสิ่งที่เลือกไว้แล้วโดยไม่ต้องกาง */
-.cfk-more {
-    display: flex; align-items: center; gap: calc(var(--u) * 1.4); width: 100%;
-    margin-top: calc(var(--u) * 1.8); padding: calc(var(--u) * 1.4) calc(var(--u) * 1.8);
-    background: #fff; border: 1.5px dashed var(--primary-border, #b7ebc9); border-radius: var(--r-lg);
-    font: inherit; text-align: left; cursor: pointer;
-}
-.cfk-more.is-open { border-style: solid; background: var(--surface-1, #fafafa); }
-.cfk-more:active { background: var(--primary-bg); }
-.cfk-more-ico {
-    display: grid; place-items: center; flex-shrink: 0;
-    width: calc(var(--u) * 4.4); height: calc(var(--u) * 4.4); border-radius: 50%;
-    background: var(--primary-bg); color: var(--primary-dark);
-}
-.cfk-more-ico .cfk-ic { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); }
-.cfk-more-txt { flex: 1; min-width: 0; }
-.cfk-more-txt b { display: block; font-size: calc(var(--u) * 2.2); font-weight: 700; color: var(--text); }
-.cfk-more-txt small { display: block; font-size: calc(var(--u) * 1.7); color: var(--text-muted); }
-.cfk-more-txt .cfk-more-sel { color: var(--primary-dark); font-weight: 600; }
-.cfk-more > .cfk-ic { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); color: var(--text-light); flex-shrink: 0; }
 .cfk-optgroup-head {
     display: flex; align-items: center; gap: calc(var(--u) * .8); flex-wrap: wrap;
     margin-bottom: calc(var(--u) * .7);

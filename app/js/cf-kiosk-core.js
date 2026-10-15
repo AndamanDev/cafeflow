@@ -599,12 +599,8 @@ const CFKiosk = {
 
         if (editLineId) {
             const l = this.state.cart.find((x) => x.lineId === editLineId);
-            // แก้รายการที่เคยเลือกท็อปปิ้ง/เมล็ดพิเศษไว้ → กางส่วนปรับแต่งให้เลย (ไม่งั้นต้องกดหาของที่ตัวเองเลือก)
-            const defs = new Set(CFRules.defaultsFor(l.serveType, p.categoryId).map((d) => d.optionId));
-            const more = l.mods.some((m) => !defs.has(m.optionId) &&
-                !(CFStore.byId('modifierGroups', m.groupId) || {}).required);
             this.state.line = { lineId: editLineId, productId, serveType: l.serveType,
-                                qty: l.qty, mods: l.mods.slice(), more };
+                                qty: l.qty, mods: l.mods.slice() };
         } else {
             const first = CFApp.serveTypesOf(p)[0];
             this.state.line = { lineId: null, productId, serveType: first, qty: 1,
@@ -640,11 +636,7 @@ const CFKiosk = {
                 </div>
             </div>` : '';
 
-        // แบบตู้ฟาสต์ฟู้ด: กลุ่มบังคับ (ความหวาน · น้ำแข็ง) โชว์ตลอด · กลุ่มไม่บังคับ (เมล็ด · ท็อปปิ้ง)
-        // พับเป็นแถวเดียว "ปรับแต่งเพิ่มเติม" บอกสิ่งที่เลือกไว้ — ลูกค้าส่วนใหญ่ไม่แตะ จะได้กดเพิ่มลงตะกร้าเร็ว หน้าไม่ยาว
-        const all = CFRules.groupsFor(L.serveType, p.categoryId);
-        const extras = all.filter((g) => !g.required);
-        const groups = L.more || extras.length < 1 ? all : all.filter((g) => g.required);
+        const groups = CFRules.groupsFor(L.serveType, p.categoryId);
         const optBlock = groups.map((g) => {
             const missing = this._missing && this._missing.includes(g.id);
             const opts = CFRules.optionsOf(g.id);
@@ -674,20 +666,6 @@ const CFKiosk = {
             </div>`;
         }).join('');
 
-        // แถวพับ/กาง กลุ่มไม่บังคับ — สรุปสิ่งที่เลือกไว้ (ค่าเริ่มต้นเช่นเมล็ดไทย/ลาว ก็นับ) ให้เห็นโดยไม่ต้องกาง
-        const chosen = L.mods.filter((m) => extras.some((g) => g.id === m.groupId))
-            .map((m) => this.modLabel(m) + (m.priceDelta ? ' +฿' + m.priceDelta : ''));
-        const moreBlock = !extras.length ? '' : `
-            <button class="cfk-more ${L.more ? 'is-open' : ''}" onclick="CFKiosk.toggleMore()" aria-expanded="${!!L.more}">
-                <span class="cfk-more-ico">${CFKioskArt.icon(L.more ? 'minus' : 'plus')}</span>
-                <span class="cfk-more-txt">
-                    <b>${L.more ? this.t('ซ่อนการปรับแต่ง', 'Hide extras') : this.t('ปรับแต่งเพิ่มเติม', 'Customize')}</b>
-                    <small>${e(extras.map((g) => this.nm(g)).join(' · '))}</small>
-                    ${!L.more && chosen.length ? `<small class="cfk-more-sel">${this.t('เลือกไว้: ', 'Selected: ')}${e(chosen.join(' · '))}</small>` : ''}
-                </span>
-                ${CFKioskArt.icon(L.more ? 'up' : 'next')}
-            </button>`;
-
         return `
         ${this.topHtml({ title: this.t('เลือกตัวเลือก', 'Choose options'), sub: this.groupName(p.groupTh || ''), back: 'menu' })}
         <div class="cfk-item">
@@ -708,8 +686,7 @@ const CFKiosk = {
                         <div class="cfk-item-price">฿${CFApp.money(CFApp.priceOf(p, L.serveType) || 0)}</div>
                     </div>
                     ${serveBlock}
-                    ${optBlock || moreBlock ? optBlock + moreBlock
-                        : `<div class="cfk-note">${this.t('เมนูนี้ไม่มีตัวเลือกเพิ่มเติม', 'No options for this item')}</div>`}
+                    ${optBlock || `<div class="cfk-note">${this.t('เมนูนี้ไม่มีตัวเลือกเพิ่มเติม', 'No options for this item')}</div>`}
                     <div class="cfk-item-qtyrow">
                         <b>${this.t('จำนวน', 'Quantity')}</b>
                         <div class="cfk-qty" role="group" aria-label="${this.t('จำนวน', 'Quantity')}">
@@ -766,12 +743,6 @@ const CFKiosk = {
             if (!has) L.mods.push(rec);
         }
         this._missing = null;
-        this.render();
-    },
-
-    /** กาง/พับ กลุ่มตัวเลือกที่ไม่บังคับ (เมล็ด · ท็อปปิ้ง) */
-    toggleMore() {
-        this.state.line.more = !this.state.line.more;
         this.render();
     },
 
