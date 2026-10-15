@@ -41,13 +41,16 @@ const CashierPage = {
             kpi('bell-ring', CFApp.int(k.ready), 'พร้อมรับ', false, 'ready') +
             kpi('wallet', CFApp.baht(k.cash), 'เงินสดรอบนี้');
 
-        document.getElementById('cntCash').textContent   = k.waitingCash;
-        document.getElementById('cntReview').textContent = k.paymentReview;
-        document.getElementById('cntReady').textContent  = k.ready;
+        const live = this._liveCounts();
+        document.getElementById('cntCash').textContent    = k.waitingCash;
+        document.getElementById('cntQr').textContent      = live.qr;
+        document.getElementById('cntReview').textContent  = k.paymentReview;
+        document.getElementById('cntCooking').textContent = live.cooking;
+        document.getElementById('cntReady').textContent   = k.ready;
 
-        // แท็บ
+        // แท็บ — ลำดับตรงกับปุ่มใน cashier.html
         document.querySelectorAll('#tabs .ds-tab').forEach((b, i) => {
-            b.classList.toggle('active', ['cash', 'review', 'ready', 'search'][i] === this.state.tab);
+            b.classList.toggle('active', CashierPage.TABS[i] === this.state.tab);
         });
         document.getElementById('searchBar').style.display = this.state.tab === 'search' ? '' : 'none';
 
@@ -56,17 +59,35 @@ const CashierPage = {
         refreshIcons();
     },
 
+    TABS: ['cash', 'qr', 'review', 'cooking', 'ready', 'search'],
+
+    /**
+     * รอโอน + กำลังทำ — ไม่ใช่งานที่ต้องรีบ แต่แคชเชียร์ต้องเห็นทุกออเดอร์ที่ตู้สร้าง
+     * ตั้งแต่ปิดบิลอัตโนมัติ (สลิปผ่าน → เข้าครัวเลย 14/10/2569) ออเดอร์ QR ไม่ผ่านมือแคชเชียร์อีก
+     * นับจาก cache ในเครื่อง (ไม่ใช่รายงานเซิร์ฟเวอร์) — เป็นงานหน้างานตอนนี้ ไม่ใช่ยอดของรอบ
+     */
+    COOKING: ['PAID', 'SENT_TO_KITCHEN', 'PREPARING'],
+    _liveCounts() {
+        const all = CFStore.all('orders');
+        return { qr: all.filter((o) => o.status === 'WAITING_PAYMENT').length,
+                 cooking: all.filter((o) => this.COOKING.includes(o.status)).length };
+    },
+
     currentOrders() {
         const all = CFStore.all('orders');
-        if (this.state.tab === 'cash')   return all.filter((o) => o.status === 'WAITING_CASH');
-        if (this.state.tab === 'review') return all.filter((o) => ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status));
-        if (this.state.tab === 'ready')  return all.filter((o) => o.status === 'READY');
+        const oldest = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);     // ใบที่รอนานสุดขึ้นก่อน
+        if (this.state.tab === 'cash')    return all.filter((o) => o.status === 'WAITING_CASH');
+        if (this.state.tab === 'qr')      return all.filter((o) => o.status === 'WAITING_PAYMENT').sort(oldest);
+        if (this.state.tab === 'review')  return all.filter((o) => ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status));
+        if (this.state.tab === 'cooking') return all.filter((o) => this.COOKING.includes(o.status)).sort(oldest);
+        if (this.state.tab === 'ready')   return all.filter((o) => o.status === 'READY');
 
         const q = this.state.q.trim().toLowerCase();
         return all.filter((o) => {
             if (this.state.status && o.status !== this.state.status) return false;
             if (!q) return true;
-            return o.orderNo.toLowerCase().includes(q) || o.kioskId.toLowerCase().includes(q);
+            // ออเดอร์ที่พนักงานสร้างไม่มีตู้ (kioskId = null) — เดิมพังทั้งรายการตอนพิมพ์คำค้น
+            return o.orderNo.toLowerCase().includes(q) || String(o.kioskId || '').toLowerCase().includes(q);
         }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 40);
     },
 
@@ -139,7 +160,9 @@ const CashierPage = {
      * ไม่ย้ายเมื่อ: อยู่แท็บค้นหา · เปิด drawer อยู่ · เพิ่งกดเลือกแท็บเองไม่ถึง 20 วิ (ตั้งใจดูแท็บว่าง)
      */
     _autoTab(k) {
-        const counts = { review: k.paymentReview, cash: k.waitingCash, ready: k.ready };
+        // รอโอน/กำลังทำ ไม่ดึงไปเอง (ไม่ใช่งานด่วน) แต่ถ้ากำลังดูอยู่และยังมีรายการ ก็ไม่ย้ายออก
+        const live = this._liveCounts();
+        const counts = { review: k.paymentReview, cash: k.waitingCash, ready: k.ready, qr: live.qr, cooking: live.cooking };
         const tab = this.state.tab;
         if (tab === 'search' || counts[tab] > 0) return;
         if (window.Drawer && Drawer.isOpen && Drawer.isOpen()) return;
@@ -159,7 +182,8 @@ const CashierPage = {
         const o = CFStore.byId('orders', orderId);
         if (!o) return;
         if (o.status === 'WAITING_CASH') return this.openReceiveCash(orderId);
-        if (['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status)) return this.openReview(orderId);
+        // รอโอน — ลูกค้ามาที่เคาน์เตอร์ได้: สแกนสลิปที่นี่ หรือยืนยันเอง (เช่นจ่ายเงินสดแทน)
+        if (['WAITING_PAYMENT', 'PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status)) return this.openReview(orderId);
         return this.openDetail(orderId);
     },
 
@@ -411,7 +435,8 @@ const CashierPage = {
                 <span class="ds-note" id="ovHint" style="margin:0 auto 0 0">
                     ${overLimit ? 'เกินเพดาน — ให้ผู้จัดการยืนยัน' : 'เลือกเหตุผลก่อน จึงจะกดยืนยันได้'}
                 </span>
-                <button class="btn btn-danger" onclick="CashierPage.failPayment()">ชำระไม่สำเร็จ</button>
+                ${o.status === 'WAITING_PAYMENT' ? ''        /* ยังรอโอน — ผังสถานะไม่ให้ไป "ไม่สำเร็จ" ตรง ๆ */
+                    : '<button class="btn btn-danger" onclick="CashierPage.failPayment()">ชำระไม่สำเร็จ</button>'}
                 <button class="btn btn-primary" id="btnOverride" disabled
                         onclick="CashierPage.confirmOverride()">
                     <i data-lucide="check" class="icon-sm"></i> ยืนยันการชำระ
@@ -433,6 +458,9 @@ const CashierPage = {
             : o.status === 'PAYMENT_TIMEOUT'
                 ? `<span class="sip-chip sip-chip-muted"><i data-lucide="timer-off" class="icon-sm"></i>
                     QR หมดเวลา — ไม่มีสลิป ลูกค้าอาจยังไม่ได้จ่าย</span>`
+            : o.status === 'WAITING_PAYMENT'
+                ? `<span class="sip-chip sip-chip-muted"><i data-lucide="qr-code" class="icon-sm"></i>
+                    รอลูกค้าโอน — ยังไม่ได้สแกนสลิป</span>`
                 : `<span class="sip-chip sip-chip-amber"><i data-lucide="hand" class="icon-sm"></i>
                     ลูกค้าแจ้งพนักงาน — ยังไม่มีสลิป</span>`;
         return `
