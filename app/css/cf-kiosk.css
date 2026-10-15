@@ -89,18 +89,6 @@ body.cfk-frame.cfk-portrait #cfkStage {
 .cfk-back .cfk-ic { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
 
 
-/* ชิปโหมดรับของบนแถบหัว */
-.cfk-mode {
-    flex-shrink: 0; display: inline-flex; align-items: center; gap: calc(var(--u) * .6);
-    padding: calc(var(--u) * .8) calc(var(--u) * 1.6);
-    min-height: calc(var(--u) * 5);            /* 54px = 13มม. ที่จอ 21.5" */
-    background: #fff; color: var(--text-secondary);
-    border: 0.8px solid var(--brand-border); border-radius: 999px;
-    font-size: calc(var(--u) * 1.7); font-weight: 700; cursor: pointer;
-}
-.cfk-mode .cfk-ic { width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); }
-/* ร้านที่รับแบบเดียว — ป้ายบอกสถานะ ไม่ใช่ปุ่ม (ขนาดเท่าเดิม แถบหัวจะได้ไม่ขยับ) */
-.cfk-mode-static { cursor: default; }
 
 /* ปุ่มเปลี่ยนภาษา — ทุกหน้า (มุมขวาแถบหัว) และลอยมุมขวาบนของหน้าแรก */
 .cfk-lang {

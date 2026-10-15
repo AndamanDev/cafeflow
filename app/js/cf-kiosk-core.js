@@ -445,7 +445,6 @@ const CFKiosk = {
     },
 
     setDining(v) { this.state.dining = v; this.go('menu'); },
-    diningLabel() { const d = CF_DINING[this.state.dining] || CF_DINING.DINE_IN; return this.t(d.label, d.en); },
 
     /* ── แถบหัวร่วม ── */
     topHtml(o) {
@@ -458,23 +457,9 @@ const CFKiosk = {
                 <b>${e(o.title)}</b>
                 ${o.sub ? `<span>${e(o.sub)}</span>` : ''}
             </div>
-            ${o.mode && this.state.dining ? this.modeChipHtml() : ''}
             ${this.clockHtml()}
             ${o.noLang ? '' : this.langBtn()}
         </div>`;
-    },
-
-    /**
-     * ชิปบอกว่ากำลังสั่งแบบไหน
-     * โหมดตายตัว (ร้านรับแบบเดียว) ต้องเป็นป้ายอ่านอย่างเดียว ไม่ใช่ปุ่ม —
-     * ไม่งั้นมันคือทางลัดกลับเข้าหน้าที่ผู้จัดการเพิ่งปิดไป
-     */
-    modeChipHtml() {
-        const d = CF_DINING[this.state.dining] || CF_DINING.DINE_IN;
-        const inner = `${CFKioskArt.icon(d.icon)} ${CFApp.esc(this.t(d.label, d.en))}`;
-        return this.diningMode() === 'ASK'
-            ? `<button class="cfk-mode" onclick="CFKiosk.go('dining')">${inner}</button>`
-            : `<span class="cfk-mode cfk-mode-static">${inner}</span>`;
     },
 
     /* ══════════════════════════════════════════════════════
@@ -490,7 +475,7 @@ const CFKiosk = {
         const catsHtml = cats.map((c) => this.catHtml(c)).join('');
 
         return `
-        ${this.topHtml({ title: CFStore.settings().shopName, sub: this.t('เลือกเมนูที่ต้องการ', 'Choose your items'), back: 'dining', mode: true })}
+        ${this.topHtml({ title: CFStore.settings().shopName, sub: this.t('เลือกเมนูที่ต้องการ', 'Choose your items'), back: 'dining' })}
         <div class="cfk-menu">
             ${land ? `<div class="cfk-rail">${catsHtml}</div>`
                    : `<div class="cfk-catstrip">${catsHtml}</div>`}
@@ -800,7 +785,7 @@ const CFKiosk = {
         if (!n) return this.screen_menu();
 
         return `
-        ${this.topHtml({ title: this.t('ตะกร้าของคุณ', 'Your cart'), sub: this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item')), back: 'menu', mode: true })}
+        ${this.topHtml({ title: this.t('ตะกร้าของคุณ', 'Your cart'), sub: this.t(n + ' รายการ', n + (n > 1 ? ' items' : ' item')), back: 'menu' })}
         <div class="cfk-cart">
             <div class="cfk-cart-list">
                 ${this.state.cart.map((l) => this.cartCardHtml(l)).join('')}
@@ -1013,7 +998,7 @@ const CFKiosk = {
                 <b>฿${CFApp.money(this.lineTotal(l))}</b></div>`).join('') +
             (cart.length > 5 ? `<div class="cfk-paysum-more">${this.t('และอีก ' + (cart.length - 5) + ' รายการ', 'and ' + (cart.length - 5) + ' more')}</div>` : '');
         return `
-        ${this.topHtml({ title: this.t('เลือกวิธีชำระเงิน', 'How would you like to pay?'), back: 'cart', mode: true })}
+        ${this.topHtml({ title: this.t('เลือกวิธีชำระเงิน', 'How would you like to pay?'), back: 'cart' })}
         <div class="cfk-choices cfk-choices-low">
                 <div class="cfk-paysum">
                     <div class="cfk-paysum-head">${this.t('รายการของคุณ', 'Your order')}
@@ -1917,8 +1902,7 @@ const CFKiosk = {
         }[kind];
 
         return `
-        <div class="cfk-top"><div class="cfk-top-title"><b>${e(v.title)}</b>
-            <span>${e(this.diningLabel())}</span></div>${this.clockHtml()}</div>
+        <div class="cfk-top"><div class="cfk-top-title"><b>${e(v.title)}</b></div>${this.clockHtml()}</div>
         <div style="display:grid;grid-template-rows:1fr auto;min-height:0">
             <div class="cfk-center"><div class="cfk-panel">
                 <div class="cfk-done-ico ${v.tone}">
