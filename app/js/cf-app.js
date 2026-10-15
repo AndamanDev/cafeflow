@@ -441,6 +441,29 @@ const CFApp = {
         return CFStore.all('orders').filter((o) => new Date(o.createdAt) >= d0);
     },
 
+    /**
+     * รอบที่เปิดค้างข้ามวันทำการ — แถบเตือนสีส้ม (แคชเชียร์ · ภาพรวม · ปิดรอบ)
+     * ไม่ปิดรอบให้เอง (แบบ POS ทั่วไป): ปิดรอบ = นับเงินจริงในลิ้นชัก ระบบปิดแทนตัวเลขเงินขาด/เกินจะไม่มีความหมาย
+     * ยอดรายวัน/เลข A001 ตัดวันเองอยู่แล้ว (CFDay) — ที่ปนคือ "เงินสดที่ควรมี" ของรอบ ซึ่งรวมทุกวันที่ค้าง
+     * onClosing = อยู่หน้าปิดรอบแล้ว ไม่ต้องมีปุ่มพาไป · คืน '' เมื่อไม่ค้าง
+     */
+    staleShiftHtml(onClosing) {
+        const shift = CFStore.openShift();
+        if (!shift || !shift.openedAt) return '';
+        const h = CFDay.startHourOf(CFStore.settings());
+        const opened = CFDay.businessDate(shift.openedAt, h);
+        const today = CFDay.businessDate(Date.now(), h);
+        if (opened >= today) return '';
+        const days = Math.round((new Date(today) - new Date(opened)) / 86400000);
+        return `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <i data-lucide="clock-alert" class="icon-sm"></i>
+            <span style="flex:1"><strong>รอบนี้เปิดตั้งแต่ ${this.esc(this.date(shift.openedAt))} ยังไม่ได้ปิด</strong>
+                (ค้าง ${days} วัน) — นับเงินในลิ้นชักแล้วปิดรอบก่อนขายต่อ ยอดเงินสดของรอบจะได้ไม่ปนข้ามวัน</span>
+            ${onClosing ? '' : `<button class="btn btn-primary btn-sm" onclick="location.href='closing.html'">
+                <i data-lucide="lock" class="icon-sm"></i> ไปปิดรอบ</button>`}
+        </div>`;
+    },
+
     /** อุปกรณ์ปัจจุบันของหน้านี้ — ใช้เขียนลง audit log */
     deviceId() { return window.CF_DEVICE_ID || 'CASHIER-01'; },
 

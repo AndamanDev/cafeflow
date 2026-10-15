@@ -126,6 +126,7 @@ const ClosingPage = {
     render() {
         const e = CFApp.esc;
         const open = CFStore.openShift();
+        document.getElementById('staleShift').innerHTML = CFApp.staleShiftHtml(true);
         document.getElementById('openShiftCard').hidden = !!open;
         document.getElementById('closeBtn').hidden = !open;
         document.getElementById('closeBtn2').hidden = !open;

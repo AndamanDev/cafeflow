@@ -16,6 +16,7 @@ const DashPage = {
         this.renderDevWaits();
         this.renderBackupWarn();
         const shift = CFStore.openShift();
+        document.getElementById('staleShift').innerHTML = CFApp.staleShiftHtml();
 
         // ไม่มีรอบเปิด = คีออสก์ไม่รับออเดอร์ — ชี้ทางไปเปิดรอบ
         document.getElementById('shiftLine').innerHTML =

@@ -323,8 +323,13 @@ const CashierPage = {
     renderShiftAlert(shift) {
         const el = document.getElementById('shiftAlert');
         if (!el) return;
-        el.hidden = !!shift;
-        if (shift) return;
+        if (shift) {                                  // เปิดอยู่ — เตือนเฉพาะตอนค้างข้ามวันทำการ
+            const stale = CFApp.staleShiftHtml();
+            el.hidden = !stale;
+            el.innerHTML = stale;
+            return;
+        }
+        el.hidden = false;
         el.innerHTML = `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
             <i data-lucide="lock" class="icon-sm"></i>
             <span style="flex:1"><strong>ยังไม่ได้เปิดรอบการขาย</strong> — คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกดเปิดรอบ</span>
