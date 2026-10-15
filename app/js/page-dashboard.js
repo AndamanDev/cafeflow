@@ -19,10 +19,11 @@ const DashPage = {
         document.getElementById('staleShift').innerHTML = CFApp.staleShiftHtml();
 
         // ไม่มีรอบเปิด = คีออสก์ไม่รับออเดอร์ — ชี้ทางไปเปิดรอบ
+        // สั้น ๆ พอ — เลขรอบ (SH-…) ไม่มีประโยชน์กับผู้จัดการ ดูได้ที่หน้าปิดรอบ · รอบค้างข้ามวันมีแถบส้มบอกแยกแล้ว
         document.getElementById('shiftLine').innerHTML =
             shift
                 ? '<span class="cf-pill cf-pill-on">เปิดขายอยู่</span> ' +
-                  e('รอบ ' + shift.id + ' · เปิดเมื่อ ' + CFApp.time(shift.openedAt) + ' · ' + CFApp.dateFull(shift.openedAt))
+                  e('ตั้งแต่ ' + CFApp.date(shift.openedAt) + ' ' + CFApp.time(shift.openedAt))
                 : '<span class="cf-pill cf-pill-off">ยังไม่เปิดรอบ</span> คีออสก์ยังไม่รับออเดอร์ · <a href="closing.html">ไปเปิดรอบ</a>';
 
         /* ── ยอดขาย — ตัวเลขหลักใหญ่ แยกช่องทางชำระเป็นแถบสัดส่วน ── */
@@ -116,17 +117,7 @@ const DashPage = {
         refreshIcons();
     },
 
-    eventLabel(ev) {
-        return {
-            ORDER_CREATED: 'สร้างออเดอร์', PAYMENT_RECEIVED: 'รับชำระเงินสด',
-            PAYMENT_VERIFIED: 'ยืนยันการชำระ', PAYMENT_OVERRIDE: 'ยืนยันโดยพนักงาน',
-            PAYMENT_TIMEOUT: 'หมดเวลาชำระ', STATION_READY: 'สถานีพร้อม',
-            PRINT: 'พิมพ์เอกสาร', STATUS_CHANGE: 'เปลี่ยนสถานะ',
-            PRODUCT_UPDATE: 'แก้ไขสินค้า', SHIFT_CLOSE: 'ปิดรอบ',
-            DEVICE_UPDATE: 'ตั้งค่าอุปกรณ์', QR_ISSUED: 'ออก QR ชำระเงิน', SHIFT_OPEN: 'เปิดรอบ',
-            SETTINGS_UPDATE: 'แก้ค่าตั้ง', SLIP_REJECTED: 'ปฏิเสธสลิป', USER_PASSWORD: 'เปลี่ยนรหัสผ่าน',
-        }[ev] || ev;
-    },
+    eventLabel(ev) { return CFApp.eventLabel(ev); },
 
     /* ══════════════════════════════════════════════════════
        DRAWER — อุปกรณ์ (§30)

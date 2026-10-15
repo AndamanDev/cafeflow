@@ -637,18 +637,8 @@ const OrdersPage = {
     },
 };
 
-/** ป้ายชื่อเหตุการณ์ — ใช้ร่วมกับ dashboard */
-function DashLabel(ev) {
-    return (window.DashPage && DashPage.eventLabel) ? DashPage.eventLabel(ev) : ({
-        ORDER_CREATED: 'สร้างออเดอร์', PAYMENT_RECEIVED: 'รับชำระเงินสด',
-        PAYMENT_VERIFIED: 'ยืนยันการชำระ', PAYMENT_OVERRIDE: 'ยืนยันโดยพนักงาน',
-        PAYMENT_TIMEOUT: 'หมดเวลาชำระ', STATION_READY: 'สถานีพร้อม',
-        PRINT: 'พิมพ์เอกสาร', STATUS_CHANGE: 'เปลี่ยนสถานะ',
-        PRODUCT_UPDATE: 'แก้ไขสินค้า', SHIFT_CLOSE: 'ปิดรอบ', SHIFT_OPEN: 'เปิดรอบ',
-        QR_ISSUED: 'ออก QR ชำระเงิน', SLIP_REJECTED: 'ปฏิเสธสลิป', DEVICE_UPDATE: 'ตั้งค่าอุปกรณ์',
-        SETTINGS_UPDATE: 'แก้ค่าตั้ง', USER_PASSWORD: 'เปลี่ยนรหัสผ่าน',
-    }[ev] || ev);
-}
+/** ป้ายชื่อเหตุการณ์ — ที่เดียวกับหน้าภาพรวม (CFApp.eventLabel) */
+function DashLabel(ev) { return CFApp.eventLabel(ev); }
 
 window.OrdersPage = OrdersPage;
 CFBoot.ready(() => OrdersPage.boot());
