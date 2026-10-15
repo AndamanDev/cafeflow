@@ -41,6 +41,12 @@ const CashierPage = {
             kpi('bell-ring', CFApp.int(k.ready), 'พร้อมรับ', false, 'ready') +
             kpi('wallet', CFApp.baht(k.cash), 'เงินสดรอบนี้');
 
+        // ยังไม่เปิดรอบ — เหลือแค่การ์ดเปิดรอบ (ตัวเลข/แท็บว่างเปล่าทำให้งงว่าต้องทำอะไรก่อน)
+        // ใบที่ค้างจากรอบก่อนถูกยกเข้ารอบใหม่ตอนเปิด แล้วจะกลับมาอยู่ในแท็บตามเดิม
+        document.getElementById('kpiStrip').style.display = shift ? '' : 'none';    // .ds-kpi-grid ตั้ง display:grid ทับ hidden
+        document.getElementById('tabs').style.display = shift ? '' : 'none';
+        if (shift) { const card = document.getElementById('csOpenCard'); if (card) card.remove(); }
+
         const live = this._liveCounts();
         document.getElementById('cntCash').textContent    = k.waitingCash;
         document.getElementById('cntQr').textContent      = live.qr;
@@ -90,6 +96,8 @@ const CashierPage = {
 
     renderList() {
         const e = CFApp.esc;
+        // ยังไม่เปิดรอบ — เปิดรอบก่อนเริ่มงาน แบบ POS ทั่วไป (Loyverse "Open shift" · Ocha เปิดกะ) แทนรายการออเดอร์
+        if (!CFStore.openShift()) { this.renderOpenShift(); return; }
         const orders = this.currentOrders();
         const area = document.getElementById('orderArea');
 
@@ -129,6 +137,56 @@ const CashierPage = {
                 <div class="cf-oc-items">${lines}${more}</div>
             </div>`;
         }).join('') + '</div>';
+    },
+
+    /**
+     * การ์ดเปิดรอบ — แสดงแทนรายการออเดอร์จนกว่าจะเปิดรอบ (ตู้ไม่รับออเดอร์ตอนไม่มีรอบอยู่แล้ว)
+     * วาดครั้งเดียว: store เปลี่ยนแล้ว render ซ้ำต้องไม่ล้างตัวเลขที่กำลังพิมพ์ · เปิดรอบแล้วรายการกลับมาเอง
+     * คนที่ไม่มีสิทธิ์ปิด/เปิดรอบ (SHIFT_CLOSE) เห็นแค่ข้อความให้ไปตามคนเปิด
+     */
+    renderOpenShift() {
+        if (document.getElementById('csOpenCard')) return;
+        const can = CFAuth.can('SHIFT_CLOSE');
+        document.getElementById('orderArea').innerHTML = `
+            <div class="sip-card" id="csOpenCard" style="max-width:440px;margin:24px auto;padding:24px;text-align:center">
+                <i data-lucide="unlock" class="icon-lg" style="color:var(--primary)"></i>
+                <div style="font-size:20px;font-weight:700;margin:8px 0 4px">เปิดรอบการขายก่อนเริ่มงาน</div>
+                <div class="ds-note">ตอนนี้คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกรอกด้านล่าง
+                    ยอด "เงินสดที่ควรมี" ตอนปิดรอบจะได้ถูก</div>
+                ${can ? `
+                <div class="sip-field" style="text-align:left;margin-top:16px">
+                    <label class="sip-label">เงินตั้งต้นในลิ้นชัก (บาท)</label>
+                    <input class="sip-input" id="csOpeningCash" type="number" min="0" step="1" inputmode="numeric"
+                           placeholder="0" onkeydown="if(event.key==='Enter')CashierPage.openShift()">
+                </div>
+                <button class="btn btn-primary" id="csOpenBtn" style="width:100%;margin-top:8px"
+                        onclick="CashierPage.openShift()"><i data-lucide="unlock" class="icon-sm"></i> เปิดรอบ</button>`
+                : '<div class="ds-block" style="margin-top:16px">บัญชีนี้เปิดรอบไม่ได้ — ให้แคชเชียร์หรือผู้จัดการเปิดรอบ</div>'}
+            </div>`;
+        refreshIcons();
+        setTimeout(() => { const el = document.getElementById('csOpeningCash'); if (el) el.focus(); }, 50);
+    },
+
+    /** เปิดรอบจากหน้าแคชเชียร์ — API เดียวกับหน้าปิดรอบ (ClosingPage.openShift) */
+    async openShift() {
+        const el = document.getElementById('csOpeningCash');
+        const v = el.value.trim();
+        const cash = Number(v);
+        if (v === '' || !isFinite(cash) || cash < 0) {
+            showToast('กรุณากรอกเงินตั้งต้นในลิ้นชัก (ไม่มีให้ใส่ 0)', 'error');
+            el.focus();
+            return;
+        }
+        const btn = document.getElementById('csOpenBtn');
+        btn.disabled = true;
+        try {
+            const res = await CFStore.cmd('post', '/api/shifts/open', { openingCash: cash });
+            showToast('เปิดรอบแล้ว — คีออสก์รับออเดอร์ได้' +
+                      (res.carriedOver ? ' · ยกออเดอร์ค้างเข้ารอบนี้ ' + res.carriedOver + ' ออเดอร์' : ''), 'success', 4000);
+        } catch (err) {
+            showToast(err.message || 'เปิดรอบไม่สำเร็จ', 'error', 5000);
+            btn.disabled = false;
+        }
     },
 
     /**
@@ -329,7 +387,8 @@ const CashierPage = {
             el.innerHTML = stale;
             return;
         }
-        el.hidden = false;
+        el.hidden = true;            // ไม่มีรอบ — การ์ดเปิดรอบแทนรายการออเดอร์แล้ว (renderOpenShift) ไม่ต้องมีแถบซ้ำ
+        return;
         el.innerHTML = `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
             <i data-lucide="lock" class="icon-sm"></i>
             <span style="flex:1"><strong>ยังไม่ได้เปิดรอบการขาย</strong> — คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกดเปิดรอบ</span>
