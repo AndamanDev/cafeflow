@@ -287,6 +287,93 @@ function registerReports(app, deps) {
     }));
 
     /**
+     * หน้ารายงาน (reports.html) — ช่วงวันทำการ from..to (รวมทั้งสองวัน · ตรงกับเลข A001)
+     * ผู้จัดการ + แอดมินเท่านั้น (ผู้ใช้เลือก 15/10/2569) — แคชเชียร์ดูยอดรอบตัวเองที่หน้าปิดรอบได้อยู่แล้ว
+     *   summary   ตัวเลขสรุป (รูปทรงเดียวกับ CFKpi.summary)
+     *   byHour    ยอดขายแต่ละชั่วโมง 0–23 (เวลาไทย ตามเวลาสั่ง) · byDay ยอดแต่ละวันทำการ
+     *   products  ทุกเมนูที่ขาย + ต้นทุน/กำไร (ต้นทุน ณ วันขาย · ไม่รวมท็อปปิ้ง = กำไรสูงกว่าจริงเล็กน้อยถ้ามีท็อปปิ้งเสริม)
+     *   staff     ต่อพนักงาน: บิลที่รับเงิน · ยืนยันแทน · ยกเลิก/คืนเงิน
+     *             บิลที่ระบบปิดเองจากสลิปผ่าน (cashier_id ว่าง) รวมเป็นแถว "ระบบอัตโนมัติ"
+     */
+    app.get('/api/reports/days', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        if (!['ADMIN', 'MANAGER'].includes(ctx.user.role)) throw new ApiError(403, 'รายงานดูได้เฉพาะผู้จัดการและแอดมิน');
+        const DAY = /^\d{4}-\d{2}-\d{2}$/;
+        const { from, to } = req.query;
+        if (!DAY.test(String(from || '')) || !DAY.test(String(to || ''))) throw new ApiError(400, 'ต้องระบุ from และ to เป็น YYYY-MM-DD');
+        if (from > to) throw new ApiError(400, 'วันเริ่มต้องไม่หลังวันสิ้นสุด');
+        if ((new Date(to) - new Date(from)) / 86400000 > 366) throw new ApiError(400, 'ดูได้ครั้งละไม่เกิน 1 ปี');
+
+        const scope = { dayFrom: from, dayTo: to };
+        const c = await pool.connect();
+        try {
+            const args = [branchId(), from, to, SOLD];
+            const inRange = 'o.branch_id = $1 AND o.business_date BETWEEN $2::date AND $3::date';
+
+            const hours = (await c.query(
+                `SELECT EXTRACT(HOUR FROM o.created_at AT TIME ZONE 'Asia/Bangkok')::int AS h,
+                        count(*)::int AS orders, SUM(o.total) AS sales
+                   FROM cf_order o WHERE ${inRange} AND o.status = ANY($4)
+                  GROUP BY 1`, args)).rows;
+            const byHour = Array.from({ length: 24 }, (_, h) => {
+                const r = hours.find((x) => x.h === h);
+                return { hour: h, orders: r ? r.orders : 0, sales: r ? n(r.sales) : 0 };
+            });
+
+            const byDay = (await c.query(
+                `SELECT to_char(o.business_date, 'YYYY-MM-DD') AS day,
+                        count(*) FILTER (WHERE o.status = ANY($4))::int AS orders,
+                        COALESCE(SUM(o.total) FILTER (WHERE o.status = ANY($4)), 0) AS sales
+                   FROM cf_order o WHERE ${inRange}
+                  GROUP BY 1 ORDER BY 1`, args)).rows.map((r) => ({ day: r.day, orders: r.orders, sales: n(r.sales) }));
+
+            // ต่อพนักงาน — รับเงิน (ผูกที่ cashier_id ตอนเป็น PAID) · ยืนยันแทน · ยกเลิก/ยกเลิกบิล/คืนเงิน (จาก audit)
+            const paid = (await c.query(
+                `SELECT o.cashier_id AS id, count(*)::int AS orders, SUM(o.total) AS sales,
+                        COALESCE(SUM(o.total) FILTER (WHERE o.payment_method = 'CASH'), 0) AS cash,
+                        COALESCE(SUM(o.total) FILTER (WHERE o.payment_method = 'QR'), 0) AS qr
+                   FROM cf_order o WHERE ${inRange} AND o.status = ANY($4)
+                  GROUP BY 1`, args)).rows;
+            const overrides = (await c.query(
+                `SELECT p.override_by AS id, count(*)::int AS n
+                   FROM payment p JOIN cf_order o ON o.id = p.order_id
+                  WHERE ${inRange} AND p.override_by IS NOT NULL GROUP BY 1`, args.slice(0, 3))).rows;
+            const voids = (await c.query(
+                `SELECT a.actor_user_id AS id, a.new_status AS st, count(*)::int AS n
+                   FROM audit_log a JOIN cf_order o ON o.id = a.order_id
+                  WHERE ${inRange} AND a.event_type = 'STATUS_CHANGE'
+                    AND a.new_status IN ('CANCELLED','VOIDED','REFUNDED') AND a.actor_user_id IS NOT NULL
+                  GROUP BY 1, 2`, args.slice(0, 3))).rows;
+            const users = new Map((await c.query('SELECT id, name_th, role, active FROM app_user WHERE branch_id = $1',
+                [branchId()])).rows.map((u) => [u.id, u]));
+
+            const staff = new Map();
+            const row = (id) => {
+                const key = id || 'SYSTEM';
+                if (!staff.has(key)) {
+                    const u = id ? users.get(id) : null;
+                    staff.set(key, { userId: id || null, name: u ? u.name_th : (id ? id : 'ระบบอัตโนมัติ (สลิปผ่าน)'),
+                                     role: u ? u.role : null, active: u ? u.active : true,
+                                     orders: 0, sales: 0, cash: 0, qr: 0, overrides: 0, cancelled: 0, voided: 0, refunded: 0 });
+                }
+                return staff.get(key);
+            };
+            paid.forEach((p) => Object.assign(row(p.id), { orders: p.orders, sales: n(p.sales), cash: n(p.cash), qr: n(p.qr) }));
+            overrides.forEach((o) => { row(o.id).overrides = o.n; });
+            voids.forEach((v) => { row(v.id)[{ CANCELLED: 'cancelled', VOIDED: 'voided', REFUNDED: 'refunded' }[v.st]] = v.n; });
+
+            return {
+                from, to,
+                summary: await summarize(c, branchId(), scope),
+                byHour, byDay,
+                products: await topProducts(c, branchId(), scope, 200, true),
+                staff: [...staff.values()].sort((a, b) => b.sales - a.sales),
+            };
+        } finally { c.release(); }
+    }));
+
+    /**
      * ข้อมูลทั้งรอบสำหรับทำ CSV (§28)
      *
      * ส่งเป็น "ข้อมูลดิบรูปทรงเดียวกับ snapshot" ไม่ใช่ไฟล์ CSV สำเร็จรูป

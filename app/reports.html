@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<!-- =========================================================================
+  CafeFlow — รายงาน (ยอดตามช่วงวันทำการ · รายชั่วโมง · สินค้าขายดี · กำไรต่อเมนู · พนักงาน)
+  โครง: .page-container (หน้าเลื่อนปกติ) · ผู้จัดการ + แอดมินเท่านั้น (PRICE_EDIT = ระดับผู้จัดการ)
+  ข้อมูลมาจาก GET /api/reports/days — ไม่ใช้ cache 24 ชม. ของเบราว์เซอร์ ดูย้อนหลังได้ถูก
+  ========================================================================= -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CafeFlow — รายงาน</title>
+
+    <link rel="stylesheet" href="../design-system-2/css/ds-tokens.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-base.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-navbar.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-layout.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-components.css">
+    <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
+    <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <link rel="stylesheet" href="css/cf-app.css">
+
+    <script src="../shared/cf-consts.js"></script>
+    <script src="../shared/cf-flow.js"></script>
+    <script src="../shared/cf-pricing.js"></script>
+    <script src="../shared/cf-rules.js"></script>
+    <script src="../shared/cf-perms.js"></script>
+    <script src="js/cf-store.js"></script>
+    <script src="js/cf-auth.js"></script>
+    <script src="js/cf-api.js"></script>
+    <script src="js/cf-boot.js"></script>
+    <script>CFBoot.gate('PRICE_EDIT');</script>
+</head>
+<body data-page="reports">
+
+<nav id="appNavbar"></nav>
+
+<div class="page-container">
+
+    <div class="page-header">
+        <div>
+            <div class="page-title">
+                <i data-lucide="bar-chart-3" class="mi"></i>
+                <span>รายงาน</span>
+            </div>
+            <div class="page-subtitle" id="rangeLine">—</div>
+        </div>
+    </div>
+
+    <div class="cf-rp-range">
+        <div class="ds-segbar" id="rangeSeg"></div>
+        <div class="cf-rp-custom" id="customBox" hidden>
+            <input class="sip-input" type="date" id="dFrom" onchange="ReportsPage.custom()">
+            <span>ถึง</span>
+            <input class="sip-input" type="date" id="dTo" onchange="ReportsPage.custom()">
+        </div>
+    </div>
+
+    <div class="ds-kpi-grid" id="kpis"></div>
+
+    <div class="clinical-card"><div class="card-title">ยอดขายรายชั่วโมง</div>
+        <div id="hourChart"></div>
+    </div>
+
+    <div class="clinical-card" id="dayCard" hidden><div class="card-title">ยอดขายรายวัน</div>
+        <div id="dayChart"></div>
+    </div>
+
+    <div class="cf-rp-grid">
+        <div class="clinical-card"><div class="card-title">สินค้าขายดี</div>
+            <div id="topList"></div>
+        </div>
+        <div class="clinical-card"><div class="card-title">พนักงาน</div>
+            <div id="staffTable"></div>
+        </div>
+    </div>
+
+    <div class="clinical-card"><div class="card-title">กำไรต่อเมนู</div>
+        <div id="profitTable"></div>
+        <div class="ds-note" style="margin-top:10px">
+            ต้นทุนใช้ค่าที่ตั้งไว้ ณ วันที่ขาย (แก้ต้นทุนทีหลัง กำไรย้อนหลังไม่เปลี่ยน) · <b>ยังไม่รวมต้นทุนท็อปปิ้ง</b>
+            เมนูที่ขายท็อปปิ้งเสริมเยอะจะแสดงกำไรสูงกว่าจริงเล็กน้อย · ตั้งต้นทุนได้ที่หน้าเมนูและสินค้า
+        </div>
+    </div>
+
+</div>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- ไอคอนเก็บไว้ในเครื่อง — ร้านต้องใช้ได้แม้เน็ตหลุด -->
+<script src="vendor/lucide.min.js"></script>
+<script src="../design-system-2/js/ds-icons.js"></script>
+<script src="../design-system-2/js/ds-navbar.js"></script>
+<script src="../design-system-2/js/ds-drawer.js"></script>
+<script src="../design-system-2/js/ds-toast.js"></script>
+
+<script src="js/cf-orders.js"></script>
+<script src="js/cf-kpi.js"></script>
+<script src="js/cf-nav.js"></script>
+<script src="js/cf-app.js"></script>
+<script src="js/cf-alerts.js"></script>
+<script src="js/page-reports.js"></script>
+</body>
+</html>

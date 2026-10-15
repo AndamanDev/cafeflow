@@ -138,6 +138,30 @@
 .cf-load-fill.danger { background: var(--status-danger); }
 .cf-load-val  { font-size: 12px; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
 
+/* ── หน้ารายงาน — กราฟแท่งแนวตั้ง (รายชั่วโมง / รายวัน) เป็น CSS ล้วน ไม่ลงไลบรารีกราฟ ── */
+.cf-rp-range  { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.cf-rp-custom { display: flex; gap: 8px; align-items: center; }
+.cf-rp-custom[hidden] { display: none; }           /* display:flex ทับ hidden */
+.cf-rp-custom .sip-input { width: 160px; }
+.cf-rp-grid   { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.cf-rp-grid > .clinical-card { margin: 0; }
+body[data-page="reports"] .clinical-card { margin-bottom: 16px; }
+body[data-page="reports"] .ds-kpi-grid { margin-bottom: 16px; }
+.clinical-card[hidden] { display: none; }
+#topList .cf-load-row { grid-template-columns: minmax(120px, 1.2fr) 1fr 120px; }
+#topList .cf-load-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-vbars { display: flex; align-items: flex-end; gap: 6px; height: 200px; padding-top: 18px; }
+.cf-vbars.dense { gap: 2px; }
+.cf-vbar  { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end;
+            align-items: center; position: relative; padding-bottom: 20px; }
+.cf-vbar-fill { width: 100%; max-width: 46px; border-radius: 6px 6px 2px 2px; background: var(--primary); opacity: .75;
+                transition: height .3s; }
+.cf-vbar.peak .cf-vbar-fill { opacity: 1; }
+.cf-vbar:hover .cf-vbar-fill { opacity: 1; }
+.cf-vbar-val { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cf-vbar-lbl { position: absolute; bottom: 0; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 1000px) { .cf-rp-grid { grid-template-columns: 1fr; } }
+
 /* ══════════════════════════════════════════════════════════
    5. เบ็ดเตล็ด
    ══════════════════════════════════════════════════════════ */

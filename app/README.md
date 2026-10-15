@@ -51,7 +51,8 @@
 |---|---|---|
 | `login.html` | — | `.login-overlay` จาก `ds-landing.css` |
 | `dashboard.html` | §25 §26 §29 §30 | `.page-container` |
-| `orders.html` | §7 §8 §19 | `.ds-shell.cols-3` |
+| `orders.html` | §7 §8 §19 (ประวัติบิล) | `.ds-shell.cols-3` |
+| `reports.html` | §25 §26 (รายงาน · ผู้จัดการ+แอดมิน) | `.page-container` |
 | `menu.html` | §10 §11 §18 | `.page-container` |
 | `cashier.html` | §12 §16 §24 | `.page-container` |
 | `kds.html` | §20 §21 | `.ds-shell.cols-2` |

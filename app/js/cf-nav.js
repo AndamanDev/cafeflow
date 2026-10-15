@@ -37,6 +37,7 @@ Object.assign(DS_ICONS, CF_ICONS);   // DS_ICONS เป็น object ธรร�
    ══════════════════════════════════════════════════════════ */
 const CF_MENU = [
     { link: 'dashboard.html', label: 'ภาพรวม', icon: 'chart' },
+    { link: 'reports.html', label: 'รายงาน', icon: 'fileText', roles: 'ADMIN MANAGER' },
 
     {
         group: 'ops', label: 'หน้างาน', icon: 'listChecks',
