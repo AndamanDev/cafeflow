@@ -37,6 +37,17 @@ const app = fastify({
     },
     // คีออสก์ส่งตะกร้าที่มีหลายรายการ แต่ไม่ควรมีใครยิงก้อนใหญ่กว่านี้
     bodyLimit: 1024 * 512,
+    // ไม่บันทึกทุกคำขอ — เดิม 2 รายการ ~15 บรรทัดต่อคำขอ (รวมไฟล์ css/js และตู้ถามผลสลิปทุก 0.3 วิ)
+    // logs\api.log จึงโตเป็นสิบ MB ระหว่างเปิดร้าน (ขึ้นไฟล์ใหม่เฉพาะตอนรีสตาร์ท) · เก็บเฉพาะคำขอที่มีปัญหาแทน (hook ข้างล่าง)
+    disableRequestLogging: true,
+});
+
+/** บันทึกเฉพาะคำขอที่ควรดู: เซิร์ฟเวอร์พัง (5xx) · ช้าเกิน 3 วิ — 4xx เป็นเรื่องปกติ (ยังไม่ล็อกอิน · รหัสผิด) ไม่บันทึก */
+app.addHook('onResponse', async (req, reply) => {
+    const ms = Math.round(reply.elapsedTime);
+    if (reply.statusCode >= 500) req.log.error({ url: req.url, method: req.method, status: reply.statusCode, ms }, 'คำขอล้ม');
+    // /api/stream เปิดค้างตลอด (SSE) — ปิดสายเมื่อไหร่ก็ "นาน" เสมอ ไม่ใช่ความช้า
+    else if (ms > 3000 && !req.url.startsWith('/api/stream')) req.log.warn({ url: req.url, method: req.method, status: reply.statusCode, ms }, 'คำขอช้า');
 });
 
 app.register(require('@fastify/cookie'));
