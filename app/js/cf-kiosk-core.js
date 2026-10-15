@@ -322,14 +322,16 @@ const CFKiosk = {
     /** ตัวเลือกที่เก็บในตะกร้าเป็นชื่อไทย — โหมดอังกฤษดึงชื่อจากตัวเลือกจริง */
     modLabel(m) { return this.nm(CFStore.byId('modifierOptions', m.optionId)) || m.label; },
 
+    /** ปุ่มเปลี่ยนภาษามุมขวาบน — มีไอคอนลูกโลก นักท่องเที่ยวจำได้แม้อ่านไทยไม่ออก */
     langBtn(cls) {
         return `<button class="cfk-lang ${cls || ''}" onclick="event.stopPropagation();CFKiosk.toggleLang()"
                         aria-label="${this.t('Change language to English', 'เปลี่ยนเป็นภาษาไทย')}">
-            ${this.t('English', 'ภาษาไทย')}</button>`;
+            ${CFKioskArt.icon('globe')}${this.t('English', 'ภาษาไทย')}</button>`;
     },
 
-    toggleLang() {
-        this.state.lang = this.state.lang === 'en' ? 'th' : 'en';
+    toggleLang() { this.setLang(this.state.lang === 'en' ? 'th' : 'en'); },
+    setLang(l) {
+        this.state.lang = l === 'en' ? 'en' : 'th';
         this.render();
     },
 
@@ -378,9 +380,12 @@ const CFKiosk = {
             .map((p) => `<div class="cfk-attract-tile">${CFKioskArt.tile(p, CFApp.serveTypesOf(p)[0])}</div>`)
             .join('');
 
+        // ทั้งจอแตะแล้วเริ่มสั่ง (div role=button — ใส่ปุ่มเลือกภาษาข้างในได้ ปุ่มซ้อนปุ่มไม่ถูกหลัก HTML)
+        // เลือกภาษาเป็นปุ่มใหญ่สองปุ่มใต้ปุ่มเริ่ม แทนปุ่มเล็กมุมจอ — กดแล้วเปลี่ยนภาษาเฉย ๆ ยังไม่เริ่มสั่ง
+        const lang = (code, label) => `<button type="button" class="${this.state.lang === code ? 'active' : ''}"
+                onclick="event.stopPropagation();CFKiosk.setLang('${code}')">${label}</button>`;
         return `
-        ${this.langBtn('cfk-lang-float')}
-        <button class="cfk-attract" onclick="CFKiosk.start()">
+        <div class="cfk-attract" role="button" tabindex="0" onclick="CFKiosk.start()">
             <div class="cfk-attract-mid">
                 <span class="cfk-attract-strip" style="position:absolute;top:0;left:0;right:0"></span>
                 <div class="cfk-attract-mark">
@@ -397,9 +402,10 @@ const CFKiosk = {
                 ${CFStore.openShift()
                     ? `<div class="cfk-attract-cta">${this.t('แตะเพื่อเริ่มสั่ง', 'Tap to start ordering')}</div>`
                     : `<div class="cfk-attract-cta cfk-attract-closed">${this.t('ยังไม่เปิดรับออเดอร์', 'Not taking orders yet')}</div>`}
+                <div class="cfk-attract-langs" aria-label="Language">${lang('th', 'ภาษาไทย')}${lang('en', 'English')}</div>
             </div>
             <div class="cfk-attract-band"><div class="cfk-attract-row">${tiles}</div></div>
-        </button>`;
+        </div>`;
     },
 
     start() {
@@ -999,9 +1005,21 @@ const CFKiosk = {
         const tile = (key, tint) =>
             `<span class="cfk-media" style="--t1:${tint[0]};--t2:${tint[1]};--art-a:${tint[2]}">
                 <svg class="cfk-art" viewBox="0 0 120 120"><use href="#cfa-${key}"/></svg></span>`;
+        // สรุปรายการก่อนจ่าย — ลูกค้าตรวจได้ว่าสั่งถูก (เดิมหน้านี้มีแค่ยอดเงิน เหลือที่ว่างครึ่งจอ)
+        // ยาวเกิน 5 รายการ ย่อท้ายเป็น "และอีก n รายการ" ไม่ให้ดันปุ่มจ่ายตกจอ
+        const e = CFApp.esc, cart = this.state.cart;
+        const lines = cart.slice(0, 5).map((l) => `<div class="cfk-paysum-row">
+                <span>${l.qty} × ${e(this.nm(CFStore.byId('products', l.productId)))}${e(this.serveSuffix(l.serveType))}</span>
+                <b>฿${CFApp.money(this.lineTotal(l))}</b></div>`).join('') +
+            (cart.length > 5 ? `<div class="cfk-paysum-more">${this.t('และอีก ' + (cart.length - 5) + ' รายการ', 'and ' + (cart.length - 5) + ' more')}</div>` : '');
         return `
         ${this.topHtml({ title: this.t('เลือกวิธีชำระเงิน', 'How would you like to pay?'), back: 'cart', mode: true })}
-        <div class="cfk-choices">
+        <div class="cfk-choices cfk-choices-low">
+                <div class="cfk-paysum">
+                    <div class="cfk-paysum-head">${this.t('รายการของคุณ', 'Your order')}
+                        <button type="button" onclick="CFKiosk.go('cart')">${this.t('แก้ไข', 'Edit')}</button></div>
+                    ${lines}
+                </div>
                 <div class="cfk-paytotal">
                     <span>${this.t('ยอดที่ต้องชำระ', 'Amount due')}</span><strong>฿${CFApp.money(this.cartTotal())}</strong>
                 </div>
