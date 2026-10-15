@@ -8,7 +8,9 @@ const DashPage = {
        ══════════════════════════════════════════════════════ */
     render() {
         const e = CFApp.esc;
+        // ยอดขาย/เวลาเฉลี่ย = วันทำการนี้ (แบบ POS ทั่วไป) · งานค้าง "ตอนนี้ในร้าน" = ตามรอบ (รวมใบที่ยกมาจากวันก่อน)
         const k = CFKpi.summary();
+        const t = CFKpi.today();
 
         // ลิ้นชักอุปกรณ์เปิดอยู่ → วาดตารางใหม่ (จับคู่ / heartbeat แล้วสถานะต้องเปลี่ยนเอง ไม่ต้องปิดเปิดใหม่)
         const devRows = document.getElementById('devRows');
@@ -27,21 +29,22 @@ const DashPage = {
                 : '<span class="cf-pill cf-pill-off">ยังไม่เปิดรอบ</span> คีออสก์ยังไม่รับออเดอร์ · <a href="closing.html">ไปเปิดรอบ</a>';
 
         /* ── ยอดขาย — ตัวเลขหลักใหญ่ แยกช่องทางชำระเป็นแถบสัดส่วน ── */
-        const total = k.cash + k.qr;
-        const cashPct = total ? Math.round(k.cash / total * 100) : 0;
+        const total = t.cash + t.qr;
+        const cashPct = total ? Math.round(t.cash / total * 100) : 0;
         document.getElementById('kpiSales').innerHTML = `
             <div class="cf-sales-hero">
-                <div class="cf-sales-label"><i data-lucide="wallet" class="icon-sm"></i> ยอดขายรอบนี้</div>
-                <div class="cf-sales-value">${CFApp.baht(k.sales)}</div>
+                <div class="cf-sales-label"><i data-lucide="wallet" class="icon-sm"></i> ยอดขายวันนี้</div>
+                <div class="cf-sales-value">${CFApp.baht(t.sales)}</div>
                 <div class="cf-sales-sub">
-                    <span><b>${CFApp.int(k.orderCount)}</b> ออเดอร์</span>
-                    <span>เฉลี่ย <b>${CFApp.baht(k.avgOrder)}</b> / บิล</span>
+                    <span><b>${CFApp.int(t.orderCount)}</b> ออเดอร์</span>
+                    <span>เฉลี่ย <b>${CFApp.baht(t.avgOrder)}</b> / บิล</span>
+                    ${t.cancelledCount || t.refundedCount ? `<span>ยกเลิก/คืนเงิน <b>${CFApp.int(t.cancelledCount + t.refundedCount)}</b></span>` : ''}
                 </div>
             </div>
             <div class="cf-sales-split">
-                <div class="cf-sales-label">ช่องทางชำระ</div>
-                <div class="cf-split-row"><span><i data-lucide="banknote" class="icon-sm"></i> เงินสด</span><b>${CFApp.baht(k.cash)}</b></div>
-                <div class="cf-split-row"><span><i data-lucide="qr-code" class="icon-sm"></i> QR / โอน</span><b>${CFApp.baht(k.qr)}</b></div>
+                <div class="cf-sales-label">ช่องทางชำระ · วันนี้</div>
+                <div class="cf-split-row"><span><i data-lucide="banknote" class="icon-sm"></i> เงินสด</span><b>${CFApp.baht(t.cash)}</b></div>
+                <div class="cf-split-row"><span><i data-lucide="qr-code" class="icon-sm"></i> QR / โอน</span><b>${CFApp.baht(t.qr)}</b></div>
                 <div class="cf-split-bar" title="เงินสด ${cashPct}% · QR ${total ? 100 - cashPct : 0}%">
                     <div class="cf-split-cash" style="width:${cashPct}%"></div>
                     <div class="cf-split-qr" style="width:${total ? 100 - cashPct : 0}%"></div>
@@ -64,9 +67,9 @@ const DashPage = {
                 ${tile('bell-ring', CFApp.int(k.ready), 'พร้อมรับ', k.ready ? 'ok' : '', 'cashier.html')}
             </div>
             <div class="cf-op-stats">
-                ${stat('timer', CFKpi.fmtSec(k.avgWaitSec), 'รอชำระเฉลี่ย')}
-                ${stat('flame', CFKpi.fmtSec(k.avgPrepSec), 'จัดเตรียมเฉลี่ย')}
-                ${stat('trending-up', k.throughput.toFixed(1), 'ออเดอร์ / ชม.')}
+                ${stat('timer', CFKpi.fmtSec(t.avgWaitSec), 'รอชำระเฉลี่ยวันนี้')}
+                ${stat('flame', CFKpi.fmtSec(t.avgPrepSec), 'จัดเตรียมเฉลี่ย')}
+                ${stat('trending-up', t.throughput.toFixed(1), 'ออเดอร์ / ชม.')}
             </div>`;
 
         /* ── ภาระงานสถานี (§25) ── */

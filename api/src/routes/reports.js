@@ -9,7 +9,7 @@
  * นิยามของคำว่า "ขายแล้ว" ต้องอยู่ที่เดียว ไม่งั้นแต่ละหน้าจะตีความต่างกัน
  */
 'use strict';
-const { ApiError } = require('./orders');
+const { ApiError, businessDateFor } = require('./orders');
 const { CFPerms } = require('../../../shared/cf-perms.js');
 
 /** สถานะที่ถือว่าขายแล้ว — จ่ายเงินเรียบร้อยและยังไม่ถูกคืน */
@@ -20,15 +20,29 @@ const WAITING_PAY = ['WAITING_CASH', 'WAITING_PAYMENT', 'PAYMENT_TIMEOUT', 'PAYM
 const n = (v) => (v == null ? 0 : Number(v));
 
 /**
- * สรุปตัวเลขของขอบเขตหนึ่ง (รอบขาย หรือช่วงเวลา)
- * รูปทรงต้องตรงกับ CFKpi.summary() ฝั่งเบราว์เซอร์เป๊ะ — หน้าเว็บอ่านคีย์เดิม
+ * เงื่อนไขขอบเขต — ต่อท้าย args ที่ส่งมา คืนรายการเงื่อนไข SQL
+ *   shiftId           รอบขาย
+ *   from / to         เวลาสร้างออเดอร์ (timestamptz · to ไม่รวม)
+ *   dayFrom / dayTo   วันทำการ 'YYYY-MM-DD' (รวมทั้งสองวัน) — ตรงกับเลข A001 และหน้าประวัติบิล
+ *                     ไม่ใช่เที่ยงคืน: ร้านปิดหลังเที่ยงคืนได้ ยอดตี 1 ยังเป็นของ "เมื่อวาน"
  */
-async function summarize(c, branchId, { shiftId, from, to }) {
+function scopeWhere({ shiftId, from, to, dayFrom, dayTo }, args) {
     const where = [];
-    const args = [branchId];
     if (shiftId) { args.push(shiftId); where.push(`o.shift_id = $${args.length}`); }
     if (from) { args.push(from); where.push(`o.created_at >= $${args.length}`); }
     if (to) { args.push(to); where.push(`o.created_at < $${args.length}`); }
+    if (dayFrom) { args.push(dayFrom); where.push(`o.business_date >= $${args.length}::date`); }
+    if (dayTo) { args.push(dayTo); where.push(`o.business_date <= $${args.length}::date`); }
+    return where;
+}
+
+/**
+ * สรุปตัวเลขของขอบเขตหนึ่ง (รอบขาย · ช่วงเวลา · ช่วงวันทำการ)
+ * รูปทรงต้องตรงกับ CFKpi.summary() ฝั่งเบราว์เซอร์เป๊ะ — หน้าเว็บอ่านคีย์เดิม
+ */
+async function summarize(c, branchId, opts) {
+    const args = [branchId];
+    const where = scopeWhere(opts || {}, args);
     const scope = where.length ? 'AND ' + where.join(' AND ') : '';
 
     const sql = (extra) => `SELECT ${extra} FROM cf_order o WHERE o.branch_id = $1 ${scope}`;
@@ -83,12 +97,9 @@ async function summarize(c, branchId, { shiftId, from, to }) {
 }
 
 /** สินค้าขายดี — ใช้ในใบปิดรอบ */
-async function topProducts(c, branchId, { shiftId, from, to }, limit = 8, withCost = false) {
-    const where = ['o.branch_id = $1', 'o.status = ANY($2)'];
+async function topProducts(c, branchId, opts, limit = 8, withCost = false) {
     const args = [branchId, SOLD];
-    if (shiftId) { args.push(shiftId); where.push(`o.shift_id = $${args.length}`); }
-    if (from) { args.push(from); where.push(`o.created_at >= $${args.length}`); }
-    if (to) { args.push(to); where.push(`o.created_at < $${args.length}`); }
+    const where = ['o.branch_id = $1', 'o.status = ANY($2)', ...scopeWhere(opts || {}, args)];
     args.push(limit);
 
     const r = await c.query(
@@ -151,11 +162,17 @@ async function snapshotReports(c, branchId, withCost) {
         "SELECT id FROM shift WHERE branch_id = $1 AND status = 'OPEN' LIMIT 1",
         [branchId])).rows[0];
     const shiftId = open ? open.id : null;
+    // ยอดของวันทำการนี้ — หน้าภาพรวมใช้เป็นตัวเลขหลัก (แบบ POS ทั่วไป) · ยอดของรอบไว้นับลิ้นชัก (แคชเชียร์/ปิดรอบ)
+    const day = await businessDateFor(c, branchId);
+    const today = { date: day, summary: await summarize(c, branchId, { dayFrom: day, dayTo: day }) };
+    // ไม่มีรอบเปิด → ใช้ยอดวันนี้ · เดิม summarize({}) ไม่มีเงื่อนไขเลย = รวมยอดทั้งประวัติร้านมาโชว์
+    const scope = shiftId ? { shiftId } : { dayFrom: day, dayTo: day };
     return {
         shiftId,
-        summary: await summarize(c, branchId, shiftId ? { shiftId } : {}),
+        summary: shiftId ? await summarize(c, branchId, scope) : today.summary,
+        today,
         stationLoad: await stationLoad(c, branchId),
-        topProducts: await topProducts(c, branchId, shiftId ? { shiftId } : {}, 8, withCost),
+        topProducts: await topProducts(c, branchId, scope, 8, withCost),
         cashControl: shiftId ? await cashControl(c, branchId, shiftId) : null,
     };
 }

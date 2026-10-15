@@ -37,14 +37,30 @@ const CFKpi = {
         return CFApp.todayOrders();
     },
 
+    /**
+     * ยอดของวันทำการนี้ — หน้าภาพรวมใช้เป็นตัวเลขหลัก (แบบ POS ทั่วไป ไม่ใช่ตามรอบ)
+     * เซิร์ฟเวอร์คิดมาให้ใน snapshot (reports.today) · ไม่มี (API รุ่นเก่า) → คิดจาก cache ด้วยวันทำการเดียวกัน
+     * รอบ (summary) ยังใช้ที่แคชเชียร์/ปิดรอบ เพราะเงินในลิ้นชักผูกกับรอบ
+     */
+    today() {
+        const rep = this._report();
+        if (rep && rep.today && rep.today.summary) return rep.today.summary;
+        const h = CFDay.startHourOf(CFStore.settings());
+        const day = CFDay.businessDate(Date.now(), h);
+        return this._summarize(CFStore.all('orders').filter((o) => o.businessDate === day));
+    },
+
     /* ══════════════════════════════════════════════════════
        §25 / §26 — ตัวเลขหลัก
        ══════════════════════════════════════════════════════ */
     summary(shiftId) {
         const rep = this._report(shiftId);
         if (rep && rep.summary) return rep.summary;
+        return this._summarize(this.scope(shiftId));
+    },
 
-        const orders = this.scope(shiftId);
+    /** คิดตัวเลขสรุปจากออเดอร์ใน cache — ทางถอยเมื่อเซิร์ฟเวอร์ไม่ได้ส่งรายงานมา */
+    _summarize(orders) {
         const sold = orders.filter((o) => CF_SOLD.includes(o.status));
 
         const sales = sold.reduce((s, o) => s + o.total, 0);
