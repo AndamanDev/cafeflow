@@ -42,7 +42,7 @@ const CF_MENU = [
         group: 'ops', label: 'หน้างาน', icon: 'listChecks',
         items: [
             { section: 'ปฏิบัติการวันนี้' },
-            { href: 'orders.html',  label: 'จัดการออเดอร์', icon: 'receipt' },
+            { href: 'orders.html',  label: 'ประวัติบิล', icon: 'receipt' },
             { href: 'cashier.html', label: 'แคชเชียร์',     icon: 'banknote',
               roles: 'ADMIN MANAGER CASHIER', badge: { text: 'Live', type: 'live' } },
             { href: 'kds.html',     label: 'ครัว (KDS)',    icon: 'chefHat',

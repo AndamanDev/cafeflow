@@ -78,19 +78,10 @@
                 <button class="ds-tab" onclick="CashierPage.setTab('ready')">
                     พร้อมรับ <span class="tab-notif" id="cntReady">0</span>
                 </button>
-                <button class="ds-tab" onclick="CashierPage.setTab('search')">ค้นหาออเดอร์</button>
+                <a class="ds-tab" href="orders.html" title="บิลที่จบแล้ว · ค้นย้อนหลัง · ยกเลิก/คืนเงิน">ประวัติบิล ›</a>
             </div>
         </div>
         <div class="card-body">
-            <div id="searchBar" class="ds-toolbar" style="display:none">
-                <input class="sip-input" id="searchBox" style="max-width:260px"
-                       placeholder="เลขออเดอร์ / คีออสก์" oninput="CashierPage.onSearch(this.value)">
-                <select class="sip-select" id="searchStatus" style="max-width:200px"
-                        onchange="CashierPage.onStatus(this.value)">
-                    <option value="">ทุกสถานะ</option>
-                </select>
-                <span class="ds-hint" id="searchHint"></span>
-            </div>
             <div id="orderArea"></div>
         </div>
     </div>

@@ -6,7 +6,7 @@ const CASH_INSTEAD_REASON = 'ลูกค้าชำระเงินสดแ
 const CashierPage = {
 
     // view state เท่านั้น — ไม่เก็บข้อมูล เพื่อให้ remote change re-render ได้โดยไม่เสีย tab/คำค้น
-    state: { tab: 'cash', q: '', status: '' },
+    state: { tab: 'cash' },
 
     /* ══════════════════════════════════════════════════════
        RENDER
@@ -52,43 +52,40 @@ const CashierPage = {
         document.querySelectorAll('#tabs .ds-tab').forEach((b, i) => {
             b.classList.toggle('active', CashierPage.TABS[i] === this.state.tab);
         });
-        document.getElementById('searchBar').style.display = this.state.tab === 'search' ? '' : 'none';
 
         this.renderList();
         CFApp.applyRoleGate();
         refreshIcons();
     },
 
-    TABS: ['cash', 'qr', 'review', 'cooking', 'ready', 'search'],
+    /**
+     * หน้างาน = ทุกออเดอร์ที่ยังไม่จบ แยกแท็บตามสิ่งที่ต้องทำ (แบบ POS ทั่วไป · บิลที่จบแล้วอยู่หน้าประวัติบิล)
+     * ลำดับตรงกับปุ่มใน cashier.html (ปุ่มสุดท้าย "ประวัติบิล" เป็นลิงก์ ไม่ใช่แท็บ)
+     */
+    TABS: ['cash', 'qr', 'review', 'cooking', 'ready'],
 
     /**
      * รอโอน + กำลังทำ — ไม่ใช่งานที่ต้องรีบ แต่แคชเชียร์ต้องเห็นทุกออเดอร์ที่ตู้สร้าง
      * ตั้งแต่ปิดบิลอัตโนมัติ (สลิปผ่าน → เข้าครัวเลย 14/10/2569) ออเดอร์ QR ไม่ผ่านมือแคชเชียร์อีก
+     * รอโอนรวม "ชำระไม่สำเร็จ" (รอลูกค้าจ่ายใหม่) และใบที่ค้างก่อนเลือกวิธีจ่าย — ไม่งั้นไม่ขึ้นที่ไหนเลย
      * นับจาก cache ในเครื่อง (ไม่ใช่รายงานเซิร์ฟเวอร์) — เป็นงานหน้างานตอนนี้ ไม่ใช่ยอดของรอบ
      */
+    QR_WAIT: ['WAITING_PAYMENT', 'PAYMENT_FAILED', 'DRAFT', 'ORDER_CONFIRMED'],
     COOKING: ['PAID', 'SENT_TO_KITCHEN', 'PREPARING'],
     _liveCounts() {
         const all = CFStore.all('orders');
-        return { qr: all.filter((o) => o.status === 'WAITING_PAYMENT').length,
+        return { qr: all.filter((o) => this.QR_WAIT.includes(o.status)).length,
                  cooking: all.filter((o) => this.COOKING.includes(o.status)).length };
     },
 
     currentOrders() {
         const all = CFStore.all('orders');
         const oldest = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);     // ใบที่รอนานสุดขึ้นก่อน
-        if (this.state.tab === 'cash')    return all.filter((o) => o.status === 'WAITING_CASH');
-        if (this.state.tab === 'qr')      return all.filter((o) => o.status === 'WAITING_PAYMENT').sort(oldest);
+        if (this.state.tab === 'qr')      return all.filter((o) => this.QR_WAIT.includes(o.status)).sort(oldest);
         if (this.state.tab === 'review')  return all.filter((o) => ['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status));
         if (this.state.tab === 'cooking') return all.filter((o) => this.COOKING.includes(o.status)).sort(oldest);
         if (this.state.tab === 'ready')   return all.filter((o) => o.status === 'READY');
-
-        const q = this.state.q.trim().toLowerCase();
-        return all.filter((o) => {
-            if (this.state.status && o.status !== this.state.status) return false;
-            if (!q) return true;
-            // ออเดอร์ที่พนักงานสร้างไม่มีตู้ (kioskId = null) — เดิมพังทั้งรายการตอนพิมพ์คำค้น
-            return o.orderNo.toLowerCase().includes(q) || String(o.kioskId || '').toLowerCase().includes(q);
-        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 40);
+        return all.filter((o) => o.status === 'WAITING_CASH');
     },
 
     renderList() {
@@ -99,7 +96,7 @@ const CashierPage = {
         if (!orders.length) {
             area.innerHTML = `<div class="ds-empty">
                 <i data-lucide="inbox" class="icon-lg"></i>
-                <div style="margin-top:8px">${this.state.tab === 'search' ? 'ไม่พบออเดอร์ที่ค้นหา' : 'ไม่มีรายการในแท็บนี้'}</div>
+                <div style="margin-top:8px">ไม่มีรายการในแท็บนี้</div>
             </div>`;
             return;
         }
@@ -164,7 +161,7 @@ const CashierPage = {
         const live = this._liveCounts();
         const counts = { review: k.paymentReview, cash: k.waitingCash, ready: k.ready, qr: live.qr, cooking: live.cooking };
         const tab = this.state.tab;
-        if (tab === 'search' || counts[tab] > 0) return;
+        if (counts[tab] > 0) return;
         if (window.Drawer && Drawer.isOpen && Drawer.isOpen()) return;
         if (this._pickedAt && Date.now() - this._pickedAt < 20000) return;
         const next = ['review', 'cash', 'ready'].find((t) => counts[t] > 0);
@@ -172,8 +169,6 @@ const CashierPage = {
     },
 
     setTab(tab) { this.state.tab = tab; this._pickedAt = Date.now(); this.render(); },
-    onSearch(v) { this.state.q = v; this.renderList(); refreshIcons(); },
-    onStatus(v) { this.state.status = v; this.renderList(); refreshIcons(); },
 
     /* ══════════════════════════════════════════════════════
        เปิดออเดอร์ — เลือก drawer ตามสถานะ
@@ -200,6 +195,16 @@ const CashierPage = {
     },
 
     /* ── §12 รับเงินสด ─────────────────────────────────── */
+    /**
+     * ยกเลิกออเดอร์ / ยกเลิกบิล / คืนเงิน / เปลี่ยนสถานะเอง อยู่หน้าประวัติบิล (ต้องเลือกเหตุผล · สิทธิ์ผู้จัดการ)
+     * หน้าแคชเชียร์มีลิงก์ไปที่ใบนั้น — แสดงเฉพาะในหน้าแคชเชียร์ (หน้าประวัติบิลยืม drawer นี้ไปใช้ มีแผงจัดการอยู่แล้ว)
+     */
+    _manageBtn(o) {
+        if (!document.getElementById('orderArea')) return '';
+        return `<a class="btn btn-ghost" style="margin-right:auto" href="orders.html?order=${encodeURIComponent(o.id)}"
+                   title="ยกเลิกออเดอร์ · ยกเลิกบิล · คืนเงิน · พิมพ์เอกสาร">จัดการเพิ่มเติม ›</a>`;
+    },
+
     openReceiveCash(orderId) {
         const o = CFStore.byId('orders', orderId);
         this._cash = { orderId, received: null };
@@ -233,7 +238,8 @@ const CashierPage = {
                 <div class="ds-note" style="margin-top:6px">ใส่เงินที่รับมาแล้วกด Enter หรือปุ่ม "รับชำระ"</div>
                 <div id="cashWarn"></div>`,
             footerHtml: `
-                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+                ${this._manageBtn(o)}
+                <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
                 <button class="btn btn-primary" id="btnTakeCash" onclick="CashierPage.takeCash()" disabled>
                     <i data-lucide="check" class="icon-sm"></i> รับชำระ
                 </button>`,
@@ -432,6 +438,7 @@ const CashierPage = {
                     ระบบจะบันทึกผู้ยืนยัน เหตุผล และเวลา ลงในประวัติของออเดอร์นี้
                 </div>`,
             footerHtml: `
+                ${this._manageBtn(o)}
                 <span class="ds-note" id="ovHint" style="margin:0 auto 0 0">
                     ${overLimit ? 'เกินเพดาน — ให้ผู้จัดการยืนยัน' : 'เลือกเหตุผลก่อน จึงจะกดยืนยันได้'}
                 </span>
@@ -739,6 +746,7 @@ const CashierPage = {
                 <div class="td-sub" style="margin-bottom:10px">${e(o.kioskId)} · ${CFApp.dateTime(o.createdAt)}</div>
                 ${this._itemsHtml(orderId)}`,
             footerHtml: `
+                ${this._manageBtn(o)}
                 ${CFDocs.canReceipt(o) ? `<button class="btn btn-outline" onclick="CFDocs.previewReceipt('${o.id}')">
                     <i data-lucide="printer" class="icon-sm"></i> ใบเสร็จ
                 </button>` : ''}
@@ -785,10 +793,6 @@ const CashierPage = {
         this.refreshPrintAlert();
         setInterval(() => this.refreshPrintAlert(), 15000);
         setInterval(() => this.renderDevAlert(), 30000);   // เครื่องเงียบเกิน 5 นาทีขึ้นเองแม้ไม่มีข้อมูลใหม่
-
-        // เติมตัวเลือกสถานะในช่องค้นหา
-        document.getElementById('searchStatus').innerHTML +=
-            Object.keys(CF_STATUS).map((s) => `<option value="${s}">${CF_STATUS[s].label}</option>`).join('');
 
         this.render();
         CFStore.subscribe(() => this.render());

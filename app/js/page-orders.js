@@ -1,14 +1,23 @@
-/** CafeFlow — จัดการออเดอร์ (3-pane) */
+/**
+ * CafeFlow — ประวัติบิล (3-pane)
+ * แบ่งแบบ POS ทั่วไป (Loyverse "Receipts" · Ocha/FoodStory "ประวัติบิล" · Square "Completed"):
+ *   หน้าแคชเชียร์ = ทุกออเดอร์ที่ยังไม่จบ · หน้านี้ = บิลที่จบแล้ว (พิมพ์ซ้ำ · ยกเลิก · คืนเงิน · ดูย้อนหลัง)
+ * ออเดอร์ที่ยังไม่จบไม่ขึ้นในรายการ แต่ค้นเจอ และเปิดจากแคชเชียร์ได้ (?order=…) เพื่อจัดการพิเศษ (ยกเลิก ฯลฯ)
+ */
 const OrdersPage = {
 
     // day = null คือวันทำการปัจจุบัน · ใส่ 'YYYY-MM-DD' = ดูวันก่อน (ดึงจากเซิร์ฟเวอร์ไว้ใน dayList)
     state: { filter: 'all', q: '', group: 'recent', selectedId: null, tab: 'items', slipStation: null,
              day: null, dayList: null, dayNote: '' },
 
+    /** บิลที่จบแล้ว — กลุ่ม "เสร็จ" + "ยกเลิก" ของ CF_STATUS_GROUPS (ที่เหลือคืองานของหน้าแคชเชียร์) */
+    HISTORY: CF_STATUS_GROUPS.filter((g) => ['done', 'void'].includes(g.key)).flatMap((g) => g.statuses),
+
     FILTERS: [
         { key: 'all', label: 'ทั้งหมด', test: () => true },
         // แท็บ = กลุ่มสถานะเดียวกับป้าย (CF_STATUS_GROUPS) — คำบนแท็บกับคำบนป้ายตรงกันเสมอ
-        ...CF_STATUS_GROUPS.map((g) => ({ key: g.key, label: g.label, test: (o) => g.statuses.includes(o.status) })),
+        ...CF_STATUS_GROUPS.filter((g) => ['done', 'void'].includes(g.key))
+            .map((g) => ({ key: g.key, label: g.label, test: (o) => g.statuses.includes(o.status) })),
     ],
 
     /* ══════════════════════════════════════════════════════
@@ -20,20 +29,17 @@ const OrdersPage = {
     dayText(ymd) { return CFApp.date(ymd + 'T12:00:00+07:00'); },
 
     /**
-     * ออเดอร์ที่หน้านี้ดูอยู่
-     * วันนี้ = ของวันทำการนี้ + ใบที่ยังไม่จบจากวันก่อน (ต้องมีคนจัดการ ห้ามหายไปจากจอ)
+     * บิลที่หน้านี้ดูอยู่ — เฉพาะที่จบแล้วของวันทำการที่เลือก
+     * ใบที่ยังไม่จบ (รวมที่ค้างจากวันก่อน) อยู่หน้าแคชเชียร์ ไม่ซ้ำกันสองหน้า
      * ไม่ใช่ "24 ชม.ล่าสุด" — ไม่งั้น A001 ของเมื่อวานกับวันนี้ปนกัน
      */
     base() {
-        // ผลค้นจากเซิร์ฟเวอร์ (มีเฉพาะตอนพิมพ์คำค้น) ครอบคลุมย้อนหลังทุกวัน
+        // ผลค้นจากเซิร์ฟเวอร์ (มีเฉพาะตอนพิมพ์คำค้น) ครอบคลุมย้อนหลังทุกวัน และทุกสถานะ — หาใบที่ยังไม่จบก็เจอ
         if (this.state.found) return this.state.found;
-        if (this.state.day) return this.state.dayList || [];
+        const done = (o) => this.HISTORY.includes(o.status);
+        if (this.state.day) return (this.state.dayList || []).filter(done);
         const today = this.today();
-        // "จบแล้ว" นิยามเดียวกับตอนปิดรอบ (closeShift) — ห้ามใช้ CFFlow.isTerminal:
-        // COMPLETED ยังไป REFUNDED ได้จึงไม่นับเป็น terminal → ออเดอร์เมื่อวานที่เสร็จแล้วโผล่เป็น "ค้าง"
-        const DONE = ['COMPLETED', 'CANCELLED', 'VOIDED', 'REFUNDED'];
-        return CFStore.all('orders').filter((o) =>
-            !o.businessDate || o.businessDate === today || !DONE.includes(o.status));
+        return CFStore.all('orders').filter((o) => (!o.businessDate || o.businessDate === today) && done(o));
     },
 
     setDay(v) {
@@ -611,8 +617,15 @@ const OrdersPage = {
 
     boot() {
         CFApp.boot({ page: 'orders' });
-        const first = this.filtered()[0];
-        if (first) this.state.selectedId = first.id;
+        // มาจากหน้าแคชเชียร์ "จัดการเพิ่มเติม" (?order=…) — เปิดใบนั้นเลย แม้ยังไม่จบ (ไม่อยู่ในรายการ)
+        const want = new URLSearchParams(location.search).get('order');
+        if (want) {
+            history.replaceState(null, '', location.pathname);
+            this.select(want);
+        } else {
+            const first = this.filtered()[0];
+            if (first) this.state.selectedId = first.id;
+        }
         this.render();
         CFStore.subscribe(() => this.render());
         // เปิดหน้าค้างข้ามเวลาเริ่มวัน (เช่น ตี 4) — สลับไปวันทำการใหม่เอง
