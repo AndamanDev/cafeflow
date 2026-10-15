@@ -258,47 +258,39 @@ body.cfk-landscape .cfk-choices { align-items: center; padding: var(--pad) 12%; 
 /* ══════════════════════════════════════════════════════════
    3. MENU
    ══════════════════════════════════════════════════════════ */
-body.cfk-portrait  .cfk-menu { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+/* แบบตู้ฟาสต์ฟู้ด — รางหมวดซ้ายทั้งสองแนวจอ
+   แนวตั้ง: [ราง | เมนู] + แถบตะกร้าเต็มความกว้างด้านล่าง · แนวนอน: [ราง | เมนู | แผงตะกร้า] */
+body.cfk-portrait  .cfk-menu { display: grid; grid-template-columns: calc(var(--u) * 17) 1fr;
+                               grid-template-rows: 1fr auto; min-height: 0; }
+body.cfk-portrait  .cfk-menu > .cfk-cartbar { grid-column: 1 / -1; }
 body.cfk-landscape .cfk-menu { display: grid;
-    grid-template-columns: calc(var(--u) * 21) 1fr calc(var(--u) * 33);
+    grid-template-columns: calc(var(--u) * 17) 1fr calc(var(--u) * 33);
     min-height: 0; }
 
-/* หมวด — แนวตั้ง: แถบเลื่อนแนวนอน */
-.cfk-catstrip {
-    position: relative; display: flex; gap: calc(var(--u) * .9);
-    padding: calc(var(--u) * 1.4) var(--pad);
-    background: #fff; border-bottom: 0.8px solid var(--brand-border);
-    overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity;
-}
-.cfk-catstrip::-webkit-scrollbar { display: none; }
-/* บอกว่ายังเลื่อนไปได้อีก — ไม่งั้นหมวดท้าย ๆ ไม่มีใครรู้ว่ามี */
-.cfk-catstrip::after {
-    content: ''; position: sticky; right: 0; flex: 0 0 calc(var(--u) * 3); margin-right: calc(var(--u) * -2);
-    align-self: stretch; pointer-events: none;
-    background: linear-gradient(90deg, rgba(255,255,255,0), #fff 75%);
-}
-.cfk-cat {
-    flex-shrink: 0; scroll-snap-align: center; cursor: pointer; font-family: inherit;
-    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
-    justify-content: center;
-    padding: calc(var(--u) * 1) calc(var(--u) * 2.2);
-    min-height: calc(var(--u) * 6);
-    background: #fff; border: 0.8px solid var(--brand-border);
-    border-radius: 999px; text-align: left;
-}
-.cfk-cat b     { font-size: calc(var(--u) * 2); font-weight: 700; color: var(--text); white-space: nowrap; line-height: 1.2; }
-.cfk-cat small { font-size: calc(var(--u) * 1.7); color: var(--text-muted); white-space: nowrap; }
-.cfk-cat.active { background: var(--primary); border-color: var(--primary); }
-.cfk-cat.active b, .cfk-cat.active small { color: #fff; }
-
-/* หมวด — แนวนอน: รางซ้าย */
+/* รางหมวด — ปุ่มละรูป + ชื่อ เรียงลงมา เห็นทุกหมวดพร้อมกัน (ไม่ต้องเลื่อนซ้ายขวาหาแบบแถบเดิม) */
 .cfk-rail {
-    display: flex; flex-direction: column; gap: calc(var(--u) * .6);
-    padding: var(--pad) calc(var(--u) * 1.2);
+    display: flex; flex-direction: column; gap: calc(var(--u) * .4);
+    padding: calc(var(--u) * 1) 0;
     background: #fff; border-right: 0.8px solid var(--brand-border);
-    overflow-y: auto; min-height: 0;
+    overflow-y: auto; min-height: 0; scrollbar-width: none;
 }
-.cfk-rail .cfk-cat { width: 100%; border-radius: var(--r); scroll-snap-align: none; }
+.cfk-rail::-webkit-scrollbar { display: none; }
+.cfk-cat {
+    position: relative; flex-shrink: 0; cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .5);
+    padding: calc(var(--u) * 1.1) calc(var(--u) * .8);
+    background: transparent; border: 0; text-align: center;
+}
+.cfk-cat-art { width: calc(var(--u) * 8.4); height: calc(var(--u) * 8.4); border-radius: var(--r); overflow: hidden;
+               border: 2px solid transparent; }
+.cfk-cat-art .cfk-media { width: 100%; height: 100%; }
+.cfk-cat b { font-size: calc(var(--u) * 1.8); font-weight: 700; color: var(--text-secondary); line-height: 1.25; }
+/* หมวดที่เลือก — พื้นเขียวอ่อน + แถบเขียวซ้าย + กรอบรูป (ไม่พึ่งสีอย่างเดียว) */
+.cfk-cat.active { background: var(--primary-bg); }
+.cfk-cat.active::before { content: ''; position: absolute; left: 0; top: 12%; bottom: 12%;
+                          width: calc(var(--u) * .6); border-radius: 0 6px 6px 0; background: var(--primary); }
+.cfk-cat.active .cfk-cat-art { border-color: var(--primary); }
+.cfk-cat.active b { color: var(--primary-dark); }
 
 /* กริดสินค้า */
 .cfk-gridwrap { overflow-y: auto; min-height: 0; -webkit-overflow-scrolling: touch; }
@@ -405,6 +397,16 @@ body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); 
     font-size: calc(var(--u) * 1.4); font-weight: 800;
 }
 .cfk-cartbtn-label { flex: 1; font-size: calc(var(--u) * 2.1); font-weight: 700; }
+/* แถบตะกร้าแบบตู้ฟาสต์ฟู้ด — ซ้ายจำนวน + ยอดรวม (แตะดูตะกร้า) · ขวาปุ่มชำระเงิน */
+.cfk-cartsum {
+    flex: 1; display: flex; align-items: center; gap: calc(var(--u) * 1.6); min-width: 0;
+    padding: 0; background: none; border: 0; font: inherit; cursor: pointer; text-align: left;
+}
+.cfk-cartsum .cfk-cartbtn-n { background: var(--primary-bg); color: var(--primary-dark); }
+.cfk-cartsum .cfk-cartbtn-n i { background: var(--primary); color: #fff; }
+.cfk-cartsum-txt small { display: block; font-size: calc(var(--u) * 1.8); color: var(--text-muted); }
+.cfk-cartsum-txt b { font-size: calc(var(--u) * 3.2); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.cfk-cartgo { flex: 0 0 46%; min-height: calc(var(--u) * 7.6); font-size: calc(var(--u) * 2.6); }
 .cfk-cartbtn-amt   { font-size: calc(var(--u) * 2.6); font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* แผงตะกร้าขวา (แนวนอน) */
@@ -689,11 +691,40 @@ body.cfk-landscape .cfk-upgrid { grid-template-columns: repeat(4, 1fr); align-co
 /* ══════════════════════════════════════════════════════════
    7. ชำระเงิน / QR / เสร็จสิ้น
    ══════════════════════════════════════════════════════════ */
-/* หน้าเลือกวิธีชำระ — ชิดล่างใกล้มือ (จอแนวตั้งสูง คนนั่งวีลแชร์/เด็กเอื้อมกลางจอบนไม่ถึง) */
-body.cfk-portrait .cfk-choices.cfk-choices-low { align-content: end; }
-/* สรุปรายการเหนือยอดเงิน (ตรวจก่อนจ่าย · กด "แก้ไข" กลับตะกร้า) */
+/* หน้าชำระเงินแบบตู้ฟาสต์ฟู้ด — บน: รายการ (เลื่อนได้) · ล่าง: ยอดรวม + วิธีชำระเป็นแถวใหญ่ ติดล่างใกล้มือ */
+.cfk-pay { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
+.cfk-pay-list { overflow-y: auto; min-height: 0; padding: var(--pad); }
+.cfk-pay-foot {
+    display: grid; gap: calc(var(--u) * 1.2); padding: var(--pad);
+    background: #fff; border-top: 0.8px solid var(--brand-border);
+    box-shadow: 0 -6px 16px rgba(0, 0, 0, .04);
+}
+body.cfk-landscape .cfk-pay { grid-template-rows: none; grid-template-columns: 1fr calc(var(--u) * 46); }
+body.cfk-landscape .cfk-pay-foot { border-top: 0; border-left: 0.8px solid var(--brand-border); align-content: end; }
+.cfk-paytotal-row { display: flex; justify-content: space-between; align-items: baseline; }
+.cfk-paytotal-row span   { font-size: calc(var(--u) * 2.2); font-weight: 700; color: var(--text); }
+.cfk-paytotal-row strong { font-size: calc(var(--u) * 4.4); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.cfk-pay-label { font-size: calc(var(--u) * 1.9); color: var(--text-muted); margin-top: calc(var(--u) * .4); }
+.cfk-paymethod {
+    display: flex; align-items: center; gap: calc(var(--u) * 1.8); width: 100%;
+    min-height: calc(var(--u) * 10); padding: calc(var(--u) * 1.4) calc(var(--u) * 2.2);
+    background: #fff; border: 2px solid var(--brand-border); border-radius: var(--r-lg);
+    font: inherit; text-align: left; cursor: pointer; transition: border-color .12s, background .12s;
+}
+.cfk-paymethod:active { border-color: var(--primary); background: var(--primary-bg); }
+.cfk-paymethod-ico {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: calc(var(--u) * 7); height: calc(var(--u) * 7); border-radius: 50%;
+    background: var(--primary-bg); color: var(--primary-dark);
+}
+.cfk-paymethod-ico .cfk-ic { width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); }
+.cfk-paymethod-txt { flex: 1; min-width: 0; }
+.cfk-paymethod-txt b { display: block; font-size: calc(var(--u) * 2.8); font-weight: 700; color: var(--text); }
+.cfk-paymethod-txt small { font-size: calc(var(--u) * 1.9); color: var(--text-muted); }
+.cfk-paymethod > .cfk-ic { width: calc(var(--u) * 2.8); height: calc(var(--u) * 2.8); color: var(--text-light); flex-shrink: 0; }
+/* รายการสั่งซื้อ (ตรวจก่อนจ่าย · กด "แก้ไข" กลับหน้าตรวจสอบรายการ) */
 .cfk-paysum {
-    grid-column: 1 / -1; padding: calc(var(--u) * 1.8) calc(var(--u) * 2.2);
+    padding: calc(var(--u) * 1.8) calc(var(--u) * 2.2);
     background: #fff; border: 0.8px solid var(--brand-border); border-radius: var(--r-lg);
 }
 .cfk-paysum-head {
@@ -705,14 +736,17 @@ body.cfk-portrait .cfk-choices.cfk-choices-low { align-content: end; }
     border: 1px solid var(--brand-border); background: #fff; color: var(--primary-dark);
     font: inherit; font-size: calc(var(--u) * 1.8); font-weight: 700;
 }
+.cfk-paysum-head button { display: inline-flex; align-items: center; gap: calc(var(--u) * .5); }
+.cfk-paysum-head .cfk-ic { width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); }
 .cfk-paysum-row {
-    display: flex; justify-content: space-between; gap: calc(var(--u) * 1.4);
-    padding: calc(var(--u) * .7) 0; border-top: 0.8px solid var(--brand-border);
-    font-size: calc(var(--u) * 2); color: var(--text);
+    display: flex; align-items: baseline; gap: calc(var(--u) * 1.2);
+    padding: calc(var(--u) * 1) 0; border-top: 0.8px solid var(--brand-border);
+    font-size: calc(var(--u) * 2.1); color: var(--text);
 }
-.cfk-paysum-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfk-paysum-q { flex-shrink: 0; font-weight: 800; color: var(--primary-dark); min-width: calc(var(--u) * 3.2); }
+.cfk-paysum-name { flex: 1; min-width: 0; font-weight: 600; }
+.cfk-paysum-name small { display: block; font-weight: 400; font-size: calc(var(--u) * 1.8); color: var(--text-muted); line-height: 1.4; }
 .cfk-paysum-row b { flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.cfk-paysum-more { padding-top: calc(var(--u) * .6); font-size: calc(var(--u) * 1.8); color: var(--text-muted); }
 .cfk-paytotal {
     grid-column: 1 / -1;
     display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * .4);
