@@ -10,7 +10,7 @@
 
 > **`design-system-2/` ไม่ถูกแก้แม้แต่ไบต์เดียว** — หน้าตาแบบ ServiceFlow มาจาก
 > `app/css/ds-cafeflow-theme.css` ที่ทับโทเคนทีหลัง ถอดไฟล์นี้ออกแล้วกลับเป็น MediCore ทันที
-> (ยืนยันได้ด้วย `diff -r design-system/design-system design-system-2`)
+> (ยืนยันได้ด้วย `git diff --stat -- design-system-2` ต้องเงียบ)
 
 ## หน้าตา
 

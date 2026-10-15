@@ -164,7 +164,7 @@
 รายละเอียดเต็มอยู่ใน [`app/README.md`](app/README.md) — ที่พลาดบ่อยที่สุด:
 
 1. **`design-system-2/` ห้ามแก้แม้แต่ไบต์เดียว** — ยืนยันด้วย
-   `diff -r design-system/design-system design-system-2` ต้องเงียบ
+   `git diff --stat -- design-system-2` ต้องเงียบ (สำเนาต้นฉบับ `design-system/` ลบแล้ว 15/10/2569)
 2. **ตรรกะที่เซิร์ฟเวอร์กับเบราว์เซอร์ต้องคิดตรงกันอยู่ใน `shared/`** (ผังสถานะ · สูตรราคา ·
    กฎตัวเลือก · ตารางสิทธิ์) — คัดลอกไปอีกฝั่งเมื่อไหร่ มันจะเพี้ยนจากกันเสมอ
 3. **ราคาเป็น sparse map** — คีย์ที่ไม่มี = ไม่ขายแบบนั้น **ไม่ใช่ราคา 0**
@@ -177,7 +177,7 @@
 
 ```bash
 cd api && npm test                              # 8 เทสต์ (EMV payload)
-diff -r design-system/design-system design-system-2
+git diff --stat -- design-system-2
 ```
 
 ---
