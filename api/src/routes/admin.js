@@ -10,6 +10,7 @@ const ROOT_DIR = path.resolve(__dirname, '..', '..', '..');
 const fs = require('fs');
 const { CFPerms } = require(path.join(SHARED, 'cf-perms.js'));
 const { CF_STATUS } = require(path.join(SHARED, 'cf-consts.js'));
+const { CFEmv } = require(path.join(SHARED, 'cf-emv.js'));
 
 const { publish } = require('./stream');
 const { audit, touch, ApiError, businessDateFor } = require('./orders');
@@ -176,6 +177,26 @@ async function saveSettings(c, branchId, body, ctx) {
         }
         if (key === 'displayTicker' && (typeof value !== 'string' || value.trim().length > 200)) {
             throw new ApiError(400, 'ข้อความประกาศยาวได้ไม่เกิน 200 ตัวอักษร');
+        }
+        if (key === 'payQrSource' && !['promptpay', 'shopqr'].includes(value)) {
+            throw new ApiError(400, 'ช่องทาง QR ที่แสดงที่คีออสก์ต้องเป็น promptpay หรือ shopqr');
+        }
+        // QR ร้านค้าของธนาคาร (แม่แบบสำหรับใส่ยอดทีละบิล) — ต้องเป็น Thai QR ชำระบิลที่ CRC ถูก · '' = ลบทิ้ง
+        // QR พร้อมเพย์ส่วนตัวไม่เก็บที่นี่ — หน้าจอแปลงเป็นเลขพร้อมเพย์ให้แล้ว (ใช้ทางเดิม)
+        if (key === 'shopQrTemplate' && value !== '') {
+            const k = typeof value === 'string' && value.length <= 512 ? CFEmv.classify(value) : { kind: 'unknown' };
+            // รับทั้ง QR ร้านค้า (ชำระบิล) และ QR พร้อมเพย์ — ร้านอัปโหลดภาพที่มีจากแอปธนาคาร ใส่ยอดได้ทั้งสองแบบ
+            if (k.kind !== 'billpay' && k.kind !== 'promptpay') {
+                throw new ApiError(400, 'QR ไม่ถูกต้อง — ' + (k.reason || 'ต้องเป็น QR รับเงินของธนาคารไทย'));
+            }
+            // ยังไม่ได้ตั้งชื่อบัญชีร้าน → ใช้ชื่อร้านใน QR ให้การตรวจผู้รับบนสลิปมีชื่อไว้เทียบทันที (ocr/worker.js)
+            if (k.name) {
+                await c.query(
+                    `INSERT INTO app_setting (branch_id, key, value, updated_by) VALUES ($1,'shopAccountName',$2,$3)
+                     ON CONFLICT (branch_id, key) DO UPDATE SET value = EXCLUDED.value
+                     WHERE app_setting.value IN ('""'::jsonb, 'null'::jsonb)`,      // ตั้งชื่อไว้แล้ว = ไม่ทับ
+                    [branchId, JSON.stringify(k.name), ctx.actorUserId || null]);
+            }
         }
 
         if (BRANCH_KEYS[key]) {

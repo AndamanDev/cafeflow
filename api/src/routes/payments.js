@@ -48,16 +48,31 @@ async function issueQr(c, branchId, orderId, ctx) {
 
     const br = (await c.query('SELECT promptpay_id, name_th FROM branch WHERE id = $1',
         [branchId])).rows[0];
-    if (!br.promptpay_id) {
+    const settings = await settingsOf(c, branchId);
+    // ช่องทางรับเงิน 2 แบบ (16/10/2569): พร้อมเพย์ของร้าน · QR ร้านค้าของธนาคารที่ร้านอัปโหลด (Thai QR ชำระบิล)
+    // payQrSource = ร้านเลือกเองว่าคีออสก์แสดงแบบไหน ('promptpay' | 'shopqr') · ไม่ได้เลือก = พร้อมเพย์ก่อน
+    // แบบที่เลือกยังไม่ได้ตั้งค่า → ใช้อีกแบบแทน (ลูกค้าต้องจ่ายได้ ดีกว่าออก QR ไม่ได้ทั้งร้าน)
+    const tplRaw = settings.shopQrTemplate ? String(settings.shopQrTemplate) : '';
+    const tpl = tplRaw ? CFEmv.classify(tplRaw) : null;
+    const hasPp = !!br.promptpay_id;
+    // QR ที่อัปโหลดเป็นได้ทั้ง QR ร้านค้า (ชำระบิล) และ QR พร้อมเพย์ — withAmount ใส่ยอดได้ทั้งคู่
+    const hasShop = !!(tpl && (tpl.kind === 'billpay' || tpl.kind === 'promptpay'));
+    if (!hasPp && !hasShop) {
         // บอกให้ชัดว่าต้องไปตั้งที่ไหน — ไม่ใช่ error ลอย ๆ ที่หน้าร้านแก้เองไม่ได้
         throw new ApiError(409,
-            'ยังไม่ได้ตั้งพร้อมเพย์ของร้าน — ตั้งได้ที่หน้าภาพรวม › ตั้งค่าคีออสก์');
+            'ยังไม่ได้ตั้งช่องทางรับเงินของร้าน — ใส่พร้อมเพย์ หรืออัปโหลดภาพ QR รับเงินของร้าน ' +
+            'ได้ที่ ⚙ ตั้งค่า › ข้อมูลร้าน › การรับเงิน');
     }
+    const useShop = hasShop && (!hasPp || settings.payQrSource === 'shopqr');
 
     const amount = Number(o.total);
     if (!(amount > 0)) throw new ApiError(409, 'ยอดออเดอร์ต้องมากกว่า 0');
 
-    const payload = generatePayload(String(br.promptpay_id), { amount });
+    const payload = useShop
+        ? CFEmv.withAmount(tplRaw, amount)
+        : generatePayload(String(br.promptpay_id), { amount });
+    const target = !useShop ? String(br.promptpay_id)
+        : tpl.kind === 'billpay' ? 'BILLER:' + tpl.billerId : 'QR:' + tpl.id;
 
     // ตรวจก่อนส่งออกไป — QR ที่ CRC ผิดจะสแกนติดแต่ธนาคารปฏิเสธ
     // ปล่อยให้ลูกค้าเจอหน้าร้านแล้วหาสาเหตุยากกว่านี้มาก
@@ -66,7 +81,6 @@ async function issueQr(c, branchId, orderId, ctx) {
         throw new ApiError(500, 'สร้าง QR ไม่ถูกต้อง: ' + check.problems.join(' · '));
     }
 
-    const settings = await settingsOf(c, branchId);
     const sec = parseInt(settings.qrTimeoutSec, 10) || DEFAULT_TIMEOUT_SEC;
 
     await c.query(
@@ -77,7 +91,7 @@ async function issueQr(c, branchId, orderId, ctx) {
         `INSERT INTO payment_qr (order_id, target, amount, payload, expires_at)
          VALUES ($1,$2,$3,$4, now() + ($5 || ' seconds')::interval)
          RETURNING id, created_at, expires_at`,
-        [orderId, String(br.promptpay_id), amount, payload, String(sec)])).rows[0];
+        [orderId, target, amount, payload, String(sec)])).rows[0];
 
     await c.query(
         `UPDATE cf_order SET payment_method = 'QR', rev = nextval('global_rev'),

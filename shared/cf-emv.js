@@ -88,5 +88,81 @@
         return { ok: problems.length === 0, problems, fields: f };
     }
 
-    return { CFEmv: { crc16, parseTLV, verify } };
+    /* ══════════════════════════════════════════════════════════════
+       QR รับเงินที่ร้านอัปโหลดจากแอปธนาคาร (16/10/2569)
+       บัญชีร้านไม่มีพร้อมเพย์ → ใช้ QR ร้านค้าของธนาคาร (Thai QR ชำระบิล) เป็นแม่แบบ แล้วใส่ยอดทีละบิล
+       ══════════════════════════════════════════════════════════════ */
+    const AID_PROMPTPAY = 'A000000677010111';     // tag 29 — โอนเข้าพร้อมเพย์
+    const AID_BILLPAY   = 'A000000677010112';     // tag 30 — ชำระบิล / QR ร้านค้า (K SHOP · แม่มณี · ถุงเงิน ฯลฯ)
+
+    /** CRC ท้าย payload ตรงไหม — QR ที่ CRC ผิด ธนาคารปฏิเสธ ห้ามใช้เป็นแม่แบบ */
+    function crcOk(payload) {
+        if (typeof payload !== 'string' || payload.length < 20) return false;
+        const head = payload.slice(0, -4);
+        return head.endsWith('6304') && crc16(head) === payload.slice(-4).toUpperCase();
+    }
+
+    /** แยก TLV แบบรักษาลำดับ — withAmount ต้องประกอบกลับตามลำดับเดิม */
+    function parseList(s) {
+        const out = [];
+        let i = 0;
+        while (i < s.length) {
+            if (i + 4 > s.length) return null;
+            const tag = s.slice(i, i + 2);
+            const len = parseInt(s.slice(i + 2, i + 4), 10);
+            if (!Number.isInteger(len) || i + 4 + len > s.length) return null;
+            out.push([tag, s.slice(i + 4, i + 4 + len)]);
+            i += 4 + len;
+        }
+        return out;
+    }
+
+    /**
+     * QR นี้คืออะไร — ใช้ตอนร้านอัปโหลดภาพ QR รับเงิน
+     *   { kind:'promptpay', id }                         QR "รับเงิน" ส่วนตัว → ใช้ทางพร้อมเพย์เดิม
+     *   { kind:'billpay', billerId, ref1, ref2, name }  QR ร้านค้าของธนาคาร → เก็บเป็นแม่แบบ
+     *   { kind:'unknown', reason }                       ใช้ไม่ได้ (CRC ผิด · QR ต่างประเทศ · ลิงก์เว็บ ฯลฯ)
+     */
+    function classify(payload) {
+        if (!crcOk(payload)) return { kind: 'unknown', reason: 'ไม่ใช่ QR รับเงินของธนาคารไทย (หรือ QR เสีย)' };
+        const f = parseTLV(payload);
+        if (!f || f['00'] !== '01') return { kind: 'unknown', reason: 'รูปแบบ QR ไม่ถูกต้อง' };
+        const name = f['59'] || '';
+
+        const pp = f['29'] && parseTLV(f['29']);
+        if (pp && pp['00'] === AID_PROMPTPAY) {
+            // 01 เบอร์โทร เก็บเป็น 0066 + เบอร์ไม่มีเลข 0 นำหน้า (ยาว 13) · 02 เลข 13 หลัก · 03 e-wallet 15 หลัก
+            if (pp['01']) return { kind: 'promptpay', id: '0' + pp['01'].replace(/^0+66/, ''), type: 'phone', name };
+            if (pp['02']) return { kind: 'promptpay', id: pp['02'], type: 'id', name };
+            if (pp['03']) return { kind: 'promptpay', id: pp['03'], type: 'ewallet', name };
+        }
+        const bp = f['30'] && parseTLV(f['30']);
+        if (bp && bp['00'] === AID_BILLPAY && bp['01']) {
+            return { kind: 'billpay', billerId: bp['01'], ref1: bp['02'] || '', ref2: bp['03'] || '', name };
+        }
+        return { kind: 'unknown', reason: 'QR นี้ไม่ใช่ QR รับเงินของธนาคารไทย (พร้อมเพย์ / QR ร้านค้า)' };
+    }
+
+    /**
+     * ใส่ยอดลงแม่แบบ → QR ใช้ครั้งเดียว ล็อกยอด (ลูกค้าไม่ต้องพิมพ์ยอด)
+     *   01 = 12 (dynamic) · 54 = ยอด 2 ตำแหน่ง ต่อจาก 53 · ตัด 63 เดิม แล้วคำนวณ CRC ใหม่
+     *   แม่แบบที่มียอดอยู่แล้ว → แทนที่ ไม่ซ้อน · tag อื่น (รหัสร้าน/ref ใน 30) ไม่แตะ
+     */
+    function withAmount(template, amount) {
+        if (!crcOk(template)) throw new Error('แม่แบบ QR ไม่ถูกต้อง (CRC ไม่ตรง)');
+        const list = parseList(template.slice(0, -8));            // ตัด "6304" + CRC 4 ตัวท้าย
+        if (!list) throw new Error('แม่แบบ QR ไม่ถูกต้อง');
+        const amt = Number(amount).toFixed(2);
+        const rows = list.filter(([t]) => t !== '63' && t !== '54');
+        const i01 = rows.findIndex(([t]) => t === '01');
+        if (i01 >= 0) rows[i01] = ['01', '12'];
+        else rows.splice(rows.findIndex(([t]) => t === '00') + 1, 0, ['01', '12']);
+        const i53 = rows.findIndex(([t]) => t === '53');
+        const i58 = rows.findIndex(([t]) => t === '58');
+        rows.splice(i53 >= 0 ? i53 + 1 : (i58 >= 0 ? i58 : rows.length), 0, ['54', amt]);
+        const body = rows.map(([t, v]) => t + String(v.length).padStart(2, '0') + v).join('') + '6304';
+        return body + crc16(body);
+    }
+
+    return { CFEmv: { crc16, parseTLV, verify, classify, withAmount, crcOk } };
 });

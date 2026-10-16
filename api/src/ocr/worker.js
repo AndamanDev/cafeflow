@@ -12,6 +12,7 @@
 'use strict';
 const path = require('path');
 const { CFSlipRules } = require('../../../shared/cf-slip-rules.js');
+const { CFEmv } = require('../../../shared/cf-emv.js');
 
 const SLIP_DIR = path.resolve(__dirname, '..', '..', '..', 'data', 'slips');
 const OCR_TIMEOUT_MS = 60000;          // ใบแรกหลังเปิดเครื่องช้ากว่าปกติ (โหลดโมเดล)
@@ -37,15 +38,18 @@ async function callOcr(url, file, flip) {
 /**
  * บัญชีของร้านที่ใช้เทียบผู้รับเงินบนสลิป — ตั้งที่ หน้าภาพรวม › ข้อมูลร้าน
  * พร้อมเพย์ของร้านนับเป็นบัญชีร้านเสมอ (คือเลขที่ QR ของคีออสก์ส่งเงินเข้า)
+ * QR ที่ร้านอัปโหลด (shopQrTemplate) เป็นพร้อมเพย์ → เลขนั้นนับเป็นบัญชีร้านด้วย (อาจคนละเลข/คนละธนาคารกับช่องพร้อมเพย์)
  */
 async function shopAccount(pool, branchId) {
     const kv = {};
     for (const r of (await pool.query(
-        "SELECT key, value FROM app_setting WHERE branch_id = $1 AND key IN ('shopAccountName','shopAccountNos')",
+        "SELECT key, value FROM app_setting WHERE branch_id = $1 AND key IN ('shopAccountName','shopAccountNos','shopQrTemplate')",
         [branchId])).rows) kv[r.key] = r.value;
     const br = (await pool.query('SELECT promptpay_id FROM branch WHERE id = $1', [branchId])).rows[0] || {};
     const accounts = String(kv.shopAccountNos || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
     if (br.promptpay_id) accounts.push(br.promptpay_id);
+    const up = kv.shopQrTemplate ? CFEmv.classify(String(kv.shopQrTemplate)) : null;
+    if (up && up.kind === 'promptpay' && !accounts.includes(up.id)) accounts.push(up.id);
     return { name: kv.shopAccountName || '', accounts };
 }
 
