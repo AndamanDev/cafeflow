@@ -34,8 +34,11 @@
 
 <nav id="appNavbar"></nav>
 
-<div class="page-container narrow">
+<div class="page-container">
 
+    <!-- จัดใหม่ 16/10/2569 (ผู้ใช้: "เลื่อนไปมาหาไม่เจอ")
+         ซ้าย = 3 ขั้นที่ต้องทำ เรียงลงมาตามลำดับ ปุ่มปิดรอบอยู่ท้ายขั้น 3 ที่เดียว
+         ขวา = สรุปรอบนี้ (ยอด · ขายดี · ส่งออก) ติดหน้าจอขณะเลื่อน — ดูประกอบ ไม่ใช่สิ่งที่ต้องทำ -->
     <div class="page-header">
         <div>
             <div class="page-title">
@@ -48,106 +51,101 @@
             <button class="btn btn-outline" onclick="ClosingPage.preview()">
                 <i data-lucide="printer" class="icon-sm"></i> ดูตัวอย่างใบปิดรอบ
             </button>
-            <button class="btn btn-outline" onclick="CFExport.all()">
-                <i data-lucide="download" class="icon-sm"></i> ส่งออก CSV
-            </button>
-            <button class="btn btn-primary" id="closeBtn" onclick="ClosingPage.closeShift()">
-                <i data-lucide="lock" class="icon-sm"></i> ปิดรอบ
-            </button>
         </div>
     </div>
 
-    <!-- รอบเปิดค้างข้ามวันทำการ — CFApp.staleShiftHtml(true) -->
-    <div id="staleShift"></div>
-
-    <!-- ยังไม่มีรอบเปิด (ติดตั้งใหม่ / ล้างข้อมูลทดสอบ) — kiosk ไม่รับออเดอร์จนกว่าจะเปิดรอบ -->
-    <div class="section-card" id="openShiftCard" hidden>
-        <div class="section-title"><i data-lucide="unlock" class="mi"></i> ยังไม่เปิดรอบการขาย</div>
+    <!-- ยังไม่มีรอบเปิด (ติดตั้งใหม่ / ปิดร้านเมื่อวาน) — kiosk ไม่รับออเดอร์จนกว่าจะเปิดรอบ -->
+    <div class="section-card cf-cl-open" id="openShiftCard" hidden>
+        <i data-lucide="unlock" class="icon-lg" style="color:var(--primary)"></i>
+        <div class="cf-cl-open-title">เปิดรอบการขายก่อนเริ่มงาน</div>
         <div class="ds-note">ตอนนี้คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกรอกด้านล่าง เพื่อให้ยอด "เงินสดที่ควรมี" ตอนปิดรอบถูกต้อง</div>
-        <div class="sip-field" style="margin-top:8px;max-width:280px">
+        <div class="sip-field" style="margin-top:12px;text-align:left">
             <label class="sip-label">เงินตั้งต้นในลิ้นชัก (บาท)</label>
-            <input class="sip-input" id="openingCash" type="number" min="0" step="1" placeholder="0">
+            <input class="sip-input" id="openingCash" type="number" min="0" step="1" placeholder="0"
+                   onkeydown="if(event.key==='Enter')ClosingPage.openShift()">
         </div>
-        <button class="btn btn-primary" id="openShiftBtn" onclick="ClosingPage.openShift()">
+        <button class="btn btn-primary" id="openShiftBtn" style="width:100%" onclick="ClosingPage.openShift()">
             <i data-lucide="unlock" class="icon-sm"></i> เปิดรอบ
         </button>
     </div>
 
-    <!-- ขั้น 1: ออเดอร์ที่ยังไม่จบ (ทุกรอบ ทุกวัน) — ขวางการปิดรอบ จึงอยู่บนสุด · ซ่อนเองเมื่อไม่มี -->
-    <div class="section-card" id="pendingCard" hidden>
-        <div class="section-header">
-            <div class="section-title"><span class="cf-stepno">1</span> เคลียร์ออเดอร์ที่ยังไม่จบ <span id="pendingCount"></span></div>
-            <button class="btn btn-outline btn-sm" onclick="ClosingPage.clearAll()">
-                <i data-lucide="list-checks" class="icon-sm"></i> เคลียร์ทั้งหมด
-            </button>
-        </div>
-        <div class="table-responsive">
-            <table class="data-table compact">
-                <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th></th></tr></thead>
-                <tbody id="pendingRows"></tbody>
-            </table>
-        </div>
-        <div class="card-body">
-            <div class="ds-note" id="pendingNote"></div>
-        </div>
-    </div>
+    <div class="cf-cl-layout" id="closeLayout">
+        <div class="cf-cl-steps">
 
-    <div class="ds-kpi-grid" id="kpiStrip"></div>
-
-    <div class="cards-row">
-        <div class="clinical-card">
-            <div class="card-title">สรุปยอดขาย</div>
-            <table class="ds-table-grid" id="salesTable"></table>
-        </div>
-
-        <div class="clinical-card">
-            <div class="card-title"><span class="cf-stepno">2</span> นับเงินในลิ้นชัก</div>
-            <table class="ds-table-grid" id="cashTable"></table>
-
-            <div class="sip-field" style="margin-top:6px">
-                <label class="sip-label">นับเงินสดจริงในลิ้นชัก</label>
-                <input class="sip-input" id="actualCash" type="number" min="0" step="1"
-                       placeholder="0.00" oninput="ClosingPage.onCash(this.value)">
+            <!-- ขั้น 1: ออเดอร์ที่ยังไม่จบ (ทุกรอบ ทุกวัน) — สรุปเป็นกลุ่ม + ปุ่มจัดการทั้งกลุ่ม · ตารางรายใบพับไว้ -->
+            <div class="section-card cf-cl-step" id="step1">
+                <div class="cf-cl-step-head">
+                    <span class="cf-stepno" id="step1No">1</span>
+                    <div class="cf-cl-step-title">เคลียร์ออเดอร์ที่ยังไม่จบ</div>
+                    <span class="cf-cl-step-state" id="step1State"></span>
+                </div>
+                <div class="cf-cl-step-body" id="pendingBody"></div>
             </div>
-            <div id="diffBox"></div>
-            <div class="sip-field" style="margin-top:10px">
-                <button type="button" class="ds-toggle" id="reopenToggle" onclick="ClosingPage.toggleReopen()">
-                    <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> เปิดรอบใหม่ต่อทันที (เปลี่ยนกะ)
-                </button>
-                <div class="ds-note" style="margin-top:4px">
-                    ปิดร้าน: ไม่ต้องเปิด — พรุ่งนี้เช้าค่อยกด "เปิดรอบ" แล้วกรอกเงินทอน ·
-                    เปลี่ยนกะกลางวัน: เปิดไว้ รอบใหม่ใช้เงินที่นับได้เป็นเงินตั้งต้น
+
+            <!-- ขั้น 2: นับเงิน — input อยู่นอกส่วนที่วาดใหม่ พิมพ์แล้ว cursor ไม่เด้ง -->
+            <div class="section-card cf-cl-step" id="step2">
+                <div class="cf-cl-step-head">
+                    <span class="cf-stepno" id="step2No">2</span>
+                    <div class="cf-cl-step-title">นับเงินสดในลิ้นชัก</div>
+                    <span class="cf-cl-step-state" id="step2State"></span>
+                </div>
+                <div class="cf-cl-step-body">
+                    <div class="cf-cl-expect" id="cashExpect"></div>
+                    <div class="sip-field" style="margin:14px 0 8px">
+                        <label class="sip-label">นับได้จริง (บาท)</label>
+                        <input class="sip-input cf-cl-cash" id="actualCash" type="number" min="0" step="1" inputmode="decimal"
+                               placeholder="0" oninput="ClosingPage.onCash(this.value)">
+                    </div>
+                    <div id="diffBox"></div>
+                    <!-- หมายเหตุ (แบบ Square End Drawer) — ไม่บังคับ · เด่นขึ้นเมื่อเงินขาด/เกิน · พิมพ์บนใบปิดรอบ -->
+                    <div class="sip-field" id="noteField" style="margin-top:10px">
+                        <label class="sip-label" id="noteLabel">หมายเหตุ (ถ้ามี)</label>
+                        <input class="sip-input" id="closeNote" maxlength="500"
+                               placeholder="เช่น ทอนเงินผิด 20 บาท · จ่ายค่าน้ำแข็งจากลิ้นชัก 50 บาท">
+                    </div>
                 </div>
             </div>
-            <!-- ขั้น 3 อยู่ท้ายการ์ดนับเงิน — นับเสร็จกดต่อได้เลย ไม่ต้องเลื่อนกลับขึ้นไปหาปุ่มบนหัว -->
-            <button class="btn btn-primary cf-close-step" id="closeBtn2" onclick="ClosingPage.closeShift()">
-                <span class="cf-stepno">3</span> ปิดรอบ
-            </button>
-        </div>
-    </div>
 
-    <div class="section-card">
-        <div class="section-header">
-            <div class="section-title"><i data-lucide="trophy" class="mi"></i> สินค้าขายดีรอบนี้</div>
-        </div>
-        <div class="table-responsive">
-            <table class="data-table compact">
-                <thead id="topHead"></thead>
-                <tbody id="topRows"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="section-card">
-        <div class="section-header">
-            <div class="section-title"><i data-lucide="file-spreadsheet" class="mi"></i> ไฟล์ส่งออก</div>
-        </div>
-        <div class="card-body">
-            <div class="ds-quick-nav" id="csvLinks"></div>
-            <div class="ds-note">
-                ไฟล์ทั้งหมดเป็น UTF-8 พร้อม BOM เปิดใน Excel ภาษาไทยได้โดยตัวอักษรไม่เพี้ยน
+            <!-- ขั้น 3: ยืนยัน — ปุ่มปิดรอบที่เดียวของหน้า · ยังไม่พร้อมบอกว่าขาดอะไร -->
+            <div class="section-card cf-cl-step" id="step3">
+                <div class="cf-cl-step-head">
+                    <span class="cf-stepno">3</span>
+                    <div class="cf-cl-step-title">ปิดรอบ</div>
+                </div>
+                <div class="cf-cl-step-body">
+                    <button type="button" class="ds-toggle" id="reopenToggle" onclick="ClosingPage.toggleReopen()">
+                        <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> เปิดรอบใหม่ต่อทันที (เปลี่ยนกะ)
+                    </button>
+                    <div class="ds-note" style="margin:6px 0 14px">
+                        ปิดร้าน: ไม่ต้องเปิด — พรุ่งนี้เช้าค่อยกด "เปิดรอบ" แล้วกรอกเงินทอน ·
+                        เปลี่ยนกะกลางวัน: เปิดไว้ รอบใหม่ใช้เงินที่นับได้เป็นเงินตั้งต้น
+                    </div>
+                    <div class="cf-cl-ready" id="readyHint"></div>
+                    <button class="btn btn-primary cf-close-step" id="closeBtn" onclick="ClosingPage.closeShift()">
+                        <i data-lucide="lock" class="icon-sm"></i> ปิดรอบ
+                    </button>
+                </div>
             </div>
         </div>
+
+        <!-- สรุปรอบนี้ — ติดหน้าจอ (sticky) -->
+        <aside class="cf-cl-side">
+            <div class="clinical-card">
+                <div class="card-title">สรุปรอบนี้</div>
+                <div id="summary"></div>
+            </div>
+            <div class="clinical-card">
+                <div class="card-title">สินค้าขายดีรอบนี้</div>
+                <div id="topList"></div>
+            </div>
+            <div class="clinical-card">
+                <div class="card-title">ส่งออก (Excel)</div>
+                <button class="btn btn-outline btn-sm" style="width:100%" onclick="CFExport.all()">
+                    <i data-lucide="download" class="icon-sm"></i> ส่งออกทั้งหมด (4 ไฟล์)
+                </button>
+                <div class="cf-cl-files" id="csvLinks"></div>
+            </div>
+        </aside>
     </div>
 
 </div>

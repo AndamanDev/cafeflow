@@ -43,6 +43,7 @@ const OrdersPage = {
     },
 
     setDay(v) {
+        this.state.pinned = false;
         const pick = document.getElementById('dayPick');
         pick.style.display = v === 'pick' ? '' : 'none';
         if (v === 'today') {
@@ -62,6 +63,8 @@ const OrdersPage = {
         if (!day) return;
         if (day === this.today()) { document.getElementById('daySelect').value = 'today'; this.setDay('today'); return; }
         this.state.day = day;
+        this.state.pinned = false;
+        document.getElementById('dayPick').value = day;      // เดิมช่องวันที่ขึ้น mm/dd/yyyy ว่าง ทั้งที่โหลดวันนั้นอยู่
         this.state.dayList = null;
         this.state.dayNote = 'กำลังโหลด…';
         this.render();
@@ -131,6 +134,14 @@ const OrdersPage = {
         const list = this.filtered();
         const today = this.today();
 
+        // เปิดมาเลือกใบแรกให้เลย — เดิมตรงกลาง/ขวาว่างจนกว่าจะคลิก ดูเหมือนหน้าเสีย (ปรับ 16/10/2569)
+        // ใบที่เลือกไว้หลุดจากรายการ (เปลี่ยนวัน/ตัวกรอง) ก็ย้ายไปใบแรกของรายการใหม่
+        // pinned = เลือกเอง/เปิดจากลิงก์ (?order=) — ใบนั้นอาจไม่อยู่ในรายการ (ยังไม่จบ) ต้องไม่ถูกย้ายทับ
+        if (!this.state.pinned && !list.some((o) => o.id === this.state.selectedId)) {
+            this.state.selectedId = list.length ? list[0].id : null;
+            if (list.length) this.ensureDetail(list[0].id);
+        }
+
         document.getElementById('listCount').textContent =
             this.state.searchNote || this.state.dayNote || (list.length + ' รายการ');
         const hh = String(this.startHour()).padStart(2, '0') + ':00';
@@ -165,19 +176,47 @@ const OrdersPage = {
                         : `<span class="cf-lc-time">${CFApp.time(o.createdAt)}</span>`}
                 </div>
                 <div class="cf-lc-r3">
-                    ${e(o.kioskId || '—')} · ${n} รายการ · ${e((CF_DINING[o.diningOption] || CF_DINING.DINE_IN).label)}
+                    ${n} รายการ${o.diningOption === 'TAKE_AWAY' ? ' · กลับบ้าน' : ''}
                 </div>
             </div>`;
-        }).join('') : '<div class="ds-empty-sm">ไม่พบออเดอร์</div>';
+        }).join('') : this.emptyListHtml();
 
         this.renderDetail();
         CFApp.applyRoleGate();
         refreshIcons();
     },
 
-    setFilter(k) { this.state.filter = k; this.render(); },
+    /** รายการว่าง — บอกเหตุผล + ทางไปต่อ (วันนี้ยังไม่มีบิล → ดูเมื่อวาน) แทน "ไม่พบออเดอร์" เฉย ๆ */
+    emptyListHtml() {
+        if (this.state.q.trim()) return '<div class="cf-ol-empty">ไม่พบบิลที่ตรงกับคำค้น</div>';
+        if (this.state.filter !== 'all') {
+            return `<div class="cf-ol-empty">ไม่มีบิลในกลุ่มนี้
+                <button class="btn btn-outline btn-sm" onclick="OrdersPage.setFilter('all')">ดูทั้งหมด</button></div>`;
+        }
+        if (!this.state.day) {
+            return `<div class="cf-ol-empty"><i data-lucide="coffee" class="icon-lg"></i>
+                ยังไม่มีบิลที่จบแล้ววันนี้
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('daySelect').value='yesterday';OrdersPage.setDay('yesterday')">
+                    ดูบิลเมื่อวาน</button></div>`;
+        }
+        return this.state.dayList ? '<div class="cf-ol-empty">ไม่มีบิลในวันนั้น</div>' : '';
+    },
+
+    /** ใบที่ไม่อยู่ใน cache (ผลค้น/วันเก่า) — ดึงรายละเอียดมาก่อน ไม่งั้นแผงกลางว่างโดยไม่บอกอะไร */
+    ensureDetail(id) {
+        if (CFStore.byId('orders', id)) return;
+        CFApi.get('/api/orders/' + encodeURIComponent(id))
+            .then((patch) => {
+                CFStore.hydrate(patch);
+                if (this.state.selectedId === id) this.render();
+            })
+            .catch(() => showToast('โหลดรายละเอียดออเดอร์ไม่สำเร็จ', 'error'));
+    },
+
+    setFilter(k) { this.state.filter = k; this.state.pinned = false; this.render(); },
     setQuery(v) {
         this.state.q = v;
+        this.state.pinned = false;
         this.state.found = null;          // ผลเก่าใช้ไม่ได้แล้ว ต้องไม่ค้างให้เห็น
         this.render();                    // วาดทันทีจากที่มีอยู่ ไม่ให้ช่องค้นหาหน่วง
         // หน่วงก่อนยิงเซิร์ฟเวอร์ ไม่งั้นพิมพ์ "อเมริกาโน" ยิงไป 9 ครั้ง
@@ -189,19 +228,11 @@ const OrdersPage = {
 
     select(id) {
         this.state.selectedId = id;
+        this.state.pinned = true;
         this.state.slipStation = null;
         this.render();
-
-        // ออเดอร์ที่ค้นเจอจากเซิร์ฟเวอร์อาจอยู่นอกหน้าต่าง cache — ต้องดึงรายละเอียดมาก่อน
-        // ไม่งั้นกดแล้วแผงขวาว่างเปล่าโดยไม่บอกอะไร
-        if (!CFStore.byId('orders', id)) {
-            CFApi.get('/api/orders/' + encodeURIComponent(id))
-                .then((patch) => {
-                    CFStore.hydrate(patch);
-                    if (this.state.selectedId === id) this.render();
-                })
-                .catch(() => showToast('โหลดรายละเอียดออเดอร์ไม่สำเร็จ', 'error'));
-        }
+        // ออเดอร์ที่ค้นเจอจากเซิร์ฟเวอร์อาจอยู่นอกหน้าต่าง cache
+        this.ensureDetail(id);
     },
 
     /**
@@ -236,9 +267,21 @@ const OrdersPage = {
 
         document.getElementById('emptyState').style.display = o ? 'none' : '';
         document.getElementById('detailWrap').style.display = o ? '' : 'none';
+        // ยังไม่มีใบให้ดู → ซ่อนแผง "การดำเนินการ" (ว่างทั้งแผงดูเหมือนหน้าเสีย) · cols-2 ของ DS ซ่อนแผงขวาให้
+        const shell = document.getElementById('shell');
+        shell.classList.toggle('cols-3', !!o);
+        shell.classList.toggle('cols-2', !o);
 
         if (!o) {
             document.getElementById('actionPane').innerHTML = '<div class="ds-empty-sm">ยังไม่ได้เลือกออเดอร์</div>';
+            // ไม่มีใบให้เลือกเลย — อย่าบอกให้ "เลือกจากรายการทางซ้าย"
+            const none = !this.filtered().length;
+            document.getElementById('emptyState').innerHTML = `
+                <div class="ds-empty-state-icon"><i data-lucide="receipt-text"></i></div>
+                <div class="ds-empty-state-title">${none ? 'ยังไม่มีบิลให้ดู' : 'เลือกบิลจากรายการทางซ้าย'}</div>
+                <div class="ds-empty-state-desc">${none
+                    ? 'บิลที่จบแล้ว (ส่งมอบ / ยกเลิก / คืนเงิน) จะขึ้นที่นี่ · บิลที่ยังไม่จบอยู่หน้าแคชเชียร์'
+                    : 'เพื่อดูรายการสินค้า การชำระเงิน และประวัติการทำงาน'}</div>`;
             return;
         }
 
@@ -622,11 +665,8 @@ const OrdersPage = {
         if (want) {
             history.replaceState(null, '', location.pathname);
             this.select(want);
-        } else {
-            const first = this.filtered()[0];
-            if (first) this.state.selectedId = first.id;
         }
-        this.render();
+        this.render();                     // ไม่มีลิงก์ → render เลือกใบแรกให้เอง
         CFStore.subscribe(() => this.render());
         // เปิดหน้าค้างข้ามเวลาเริ่มวัน (เช่น ตี 4) — สลับไปวันทำการใหม่เอง
         this._day = this.today();

@@ -387,6 +387,16 @@ async function settlePayment(c, branchId, order, opts, ctx) {
     }
     const method = opts.method || order.payment_method || 'CASH';
 
+    // เพดานการยืนยันแทน + เงินที่รับมาต้องพอ — ตรวจที่เซิร์ฟเวอร์ ไม่ใช่แค่ disable ปุ่ม
+    // (order.status ยังเป็นสถานะก่อนจ่าย — transition อ่านแถวไว้ก่อน UPDATE)
+    const check = CFFlow.checkSettle({
+        from: order.status, bySystem: ctx.actorKind === 'SYSTEM',
+        amount, received: opts.received, override: opts.override, reason: opts.reason,
+        limit: CFPerms.overrideLimitFor(ctx.user, await settingsOf(c, branchId)),
+    });
+    if (!check.ok) throw new ApiError(check.status, check.message);
+    const override = check.override;
+
     // ลูกค้าเปลี่ยนวิธีจ่ายที่เคาน์เตอร์ (เช่น QR → จ่ายเงินสดแทน) — ต้องตามไปทั้งออเดอร์และการชำระ
     // ไม่งั้นเงินสดในลิ้นชักไม่เข้า "เงินสดที่ควรมี" ตอนปิดรอบ และใบเสร็จพิมพ์วิธีจ่ายผิด
     if (method !== order.payment_method) {
@@ -395,18 +405,6 @@ async function settlePayment(c, branchId, order, opts, ctx) {
             // ปิด QR ที่ยังค้าง — โอนเข้ามาทีหลังจะไม่ถูกจับคู่กับออเดอร์ที่รับเงินสดไปแล้ว
             await c.query('UPDATE payment_qr SET cancelled_at = now() WHERE order_id = $1 AND cancelled_at IS NULL',
                 [order.id]);
-        }
-    }
-
-    // เพดานการยืนยันแทน — เช็คที่เซิร์ฟเวอร์ ไม่ใช่แค่ disable ปุ่ม
-    if (opts.override) {
-        const limit = CFPerms.overrideLimitFor(ctx.user, await settingsOf(c, branchId));
-        if (limit != null && amount > limit) {
-            throw new ApiError(403,
-                `ยอด ฿${amount.toFixed(2)} เกินเพดานที่ยืนยันแทนได้ (฿${Number(limit).toFixed(2)})`);
-        }
-        if (!String(opts.reason || '').trim()) {
-            throw new ApiError(400, 'การยืนยันแทนต้องระบุเหตุผล');
         }
     }
 
@@ -429,7 +427,7 @@ async function settlePayment(c, branchId, order, opts, ctx) {
               WHERE id = $1`,
             [paymentId, amount, received, change, opts.ref || null, opts.bank || null,
              ctx.actorUserId || 'SYSTEM',
-             opts.override ? ctx.actorUserId : null, opts.override ? opts.reason : null, method]);
+             override ? ctx.actorUserId : null, override ? opts.reason : null, method]);
     } else {
         await c.query(
             `INSERT INTO payment (id, branch_id, order_id, method, amount, received,
@@ -439,14 +437,14 @@ async function settlePayment(c, branchId, order, opts, ctx) {
                      CASE WHEN $11::text IS NULL THEN NULL ELSE now() END)`,
             [paymentId, branchId, order.id, method, amount, received, change,
              opts.ref || null, opts.bank || null, ctx.actorUserId || 'SYSTEM',
-             opts.override ? ctx.actorUserId : null, opts.override ? opts.reason : null]);
+             override ? ctx.actorUserId : null, override ? opts.reason : null]);
     }
 
     await audit(c, branchId, {
-        eventType: opts.override ? 'PAYMENT_OVERRIDE'
+        eventType: override ? 'PAYMENT_OVERRIDE'
             : (method === 'CASH' ? 'PAYMENT_RECEIVED' : 'PAYMENT_VERIFIED'),
         orderId: order.id, actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
-        deviceId: ctx.deviceId, reason: opts.override ? opts.reason : null, ip: ctx.ip,
+        deviceId: ctx.deviceId, reason: override ? opts.reason : null, ip: ctx.ip,
         payload: { amount, method },
     });
     await touch(c, branchId, 'payments', paymentId, existing ? 'update' : 'insert');

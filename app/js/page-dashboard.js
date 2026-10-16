@@ -5,122 +5,227 @@ const DashPage = {
 
     /* ══════════════════════════════════════════════════════
        RENDER — idempotent, ไม่อ่านค่าจาก DOM
+       จัดใหม่ 16/10/2569: วันนี้ขายเท่าไร → มีอะไรต้องจัดการ → ร้านเป็นยังไงตอนนี้
+       ตัวเลขทุกกล่อง = วันทำการนี้ (เดิมปนกันระหว่างวันนี้/รอบ/ค้างทั้งหมด จนยอด ฿0 แต่รอชำระขึ้นแดง 13)
        ══════════════════════════════════════════════════════ */
     render() {
-        const e = CFApp.esc;
-        // ยอดขาย/เวลาเฉลี่ย = วันทำการนี้ (แบบ POS ทั่วไป) · งานค้าง "ตอนนี้ในร้าน" = ตามรอบ (รวมใบที่ยกมาจากวันก่อน)
-        const k = CFKpi.summary();
-        const t = CFKpi.today();
-
         // ลิ้นชักอุปกรณ์เปิดอยู่ → วาดตารางใหม่ (จับคู่ / heartbeat แล้วสถานะต้องเปลี่ยนเอง ไม่ต้องปิดเปิดใหม่)
         const devRows = document.getElementById('devRows');
         if (devRows) { devRows.innerHTML = this.deviceRows() + this.unknownWaitRows(); refreshIcons(); }
-        this.renderDevWaits();
-        this.renderBackupWarn();
-        const shift = CFStore.openShift();
-        document.getElementById('staleShift').innerHTML = CFApp.staleShiftHtml();
 
-        // ไม่มีรอบเปิด = คีออสก์ไม่รับออเดอร์ — ชี้ทางไปเปิดรอบ
-        // สั้น ๆ พอ — เลขรอบ (SH-…) ไม่มีประโยชน์กับผู้จัดการ ดูได้ที่หน้าปิดรอบ · รอบค้างข้ามวันมีแถบส้มบอกแยกแล้ว
-        document.getElementById('shiftLine').innerHTML =
-            shift
-                ? '<span class="cf-pill cf-pill-on">เปิดขายอยู่</span> ' +
-                  e('ตั้งแต่ ' + CFApp.date(shift.openedAt) + ' ' + CFApp.time(shift.openedAt))
-                : '<span class="cf-pill cf-pill-off">ยังไม่เปิดรอบ</span> คีออสก์ยังไม่รับออเดอร์ · <a href="closing.html">ไปเปิดรอบ</a>';
+        const day = CFDay.businessDate(Date.now(), CFDay.startHourOf(CFStore.settings()));
+        if (this._ydayFor !== day) this.loadYesterday(day);           // ข้ามวันขณะเปิดหน้าค้าง → เทียบวันใหม่
+        const todays = CFStore.all('orders').filter((o) => o.businessDate === day);
 
-        /* ── ยอดขาย — ตัวเลขหลักใหญ่ แยกช่องทางชำระเป็นแถบสัดส่วน ── */
-        const total = t.cash + t.qr;
-        const cashPct = total ? Math.round(t.cash / total * 100) : 0;
-        document.getElementById('kpiSales').innerHTML = `
-            <div class="cf-sales-hero">
-                <div class="cf-sales-label"><i data-lucide="wallet" class="icon-sm"></i> ยอดขายวันนี้</div>
-                <div class="cf-sales-value">${CFApp.baht(t.sales)}</div>
-                <div class="cf-sales-sub">
-                    <span><b>${CFApp.int(t.orderCount)}</b> ออเดอร์</span>
-                    <span>เฉลี่ย <b>${CFApp.baht(t.avgOrder)}</b> / บิล</span>
-                    ${t.cancelledCount || t.refundedCount ? `<span>ยกเลิก/คืนเงิน <b>${CFApp.int(t.cancelledCount + t.refundedCount)}</b></span>` : ''}
-                </div>
-            </div>
-            <div class="cf-sales-split">
-                <div class="cf-sales-label">ช่องทางชำระ · วันนี้</div>
-                <div class="cf-split-row"><span><i data-lucide="banknote" class="icon-sm"></i> เงินสด</span><b>${CFApp.baht(t.cash)}</b></div>
-                <div class="cf-split-row"><span><i data-lucide="qr-code" class="icon-sm"></i> QR / โอน</span><b>${CFApp.baht(t.qr)}</b></div>
-                <div class="cf-split-bar" title="เงินสด ${cashPct}% · QR ${total ? 100 - cashPct : 0}%">
-                    <div class="cf-split-cash" style="width:${cashPct}%"></div>
-                    <div class="cf-split-qr" style="width:${total ? 100 - cashPct : 0}%"></div>
-                </div>
-            </div>`;
-
-        /* ── ตอนนี้ในร้าน — งานค้าง (กดไปหน้าที่จัดการได้) + ความเร็ว ── */
-        const tile = (icon, value, label, tone, href) => `
-            <a class="cf-op-tile ${tone || ''}" ${href ? `href="${href}"` : ''}>
-                <span class="cf-op-ico"><i data-lucide="${icon}"></i></span>
-                <span class="cf-op-text"><span class="cf-op-value">${value}</span><span class="cf-op-label">${label}</span></span>
-            </a>`;
-        const stat = (icon, value, label) => `
-            <div class="cf-op-stat"><i data-lucide="${icon}" class="icon-sm"></i>
-                <span class="cf-op-label">${label}</span><b>${value}</b></div>`;
-        document.getElementById('kpiOps').innerHTML = `
-            <div class="cf-op-tiles">
-                ${tile('hourglass', CFApp.int(k.waitingPay), 'รอชำระเงิน', k.waitingPay > 4 ? 'danger' : k.waitingPay ? 'warn' : '', 'cashier.html')}
-                ${tile('chef-hat', CFApp.int(k.preparing), 'กำลังจัดเตรียม', k.preparing ? 'info' : '', 'kds.html')}
-                ${tile('bell-ring', CFApp.int(k.ready), 'พร้อมรับ', k.ready ? 'ok' : '', 'cashier.html')}
-            </div>
-            <div class="cf-op-stats">
-                ${stat('timer', CFKpi.fmtSec(t.avgWaitSec), 'รอชำระเฉลี่ยวันนี้')}
-                ${stat('flame', CFKpi.fmtSec(t.avgPrepSec), 'จัดเตรียมเฉลี่ย')}
-                ${stat('trending-up', t.throughput.toFixed(1), 'ออเดอร์ / ชม.')}
-            </div>`;
-
-        /* ── ภาระงานสถานี (§25) ── */
-        document.getElementById('stationLoad').innerHTML = CFKpi.stationLoad().map((s) => {
-            const cls = s.count >= 6 ? 'danger' : s.count >= 3 ? 'warn' : '';
-            return `<div class="cf-load-row">
-                        <div class="cf-load-name">${e(CFApp.stationLabel(s.station))}</div>
-                        <div class="cf-load-track"><div class="cf-load-fill ${cls}" style="width:${s.count ? Math.max(6, s.pct) : 0}%"></div></div>
-                        <div class="cf-load-val">${s.count} ใบ</div>
-                    </div>`;
-        }).join('');
-
-        /* ── สินค้าหมด ── */
-        const so = CFKpi.soldOutProducts();
-        document.getElementById('soldOut').innerHTML = so.length
-            ? '<div class="ds-chips">' + so.map((p) =>
-                `<span class="sip-chip sip-chip-danger">${e(p.nameTh)}</span>`).join('') + '</div>' +
-              `<div class="ds-note" style="margin-top:10px">แก้ได้ที่หน้า
-                 <a href="menu.html">เมนูและสินค้า</a> — ปิดสวิตช์ "สินค้าหมดวันนี้"</div>`
-            : '<div class="ds-empty-sm">ไม่มีสินค้าที่ปิดขายวันนี้</div>';
-
-        /* ── กิจกรรมล่าสุด ── */
-        const variant = (ev) => ({
-            ORDER_CREATED: 'info', PAYMENT_RECEIVED: 'success', PAYMENT_VERIFIED: 'success',
-            STATION_READY: 'info', PRINT: 'warning', PAYMENT_OVERRIDE: 'warning',
-            PAYMENT_TIMEOUT: 'warning',
-        }[ev] || 'info');
-
-        // 10 รายการล่าสุดพอ — ดูย้อนหลังที่หน้าจัดการออเดอร์ › ประวัติ
-        document.getElementById('activity').innerHTML = CFStore.all('auditLogs').slice(0, 10).map((a) => {
-            const o = a.orderId ? CFStore.byId('orders', a.orderId) : null;
-            const isBad = ['CANCELLED', 'VOIDED', 'REFUNDED', 'PAYMENT_FAILED'].includes(a.newStatus);
-            const v = isBad ? 'danger' : (a.newStatus === 'READY' ? 'success' : variant(a.eventType));
-            const head = a.newStatus
-                ? (o ? o.orderNo + ' → ' : '') + CFApp.statusLabel(a.newStatus)
-                : (o ? o.orderNo + ' · ' : '') + this.eventLabel(a.eventType);
-            return `<div class="cf-act ${v}">
-                        <span class="cf-act-dot"></span>
-                        <div class="cf-act-body">
-                            <div class="cf-act-head">${e(head)}</div>
-                            <div class="cf-act-sub">${e(CFApp.actorName(a.actor))}${a.reason ? ' · ' + e(a.reason) : ''}</div>
-                        </div>
-                        <span class="cf-act-time">${CFApp.time(a.ts)}</span>
-                    </div>`;
-        }).join('') || '<div class="ds-empty-sm">ยังไม่มีกิจกรรม</div>';
+        this.renderHeader(day);
+        this.renderKpis();
+        this.renderAttention(day);
+        this.renderHours(todays);
+        this.renderTop(todays);
+        this.renderLive(todays);
+        this.renderRecent(todays);
 
         CFApp.applyRoleGate();
         refreshIcons();
     },
 
-    eventLabel(ev) { return CFApp.eventLabel(ev); },
+    renderHeader(day) {
+        const shift = CFStore.openShift();
+        document.getElementById('dayLine').textContent = 'วันทำการ ' + CFApp.date(day + 'T12:00:00+07:00');
+        document.getElementById('shiftLine').innerHTML = shift
+            ? `<span class="cf-pill cf-pill-on">เปิดขายอยู่</span>
+               <span class="td-sub">รอบตั้งแต่ ${CFApp.esc(CFApp.date(shift.openedAt) + ' ' + CFApp.time(shift.openedAt))}</span>`
+            : '<span class="cf-pill cf-pill-off">ยังไม่เปิดรอบ</span>';
+    },
+
+    /** ยอดเมื่อวานไว้เทียบ — รายงานดูได้เฉพาะผู้จัดการ/แอดมิน (คนอื่นไม่โชว์บรรทัดเทียบ) */
+    async loadYesterday(day) {
+        this._ydayFor = day;
+        this._yday = null;
+        if (!['ADMIN', 'MANAGER'].includes(CFAuth.getRole())) return;
+        const d = new Date(day + 'T12:00:00Z');
+        d.setUTCDate(d.getUTCDate() - 1);
+        const y = d.toISOString().slice(0, 10);
+        try {
+            const r = await CFApi.get(`/api/reports/days?from=${y}&to=${y}`);
+            if (this._ydayFor === day) { this._yday = r.summary; this.renderKpis(); refreshIcons(); }
+        } catch { /* ไม่มีบรรทัดเทียบก็ได้ — ไม่ใช่เรื่องที่ต้องเตือน */ }
+    },
+
+    renderKpis() {
+        const t = CFKpi.today();
+        const y = this._yday;
+        const vs = (now, before) => {
+            if (!y) return '';
+            if (!before) return now ? 'เมื่อวานไม่มีขาย' : 'เมื่อวานก็ไม่มีขาย';
+            const pct = Math.round((now - before) / before * 100);
+            const cls = pct > 0 ? 'cf-up' : pct < 0 ? 'cf-down' : '';
+            return `<span class="${cls}">${pct > 0 ? '▲' : pct < 0 ? '▼' : ''} ${Math.abs(pct)}%</span> จากเมื่อวาน`;
+        };
+        // กดการ์ดแล้วไปรายงานที่ตรงกันของวันนี้ (แบบ Square: แตะตัวเลข → ดูรายละเอียด) — รายงานดูได้เฉพาะผู้จัดการ/แอดมิน
+        const canReport = ['ADMIN', 'MANAGER'].includes(CFAuth.getRole());
+        const kpi = (icon, value, label, sub, report) => {
+            const link = canReport && report;
+            return `<div class="sip-kpi ${link ? 'cf-kpi-link' : ''}" ${link ? `role="link" tabindex="0" title="ดูรายงาน"
+                    onclick="location.href='reports.html#${report}'" onkeydown="if(event.key==='Enter')this.click()"` : ''}>
+                <i data-lucide="${icon}" class="sip-kpi-icon icon-lg"></i>
+                <div class="sip-kpi-value">${value}</div>
+                <div class="sip-kpi-label">${label}${sub ? `<div class="td-sub">${sub}</div>` : ''}</div>
+                ${link ? '<i data-lucide="chevron-right" class="cf-kpi-go"></i>' : ''}
+            </div>`;
+        };
+        const bad = t.cancelledCount + t.refundedCount;
+        document.getElementById('kpis').innerHTML =
+            kpi('wallet', CFApp.baht(t.sales), 'ยอดขายสุทธิ วันนี้', vs(t.sales, y && y.sales), 'summary') +
+            kpi('receipt', CFApp.int(t.orderCount), 'บิล วันนี้', bad ? 'ยกเลิก/คืนเงิน ' + bad : vs(t.orderCount, y && y.orderCount), 'receipts') +
+            kpi('calculator', CFApp.baht(t.avgOrder), 'เฉลี่ยต่อบิล', '', 'summary') +
+            kpi('banknote', CFApp.baht(t.cash), 'เงินสด วันนี้', '', 'payments') +
+            kpi('qr-code', CFApp.baht(t.qr), 'QR พร้อมเพย์ วันนี้', '', 'payments');
+    },
+
+    /**
+     * ต้องจัดการ — ทุกเรื่องที่รอคนทำ รวมไว้ที่เดียว แต่ละบรรทัดมีปุ่มพาไปจัดการ
+     * (เดิมกระจายเป็นแถบเตือน · toast · กล่องแดง คนละที่)
+     */
+    renderAttention(day) {
+        const e = CFApp.esc;
+        const items = [];
+        const add = (tone, icon, text, sub, btn) => items.push({ tone, icon, text, sub, btn });
+        const go = (label, href) => `<a class="btn btn-outline btn-sm" href="${href}">${label} <i data-lucide="arrow-right" class="icon-sm"></i></a>`;
+        const canShift = CFAuth.can('SHIFT_CLOSE');
+
+        const shift = CFStore.openShift();
+        if (!shift) {
+            add('danger', 'lock', 'ยังไม่เปิดรอบการขาย', 'คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วเปิดรอบ',
+                canShift ? go('ไปเปิดรอบ', 'closing.html') : '');
+        }
+        const st = CFApp.staleShiftInfo();
+        if (st) {
+            add('warn', 'clock-alert', `รอบเปิดค้าง ${st.days} วัน (ตั้งแต่ ${CFApp.date(st.shift.openedAt)})`,
+                'นับเงินในลิ้นชักแล้วปิดรอบ ยอดเงินสดของรอบจะได้ไม่ปนข้ามวัน', canShift ? go('ไปปิดรอบ', 'closing.html') : '');
+        }
+
+        // ออเดอร์ที่ยังไม่จบจากวันก่อน — ปิดรอบไม่ได้จนกว่าจะเคลียร์
+        const stale = CFStore.all('orders').filter((o) => o.businessDate < day && !CFFlow.isTerminal(o.status));
+        if (stale.length) {
+            const by = {};
+            stale.forEach((o) => { by[o.status] = (by[o.status] || 0) + 1; });
+            add('warn', 'history', `ออเดอร์ค้างจากวันก่อน ${stale.length} ใบ`,
+                // ชื่อสถานะบางตัวมี " · " อยู่แล้ว (เช็กสลิป · รอตรวจ) — คั่นรายการด้วยจุลภาคจะได้ไม่ปนกัน
+                Object.entries(by).map(([s, n]) => `${CFApp.statusLabel(s)} (${n})`).join(', ') + ' — ต้องจบหรือยกเลิกก่อนปิดรอบ',
+                go('จัดการ', 'orders.html'));
+        }
+
+        const review = CFStore.all('orders').filter((o) => o.businessDate === day && o.status === 'PAYMENT_REVIEW').length;
+        if (review && CFAuth.can('PAY_RECEIVE')) {
+            add('warn', 'scan-text', `การชำระรอตรวจ ${review} ใบ`, 'สลิปที่ระบบตรวจไม่ผ่านหรืออ่านไม่ออก — ให้แคชเชียร์ตัดสิน',
+                go('ไปตรวจ', 'cashier.html'));
+        }
+
+        // เครื่องหลุดการจับคู่ (ค้างหน้าขอรหัส)
+        if (CFAuth.can('MENU_EDIT')) {
+            CFStore.all('deviceWaits').forEach((w) => {
+                const d = w.deviceId && CFStore.byId('devices', w.deviceId);
+                add('danger', 'unplug', `${d ? d.name : 'เครื่องที่ IP ' + w.ip} หลุดการจับคู่`,
+                    `ค้างหน้าขอรหัสตั้งแต่ ${CFApp.time(w.since)} · ${w.reason === 'REVOKED' ? 'สิทธิ์ถูกแทนที่หรือถูกยกเลิก' : 'ข้อมูลในเบราว์เซอร์หาย หรือเปิดคนละที่อยู่'}`,
+                    d ? `<button class="btn btn-outline btn-sm" onclick="DashPage.pairDevice('${d.id}')">ขอรหัสใหม่</button>`
+                      : '<button class="btn btn-outline btn-sm" onclick="DashPage.openDevices()">เลือกอุปกรณ์</button>');
+            });
+        }
+
+        const b = this._backup;
+        if (b) {
+            const age = b.lastAt ? (Date.now() - new Date(b.lastAt).getTime()) / 3600000 : Infinity;
+            if (age >= 48) {
+                add('warn', 'hard-drive', `ไม่ได้สำรองข้อมูล${b.lastAt ? 'มา ' + Math.floor(age / 24) + ' วัน' : 'เลย'}`,
+                    'ถ้าเครื่องเสีย ยอดขายและเมนูจะหาย · ระบบสำรองเองทุกคืน 23:30 — ตรวจว่า Docker เปิดอยู่ หรือรัน node ops\\backup.js ที่เครื่องเซิร์ฟเวอร์', '');
+            }
+        }
+
+        const so = CFKpi.soldOutProducts();
+        if (so.length) {
+            add('info', 'ban', `สินค้าหมดวันนี้ ${so.length} รายการ`,
+                so.slice(0, 6).map((p) => p.nameTh).join(', ') + (so.length > 6 ? ' …' : ''),
+                CFAuth.can('MENU_EDIT') ? go('เมนูและสินค้า', 'menu.html') : '');
+        }
+
+        const el = document.getElementById('attn');
+        el.hidden = !items.length;
+        el.innerHTML = items.length ? `
+            <div class="cf-attn-head"><i data-lucide="bell" class="icon-sm"></i> ต้องจัดการ <span class="ds-pane-count">${items.length}</span></div>
+            ${items.map((x) => `<div class="cf-attn-row ${x.tone}">
+                <span class="cf-attn-ico"><i data-lucide="${x.icon}" class="icon-sm"></i></span>
+                <div class="cf-attn-body"><div class="cf-attn-text">${e(x.text)}</div><div class="cf-attn-sub">${e(x.sub)}</div></div>
+                ${x.btn}
+            </div>`).join('')}` : '';
+    },
+
+    /** ยอดรายชั่วโมงของวันนี้ (คิดจาก cache — ออเดอร์วันนี้อยู่ในหน้าต่าง 24 ชม. ครบ) */
+    renderHours(todays) {
+        const sold = todays.filter((o) => CF_SOLD.includes(o.status));
+        const el = document.getElementById('hourChart');
+        if (!sold.length) { el.innerHTML = '<div class="ds-empty-sm">ยังไม่มียอดขายวันนี้</div>'; return; }
+        const hrs = Array.from({ length: 24 }, (_, h) => ({ hour: h, orders: 0, sales: 0 }));
+        sold.forEach((o) => { const h = new Date(o.createdAt).getHours(); hrs[h].orders++; hrs[h].sales += o.total; });
+        let a = hrs.findIndex((h) => h.orders), b = 23 - [...hrs].reverse().findIndex((h) => h.orders);
+        a = Math.min(a, 8);                                           // เห็นตั้งแต่ช่วงเปิดร้านถึงตอนนี้
+        b = Math.max(b, Math.min(23, new Date().getHours()));
+        const shown = hrs.slice(a, b + 1);
+        const max = Math.max(1, ...shown.map((h) => h.sales));
+        const hh = (h) => String(h).padStart(2, '0');
+        el.innerHTML = `<div class="cf-vbars">${shown.map((h) => `
+            <div class="cf-vbar" title="${hh(h.hour)}:00 · ${h.orders} บิล · ${CFApp.baht(h.sales)}">
+                <span class="cf-vbar-val">${h.sales ? CFApp.int(Math.round(h.sales)) : ''}</span>
+                <span class="cf-vbar-fill" style="height:${h.sales ? Math.max(3, h.sales / max * 100) : 0}%"></span>
+                <span class="cf-vbar-lbl">${hh(h.hour)}</span>
+            </div>`).join('')}</div>`;
+    },
+
+    renderTop(todays) {
+        const ids = new Set(todays.filter((o) => CF_SOLD.includes(o.status)).map((o) => o.id));
+        const acc = {};
+        CFStore.all('orderItems').filter((i) => ids.has(i.orderId) && i.itemStatus !== 'VOID').forEach((i) => {
+            const k = acc[i.productId] || (acc[i.productId] = { name: i.nameSnapshot, qty: 0, amount: 0 });
+            k.qty += i.qty;
+            k.amount += i.qty * i.unitPrice;
+        });
+        const top = Object.values(acc).sort((a, b) => b.qty - a.qty || b.amount - a.amount).slice(0, 5);
+        const e = CFApp.esc;
+        document.getElementById('topToday').innerHTML = top.length ? top.map((p, i) => `
+            <div class="cf-top-row"><span class="cf-top-rank">${i + 1}</span>
+                <span class="cf-top-name">${e(p.name)}</span>
+                <span class="cf-top-val"><b>${p.qty}</b> แก้ว · ${CFApp.baht(p.amount)}</span></div>`).join('')
+            : '<div class="ds-empty-sm">ยังไม่มีการขายวันนี้</div>';
+    },
+
+    /** งานที่กำลังเดินของวันนี้ — กดไปหน้าที่ทำงานนั้น */
+    renderLive(todays) {
+        const n = (list) => todays.filter((o) => list.includes(o.status)).length;
+        const tile = (icon, value, label, href, tone) => `
+            <a class="cf-live ${value ? tone : ''}" href="${href}">
+                <i data-lucide="${icon}" class="icon-sm"></i><b>${value}</b><span>${label}</span></a>`;
+        document.getElementById('liveOps').innerHTML = `<div class="cf-live-row">
+            ${tile('hourglass', n(CF_WAITING_PAY), 'รอชำระ', 'cashier.html', 'warn')}
+            ${tile('chef-hat', n(CF_IN_PROGRESS), 'กำลังทำ', 'kds.html', 'info')}
+            ${tile('bell-ring', n(['READY']), 'พร้อมรับ', 'cashier.html', 'ok')}
+        </div>`;
+    },
+
+    /** บิลล่าสุด — เฉพาะบิลที่รับเงินแล้ว (รวมที่ยกเลิก/คืนเงินทีหลัง) ไม่ใช่ log ระบบ */
+    renderRecent(todays) {
+        const e = CFApp.esc;
+        const paid = todays.filter((o) => o.ts && o.ts.paidAt)
+            .sort((a, b) => new Date(b.ts.paidAt) - new Date(a.ts.paidAt)).slice(0, 8);
+        const PAY = { CASH: 'เงินสด', QR: 'QR' };
+        document.getElementById('recent').innerHTML = paid.length ? paid.map((o) => {
+            const off = ['VOIDED', 'REFUNDED'].includes(o.status);
+            return `<a class="cf-bill ${off ? 'off' : ''}" href="orders.html?order=${encodeURIComponent(o.id)}">
+                <b>${e(o.orderNo)}</b>
+                <span class="cf-bill-meta">${PAY[o.paymentMethod] || ''}${off ? ' · ' + e(CFApp.statusLabel(o.status)) : ''}</span>
+                <span class="cf-bill-amt">${CFApp.baht(o.total)}</span>
+                <span class="cf-bill-time">${CFApp.time(o.ts.paidAt)}</span></a>`;
+        }).join('') : '<div class="ds-empty-sm">ยังไม่มีบิลวันนี้</div>';
+    },
 
     /* ══════════════════════════════════════════════════════
        DRAWER — อุปกรณ์ (§30)
@@ -188,28 +293,6 @@ const DashPage = {
         const mins = d.lastSeen ? Math.floor(CFApp.elapsedMin(d.lastSeen)) : null;
         return badge('danger', 'ปิดเครื่อง / ไม่ส่งสัญญาณ',
             mins == null ? 'ยังไม่เคยส่งสัญญาณ' : 'เงียบไป ' + (mins < 60 ? mins + ' นาที' : Math.floor(mins / 60) + ' ชม.'));
-    },
-
-    /** แถบเตือนบนหน้าภาพรวม — มีเครื่องค้างหน้าขอรหัสอยู่ */
-    renderDevWaits() {
-        const el = document.getElementById('devWaitBanner');
-        if (!el) return;
-        const waits = CFAuth.can('MENU_EDIT') ? CFStore.all('deviceWaits') : [];
-        if (!waits.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-        const e = CFApp.esc;
-        el.style.display = '';
-        el.innerHTML = waits.map((w) => {
-            const d = w.deviceId && CFStore.byId('devices', w.deviceId);
-            const who = d ? `<strong>${e(d.name)}</strong> (${e(d.id)})` : `<strong>เครื่องที่ IP ${e(w.ip)}</strong>`;
-            const btn = d
-                ? `<button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.pairDevice('${d.id}')">ขอรหัสใหม่</button>`
-                : `<button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.openDevices()">เลือกอุปกรณ์</button>`;
-            return `<div class="ds-warn" style="margin-bottom:6px">
-                ${who} หลุดการจับคู่ — ${d ? 'เครื่องที่ IP ' + e(w.ip) : 'เปิดหน้า ' + e(w.page)} ค้างหน้าขอรหัสตั้งแต่ ${CFApp.time(w.since)}
-                (${w.reason === 'REVOKED' ? 'สิทธิ์ถูกแทนที่หรือถูกยกเลิก' : 'ข้อมูลในเบราว์เซอร์หาย หรือเปิดคนละที่อยู่'})
-                ${btn}
-            </div>`;
-        }).join('');
     },
 
     openDevices() {
@@ -1122,35 +1205,14 @@ const DashPage = {
     async loadBackup() {
         if (!CFAuth.can('SHIFT_CLOSE')) return;
         try { this._backup = await CFApi.get('/api/backup/status'); } catch { this._backup = null; }
-        this.renderBackupWarn();
+        this.render();
     },
-    renderBackupWarn() {
-        const el = document.getElementById('backupBanner');
-        const b = this._backup;
-        if (!el) return;
-        const age = b && b.lastAt ? (Date.now() - new Date(b.lastAt).getTime()) / 3600000 : Infinity;
-        if (!b || age < 48) { el.style.display = 'none'; return; }
-        el.style.display = '';
-        el.innerHTML = `<div class="ds-warn"><b>ยังไม่ได้สำรองข้อมูล${b.lastAt ? 'มา ' + Math.floor(age / 24) + ' วัน' : 'เลย'}</b> —
-            ถ้าเครื่องเสีย ยอดขายและเมนูจะหาย · ระบบสำรองเองทุกคืน 23:30 และหลังปิดรอบ ตรวจว่า Docker เปิดอยู่
-            หรือรัน <code>node ops\\backup.js</code> ที่เครื่องเซิร์ฟเวอร์ (log: logs\\backup.log)</div>`;
-    },
-
     async loadWeak() {
         if (!CFAuth.can('USER_MANAGE')) return;
         try {
             this._weak = (await CFApi.get('/api/users/weak-passwords')).users || [];
         } catch (err) { this._weak = []; }
-        const el = document.getElementById('weakPwBanner');
-        if (!el) return;
-        if (!this._weak.length) { el.style.display = 'none'; return; }
-        el.style.display = '';
-        el.innerHTML = `<div class="ds-warn">
-            <strong>ยังมี ${this._weak.length} บัญชีที่ใช้รหัสผ่านตั้งต้น</strong>
-            (${this._weak.map((w) => CFApp.esc(w.username)).join(', ')})
-            — ใครที่อยู่ใน Wi‑Fi ร้านก็เข้าได้ ตั้งรหัสใหม่ก่อนเปิดร้าน
-            <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.openUsers()">ตั้งรหัสผ่าน</button>
-        </div>`;
+        // ไม่เตือน (ผู้ใช้เลือก 16/10/2569) — ใช้แค่ป้าย "รหัสตั้งต้น" ในรายชื่อผู้ใช้
     },
 
     resetPassword(id) {
@@ -1184,8 +1246,6 @@ const DashPage = {
         if (a !== document.getElementById('rpNew2').value) { showToast('รหัสผ่านสองช่องไม่ตรงกัน', 'error'); return; }
         try {
             await CFApi.post('/api/users/' + encodeURIComponent(id) + '/password', { next: a });
-            // ตั้งให้ตัวเอง → เลิกบังคับเปลี่ยนในเครื่องนี้ด้วย
-            if (CFAuth.session() && CFAuth.session().userId === id) CFAuth.clearMustChange();
             showToast('ตั้งรหัสผ่านใหม่แล้ว', 'success');
             await this.loadWeak();
             this.openUsers();
@@ -1336,6 +1396,7 @@ const DashPage = {
         if (q.get('kiosk') === '1')   setTimeout(() => this.openKioskSettings(), 250);
         if (q.get('display') === '1') setTimeout(() => this.openDisplaySettings(), 250);
         if (q.get('shop') === '1')    setTimeout(() => this.openShop(), 250);
+        if (q.get('slip') === '1')    setTimeout(() => this.openSlipAccuracy(), 250);
     },
 };
 

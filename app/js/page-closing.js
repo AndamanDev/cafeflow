@@ -21,36 +21,69 @@ const ClosingPage = {
             .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
     },
 
+    /**
+     * ขั้น 1 — สรุปเป็น 3 กลุ่มตามสิ่งที่ต้องทำ แต่ละกลุ่มมีปุ่มจัดการทั้งกลุ่ม (เดิมตาราง 17 แถวดันขั้นอื่นตกจอ)
+     * ตารางรายใบยังมี แต่พับไว้ — กด "ดูรายการ" เมื่ออยากจัดการทีละใบ
+     */
     renderPending() {
         const e = CFApp.esc;
         const list = this.pendingOrders();
-        const card = document.getElementById('pendingCard');
-        if (!card) return;
-        card.hidden = !list.length;
-        if (!list.length) return;
+        const body = document.getElementById('pendingBody');
+        if (!body) return;
+        const done = !list.length;
+        document.getElementById('step1').classList.toggle('is-done', done);
+        document.getElementById('step1State').innerHTML = done
+            ? '<span class="sip-chip sip-chip-success">เรียบร้อย</span>'
+            : `<span class="sip-chip sip-chip-danger">ค้าง ${list.length} ใบ</span>`;
+        if (done) {
+            body.innerHTML = '<div class="cf-cl-ok"><i data-lucide="check-circle" class="icon-sm"></i> ไม่มีออเดอร์ค้าง — ไปขั้นที่ 2 ได้เลย</div>';
+            return;
+        }
 
-        document.getElementById('pendingCount').textContent = '(' + list.length + ')';
         const dis = this.state.busy ? 'disabled' : '';
-        document.getElementById('pendingRows').innerHTML = list.map((o) => {
-            const old = CFApp.elapsedMin(o.createdAt) > 12 * 60;
+        const sum = (l) => CFApp.baht(l.reduce((a, o) => a + o.total, 0));
+        const unpaid = list.filter((o) => CLOSE_UNPAID.includes(o.status));
+        const paid = list.filter((o) => CLOSE_PAID.includes(o.status));
+        const review = list.filter((o) => CLOSE_REVIEW.includes(o.status));
+        const group = (l, icon, tone, title, sub, btn) => l.length ? `
+            <div class="cf-cl-group ${tone}">
+                <span class="cf-cl-group-ico"><i data-lucide="${icon}" class="icon-sm"></i></span>
+                <div class="cf-cl-group-body">
+                    <div class="cf-cl-group-title">${title} <b>${l.length} ใบ</b> · ${sum(l)}</div>
+                    <div class="cf-cl-group-sub">${sub}</div>
+                </div>
+                ${btn}
+            </div>` : '';
+
+        const rows = list.map((o) => {
             const act = CLOSE_UNPAID.includes(o.status)
                 ? `<button class="btn btn-outline btn-sm" ${dis} onclick="ClosingPage.cancelOne('${o.id}')">ยกเลิก</button>`
                 : CLOSE_PAID.includes(o.status)
                     ? `<button class="btn btn-outline btn-sm" ${dis} onclick="ClosingPage.finishOne('${o.id}')">ปิดรายการ</button>`
-                    : '<span class="text-muted">ตรวจสลิปที่หน้าแคชเชียร์</span>';
+                    : '<a class="btn btn-outline btn-sm" href="cashier.html">ตรวจที่แคชเชียร์</a>';
             return `<tr>
-                <td class="td-name">#${e(o.orderNo)}</td>
-                <td class="cf-nowrap">${CFApp.dateTime(o.createdAt)}
-                    ${old ? '<span class="status-badge danger">ค้างจากวันก่อน</span>' : ''}</td>
+                <td class="td-name">${e(o.orderNo)}</td>
+                <td class="cf-nowrap td-sub">${CFApp.dateTime(o.createdAt)}</td>
                 <td>${CFApp.statusChip(o.status)}</td>
                 <td class="cf-right cf-money">${CFApp.money(o.total)}</td>
                 <td class="cf-right cf-nowrap">${act}</td>
             </tr>`;
         }).join('');
 
-        document.getElementById('pendingNote').textContent =
-            'ต้องจัดการให้หมดก่อนจึงจะปิดรอบได้ · ยกเลิก = ออเดอร์ที่ยังไม่ได้รับเงิน ' +
-            '· ปิดรายการ = จ่ายแล้วและลูกค้ารับของไปแล้ว · รอตรวจสลิป = ยืนยัน/ปฏิเสธที่หน้าแคชเชียร์';
+        body.innerHTML =
+            group(unpaid, 'circle-slash', 'warn', 'ยังไม่ได้รับเงิน', 'ลูกค้าไม่ได้จ่าย / ออเดอร์ทดสอบ → ยกเลิก',
+                `<button class="btn btn-outline btn-sm" ${dis} onclick="ClosingPage.clearGroup('unpaid')">ยกเลิกทั้งหมด</button>`) +
+            group(paid, 'package-check', 'info', 'จ่ายแล้ว ยังไม่ปิดรายการ', 'ลูกค้ารับของไปแล้ว → ปิดรายการ',
+                `<button class="btn btn-outline btn-sm" ${dis} onclick="ClosingPage.clearGroup('paid')">ปิดรายการทั้งหมด</button>`) +
+            group(review, 'scan-text', 'danger', 'รอตรวจสลิป', 'อาจมีเงินเข้าแล้ว — ต้องดูสลิปแล้วยืนยัน/ปฏิเสธที่หน้าแคชเชียร์',
+                '<a class="btn btn-outline btn-sm" href="cashier.html">ไปตรวจ <i data-lucide="arrow-right" class="icon-sm"></i></a>') +
+            `<details class="cf-cl-details" ${this.state.listOpen ? 'open' : ''} ontoggle="ClosingPage.state.listOpen = this.open">
+                <summary>ดูรายการทีละใบ (${list.length})</summary>
+                <div class="table-responsive"><table class="data-table compact">
+                    <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th></th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>
+            </details>`;
     },
 
     async cancelOne(id) {
@@ -80,38 +113,29 @@ const ClosingPage = {
         return true;
     },
 
-    async clearAll() {
-        const list = this.pendingOrders();
-        const unpaid = list.filter((o) => CLOSE_UNPAID.includes(o.status));
-        const paid = list.filter((o) => CLOSE_PAID.includes(o.status));
-        const review = list.filter((o) => CLOSE_REVIEW.includes(o.status));
-        if (!unpaid.length && !paid.length) {
-            showToast('เหลือแต่ออเดอร์ที่รอตรวจสลิป — ตรวจที่หน้าแคชเชียร์ก่อน', 'error', 4000);
-            return;
-        }
+    /** จัดการทั้งกลุ่ม — unpaid = ยกเลิก · paid = เดินไปจนปิดรายการ (กลุ่มรอตรวจสลิปต้องไปตรวจที่แคชเชียร์) */
+    async clearGroup(kind) {
+        const list = this.pendingOrders().filter((o) => (kind === 'unpaid' ? CLOSE_UNPAID : CLOSE_PAID).includes(o.status));
+        if (!list.length) return;
         const ok = await Drawer.confirm({
-            title: 'เคลียร์ออเดอร์ที่ยังไม่จบ?',
-            message: list.length + ' ออเดอร์',
-            lines: [
-                unpaid.length ? 'ยกเลิก ' + unpaid.length + ' ออเดอร์ที่ยังไม่ได้ชำระ' : '',
-                paid.length ? 'ปิดรายการ ' + paid.length + ' ออเดอร์ที่ชำระแล้ว' : '',
-                review.length ? 'ข้าม ' + review.length + ' ออเดอร์ที่รอตรวจสลิป' : '',
-            ].filter(Boolean),
-            note: 'ยกเลิกด้วยเหตุผล "' + CLOSE_CANCEL_REASON + '" — ย้อนกลับไม่ได้',
-            confirmText: 'เคลียร์', danger: true,
+            title: kind === 'unpaid' ? 'ยกเลิกออเดอร์ที่ยังไม่ได้รับเงิน?' : 'ปิดรายการออเดอร์ที่จ่ายแล้ว?',
+            message: list.length + ' ใบ · ' + CFApp.baht(list.reduce((a, o) => a + o.total, 0)),
+            lines: list.slice(0, 8).map((o) => o.orderNo + ' · ' + CFApp.statusLabel(o.status) + ' · ' + CFApp.baht(o.total))
+                .concat(list.length > 8 ? ['และอีก ' + (list.length - 8) + ' ใบ'] : []),
+            note: kind === 'unpaid' ? 'ยกเลิกด้วยเหตุผล "' + CLOSE_CANCEL_REASON + '" — ย้อนกลับไม่ได้'
+                : 'ใช้เมื่อลูกค้ารับของไปแล้ว — ยอดขายยังนับตามเดิม',
+            confirmText: kind === 'unpaid' ? 'ยกเลิกทั้งหมด' : 'ปิดรายการทั้งหมด', danger: kind === 'unpaid',
         });
         if (!ok) return;
-
         await this.run(async () => {
             let fail = 0;
-            for (const o of unpaid) {
-                if (!(await CFOrders.transition(o.id, 'CANCELLED', { reason: CLOSE_CANCEL_REASON }))) fail++;
+            for (const o of list) {
+                const r = kind === 'unpaid'
+                    ? await CFOrders.transition(o.id, 'CANCELLED', { reason: CLOSE_CANCEL_REASON })
+                    : await this.walkToCompleted(o.id);
+                if (!r) fail++;
             }
-            for (const o of paid) {
-                if (!(await this.walkToCompleted(o.id))) fail++;
-            }
-            showToast(fail ? 'เคลียร์ไม่สำเร็จ ' + fail + ' ออเดอร์' : 'เคลียร์เรียบร้อย',
-                      fail ? 'error' : 'success', 4000);
+            showToast(fail ? 'ทำไม่สำเร็จ ' + fail + ' ใบ' : 'เรียบร้อย ' + list.length + ' ใบ', fail ? 'error' : 'success', 4000);
         });
     },
 
@@ -126,107 +150,80 @@ const ClosingPage = {
     render() {
         const e = CFApp.esc;
         const open = CFStore.openShift();
-        document.getElementById('staleShift').innerHTML = CFApp.staleShiftHtml(true);
+        CFApp.staleShiftToast(true);
         document.getElementById('openShiftCard').hidden = !!open;
-        document.getElementById('closeBtn').hidden = !open;
-        document.getElementById('closeBtn2').hidden = !open;
-        const shift = open || CFStore.all('shifts').slice(-1)[0];
-        if (!shift) {
-            document.getElementById('shiftLine').textContent = 'ยังไม่มีรอบการขาย';
-            this.renderPending();
+        document.getElementById('closeLayout').hidden = !open;
+        if (!open) {
+            const last = CFStore.all('shifts').slice(-1)[0];
+            document.getElementById('shiftLine').textContent = last && last.closedAt
+                ? 'รอบล่าสุดปิดเมื่อ ' + CFApp.dateTime(last.closedAt) : 'ยังไม่มีรอบการขาย';
             refreshIcons();
             return;
         }
-
+        const shift = open;
         const k = CFKpi.summary(shift.id);
         const cc = CFKpi.cashControl(shift.id);
 
+        // เวลาเปิด + คนเปิด ไม่ใช่รหัสรอบ (รหัสอยู่บนใบปิดรอบ)
         document.getElementById('shiftLine').textContent =
-            'รอบ ' + shift.id + ' · เปิด ' + CFApp.time(shift.openedAt) +
-            (shift.closedAt ? ' · ปิด ' + CFApp.time(shift.closedAt) : ' · ยังไม่ปิดรอบ') +
-            ' · ผู้เปิดรอบ ' + CFApp.actorName(shift.openedBy);
+            'รอบเปิดตั้งแต่ ' + CFApp.dateTime(shift.openedAt) + ' · โดย ' + CFApp.actorName(shift.openedBy);
 
-        const kpi = (icon, value, label, critical) => `
-            <div class="sip-kpi ${critical ? 'critical' : ''}">
-                <i data-lucide="${icon}" class="sip-kpi-icon icon-lg"></i>
-                <div class="sip-kpi-value">${value}</div>
-                <div class="sip-kpi-label">${label}</div>
-            </div>`;
+        this.renderPending();
+        const pending = this.pendingOrders().length;
 
-        document.getElementById('kpiStrip').innerHTML =
-            kpi('wallet',  CFApp.baht(k.sales), 'ยอดขายรวม') +
-            kpi('receipt', CFApp.int(k.orderCount), 'จำนวนบิล') +
-            kpi('x-circle', CFApp.int(k.cancelledCount), 'ยกเลิก', k.cancelledCount > 0) +
-            kpi('undo-2',  CFApp.int(k.refundedCount), 'คืนเงิน', k.refundedCount > 0);
-
-        /* ── สรุปยอดขาย ── */
-        const row = (label, count, amount, strong) => `<tr>
-            <td class="l">${strong ? '<b>' + label + '</b>' : label}</td>
-            <td class="c">${count}</td>
-            <td class="r">${strong ? '<b>' + amount + '</b>' : amount}</td></tr>`;
-
-        document.getElementById('salesTable').innerHTML = `
-            <tr><th class="l">รายการ</th><th style="width:20%">จำนวน</th><th style="width:30%">บาท</th></tr>
-            ${row('ยอดขายเงินสด', '—', CFApp.money(k.cash))}
-            ${row('ยอดขาย QR / โอน', '—', CFApp.money(k.qr))}
-            ${row('ยอดขายรวม', k.orderCount, CFApp.money(k.sales), true)}
-            ${row('ยกเลิก', k.cancelledCount, CFApp.money(k.cancelledAmount))}
-            ${row('คืนเงิน', k.refundedCount, CFApp.money(k.refundedAmount))}
-            ${row('เฉลี่ยต่อบิล', '—', CFApp.money(k.avgOrder))}`;
-
-        /* ── การควบคุมเงินสด ── */
+        /* ── ขั้น 2: นับเงิน ── */
         const actual = this.state.actual != null ? this.state.actual : cc.actual;
         const diff = actual == null ? null : actual - cc.expected;
-
-        document.getElementById('cashTable').innerHTML = `
-            <tr><td class="l">เงินตั้งต้น</td><td class="r">${CFApp.money(cc.opening)}</td></tr>
-            <tr><td class="l">ยอดขายเงินสด</td><td class="r">${CFApp.money(cc.cashSales)}</td></tr>
-            <tr><td class="l"><b>เงินสดที่ควรมี</b></td><td class="r"><b>${CFApp.money(cc.expected)}</b></td></tr>`;
-
-        document.getElementById('diffBox').innerHTML = diff == null
-            ? '<div class="ds-note">กรอกยอดเงินสดที่นับได้จริงเพื่อคำนวณผลต่าง</div>'
+        document.getElementById('cashExpect').innerHTML = `
+            <div class="cf-cl-expect-label">เงินสดที่ควรมีในลิ้นชัก</div>
+            <div class="cf-cl-expect-value">${CFApp.baht(cc.expected)}</div>
+            <div class="td-sub">เงินตั้งต้น ${CFApp.baht(cc.opening)} + ขายเงินสด ${CFApp.baht(cc.cashSales)}</div>`;
+        document.getElementById('diffBox').innerHTML = diff == null ? ''
             : diff === 0
                 ? '<div class="sip-banner sip-banner-success"><i data-lucide="check-circle" class="icon-sm"></i> เงินสดตรงพอดี</div>'
                 : `<div class="sip-banner ${diff < 0 ? 'sip-banner-danger' : 'sip-banner-warning'}">
                      <i data-lucide="${diff < 0 ? 'alert-circle' : 'alert-triangle'}" class="icon-sm"></i>
-                     ${diff < 0 ? 'เงินสดขาด' : 'เงินสดเกิน'} ${CFApp.baht(Math.abs(diff))}
-                   </div>`;
+                     ${diff < 0 ? 'เงินสดขาด' : 'เงินสดเกิน'} ${CFApp.baht(Math.abs(diff))} — นับซ้ำอีกรอบก่อนปิด</div>`;
+        // เงินไม่ตรง → ช่องหมายเหตุเด่นขึ้น ชวนบอกเหตุผล (ไม่บังคับ — บางทีหาสาเหตุไม่เจอจริง ๆ)
+        const off = diff != null && diff !== 0;
+        document.getElementById('noteField').classList.toggle('cf-cl-note-ask', off);
+        document.getElementById('noteLabel').textContent = off
+            ? 'เงิน' + (diff < 0 ? 'ขาด' : 'เกิน') + ' — บอกสาเหตุไว้ให้ผู้จัดการ (ถ้ารู้)' : 'หมายเหตุ (ถ้ามี)';
+        document.getElementById('step2').classList.toggle('is-done', actual != null);
+        document.getElementById('step2State').innerHTML = actual != null
+            ? '<span class="sip-chip sip-chip-success">นับแล้ว</span>' : '';
 
-        this.renderPending();
+        /* ── ขั้น 3: พร้อมไหม — บอกสิ่งที่ยังขาดตรงปุ่ม ── */
+        const missing = [
+            pending ? 'เคลียร์ออเดอร์ค้าง ' + pending + ' ใบ (ขั้นที่ 1)' : '',
+            actual == null ? 'กรอกเงินที่นับได้ (ขั้นที่ 2)' : '',
+        ].filter(Boolean);
+        document.getElementById('readyHint').innerHTML = missing.length
+            ? '<i data-lucide="info" class="icon-sm"></i> ยังต้อง: ' + missing.map(e).join(' · ') : '';
 
-        /* ── สินค้าขายดี ── */
-        const top = CFKpi.topProducts(shift.id, 10);
-        // ต้นทุน/กำไร — เซิร์ฟเวอร์ส่งมาเฉพาะคนที่แก้ราคาได้ · cost null = บางแบบยังไม่ได้ใส่ต้นทุน (ไม่เดา)
-        const withCost = top.some((t) => 'cost' in t);
-        document.getElementById('topHead').innerHTML = `<tr><th>#</th><th>สินค้า</th><th class="cf-right">จำนวน</th>
-            <th class="cf-right">ยอดเงิน</th>${withCost ? '<th class="cf-right">ต้นทุน</th><th class="cf-right">กำไรขั้นต้น</th>' : ''}</tr>`;
-        const cols = withCost ? 6 : 4;
-        let gp = 0, gpMissing = false;
-        document.getElementById('topRows').innerHTML = top.length ? top.map((t, i) => {
-            const known = withCost && t.cost != null;
-            if (withCost) { if (known) gp += t.amount - t.cost; else gpMissing = true; }
-            return `<tr>
-                <td>${i + 1}</td>
-                <td class="td-name">${e(t.name)}</td>
-                <td class="cf-right">${t.qty}</td>
-                <td class="cf-right cf-money">${CFApp.money(t.amount)}</td>
-                ${withCost ? `<td class="cf-right cf-money">${known ? CFApp.money(t.cost) : '<span class="text-light" title="ยังไม่ได้ใส่ต้นทุน">—</span>'}</td>
-                <td class="cf-right cf-money" style="font-weight:700">${known
-                    ? CFApp.money(t.amount - t.cost) + ` <small class="text-muted">${t.amount ? Math.round((t.amount - t.cost) / t.amount * 100) : 0}%</small>`
-                    : '<span class="text-light">—</span>'}</td>` : ''}
-            </tr>`;
-        }).join('') + (withCost ? `<tr><td colspan="5" class="cf-right td-name">กำไรขั้นต้นรวม (สินค้าที่แสดง${gpMissing ? ' · ไม่นับรายการที่ยังไม่ใส่ต้นทุน' : ''})</td>
-            <td class="cf-right cf-money td-name">${CFApp.money(gp)}</td></tr>` : '')
-            : `<tr><td colspan="${cols}"><div class="ds-empty-sm">ยังไม่มียอดขาย</div></td></tr>`;
+        /* ── ด้านขวา: สรุปรอบนี้ ── */
+        const line = (label, value, cls) => `<div class="cf-cl-line ${cls || ''}"><span>${label}</span><b>${value}</b></div>`;
+        document.getElementById('summary').innerHTML =
+            line('ยอดขายรวม', CFApp.baht(k.sales), 'big') +
+            line('จำนวนบิล', CFApp.int(k.orderCount) + ' บิล · เฉลี่ย ' + CFApp.baht(k.avgOrder)) +
+            line('เงินสด', CFApp.baht(k.cash)) +
+            line('QR / โอน', CFApp.baht(k.qr)) +
+            (k.cancelledCount ? line('ยกเลิก', k.cancelledCount + ' บิล · ' + CFApp.baht(k.cancelledAmount), 'muted') : '') +
+            (k.refundedCount ? line('คืนเงิน', k.refundedCount + ' บิล · ' + CFApp.baht(k.refundedAmount), 'muted') : '');
 
-        /* ── ลิงก์ส่งออกทีละไฟล์ ── */
+        const top = CFKpi.topProducts(shift.id, 5);
+        document.getElementById('topList').innerHTML = top.length ? top.map((t, i) => `
+            <div class="cf-top-row"><span class="cf-top-rank">${i + 1}</span>
+                <span class="cf-top-name">${e(t.name)}</span>
+                <span class="cf-top-val"><b>${t.qty}</b> · ${CFApp.baht(t.amount)}</span></div>`).join('')
+            : '<div class="ds-empty-sm">ยังไม่มียอดขาย</div>';
+
         document.getElementById('csvLinks').innerHTML = [
-            ['orders.csv', 'orders'], ['order_items.csv', 'orderItems'],
-            ['payments.csv', 'payments'], ['daily_closing.csv', 'dailyClosing'],
-        ].map(([name, fn]) => `
-            <a class="ds-quick-link" href="#" onclick="ClosingPage.one('${name}','${fn}');return false">
-                <i data-lucide="file-down" class="icon-sm"></i> ${name}
-            </a>`).join('');
+            ['orders.csv', 'orders', 'ออเดอร์'], ['order_items.csv', 'orderItems', 'รายการสินค้า'],
+            ['payments.csv', 'payments', 'การชำระเงิน'], ['daily_closing.csv', 'dailyClosing', 'สรุปปิดรอบ'],
+        ].map(([name, fn, th]) => `
+            <a href="#" onclick="ClosingPage.one('${name}','${fn}');return false">
+                <i data-lucide="file-down" class="icon-sm"></i> ${th} <span class="td-sub">${name}</span></a>`).join('');
 
         CFApp.applyRoleGate();
         refreshIcons();
@@ -310,10 +307,10 @@ const ClosingPage = {
                     review ? 'รอตรวจสลิป ' + review + ' ออเดอร์ → ยืนยัน/ปฏิเสธที่หน้าแคชเชียร์' : '',
                     paid ? 'ชำระแล้วแต่ยังไม่ส่งมอบ ' + paid + ' ออเดอร์ → ส่งมอบ หรือกด "ปิดรายการ"' : '',
                 ],
-                note: 'ออเดอร์ทดสอบ/ค้างนาน กด "เคลียร์ทั้งหมด" ได้ในครั้งเดียว (ยกเว้นที่รอตรวจสลิป)',
+                note: 'ขั้นที่ 1 มีปุ่ม "ยกเลิกทั้งหมด" / "ปิดรายการทั้งหมด" ทำทีเดียวทั้งกลุ่มได้ (ยกเว้นที่รอตรวจสลิป)',
                 cancelText: 'ปิด', confirmText: 'ไปที่รายการค้าง', danger: false,
             });
-            const card = document.getElementById('pendingCard');
+            const card = document.getElementById('step1');
             if (go && card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
         }
@@ -326,15 +323,17 @@ const ClosingPage = {
         }
 
         const diff = actual - cc.expected;
+        const note = (document.getElementById('closeNote').value || '').trim();
         const ok = await Drawer.confirm({
             title: 'ปิดรอบการขาย?',
-            message: shift.id,
+            message: 'รอบเปิดตั้งแต่ ' + CFApp.dateTime(shift.openedAt),
             lines: [
                 'ยอดขายรวม ' + CFApp.baht(k.sales) + ' · ' + k.orderCount + ' บิล',
                 'เงินสดที่ควรมี ' + CFApp.baht(cc.expected),
                 'นับได้จริง ' + CFApp.baht(actual),
                 (diff === 0 ? 'เงินสดตรงพอดี' : (diff < 0 ? 'ขาด ' : 'เกิน ') + CFApp.baht(Math.abs(diff))),
-            ],
+                note ? 'หมายเหตุ: ' + note : '',
+            ].filter(Boolean),
             note: this.state.reopen
                 ? 'เปลี่ยนกะ — ระบบเปิดรอบใหม่ให้ทันที เงินตั้งต้น ' + CFApp.baht(actual)
                 : 'ปิดร้าน — คีออสก์จะไม่รับออเดอร์จนกว่าจะกด "เปิดรอบ" อีกครั้ง',
@@ -346,16 +345,16 @@ const ClosingPage = {
         // ★ ล็อกปุ่มระหว่างรอ — กดซ้ำตอนจอยังไม่อัปเดต = ปิดรอบใหม่ที่ระบบเพิ่งเปิดให้ทันที (รอบว่างซ้อนหลายรอบ)
         if (this._closing) return;
         this._closing = true;
-        // ปุ่มปิดรอบมีสองที่ (หัวหน้า + ท้ายการ์ดนับเงิน) — ล็อกพร้อมกัน
-        const btns = ['closeBtn', 'closeBtn2'].map((id) => document.getElementById(id)).filter(Boolean);
+        const btns = ['closeBtn'].map((id) => document.getElementById(id)).filter(Boolean);
         btns.forEach((b) => { b.disabled = true; });
         try {
             const res = await CFStore.cmd('post',
                 '/api/shifts/' + encodeURIComponent(shift.id) + '/close',
-                { actualCash: actual, reopen: !!this.state.reopen });
+                { actualCash: actual, reopen: !!this.state.reopen, note });
             this.state.actual = null;
             const el2 = document.getElementById('actualCash');
             if (el2) el2.value = '';
+            document.getElementById('closeNote').value = '';
             this.state.reopen = false;
             document.getElementById('reopenToggle').classList.remove('is-on');
             showToast(res.nextShift

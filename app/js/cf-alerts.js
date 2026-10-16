@@ -87,8 +87,14 @@ const CFAlerts = {
             const locked = !ctx || ctx.state !== 'running';
             b.classList.toggle('is-locked', locked && !this.muted);
             b.classList.toggle('is-off', this.muted);
-            b.textContent = this.muted ? '🔕 ปิดเสียงเตือนอยู่'
-                : locked ? '🔔 แตะเพื่อเปิดเสียงเตือน' : '🔔 เสียงเตือนเปิดอยู่';
+            // ไอคอนเล็กบนแถบเมนู (จัดใหม่ 16/10/2569) — เดิมเป็นปุ่มส้มกะพริบ "แตะเพื่อเปิดเสียงเตือน"
+            // เด่นที่สุดของทุกหน้าจนดูเหมือนระบบแจ้ง error · แตะตรงไหนของหน้าก็ปลดล็อกเสียงอยู่แล้ว (unlock ด้านล่าง)
+            const label = this.muted ? 'ปิดเสียงเตือนอยู่ — แตะเพื่อเปิด'
+                : locked ? 'เสียงเตือนยังไม่ทำงาน — แตะที่ใดก็ได้บนหน้าเพื่อเปิด' : 'เสียงเตือนเปิดอยู่ — แตะเพื่อปิด';
+            const icons = window.DS_ICONS || {};
+            b.innerHTML = (this.muted || locked ? icons.bellOff : icons.bell) || (this.muted || locked ? '🔕' : '🔔');
+            b.title = label;
+            b.setAttribute('aria-label', label);
         };
         // แตะตรงไหนของหน้าก็ได้ ปลดล็อกเสียงของเบราว์เซอร์
         const unlock = () => {

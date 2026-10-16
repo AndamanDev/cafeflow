@@ -363,14 +363,150 @@ function registerReports(app, deps) {
             overrides.forEach((o) => { row(o.id).overrides = o.n; });
             voids.forEach((v) => { row(v.id)[{ CANCELLED: 'cancelled', VOIDED: 'voided', REFUNDED: 'refunded' }[v.st]] = v.n; });
 
+            /* ── สรุปยอดขายรายวัน (แบบ POS ทั่วไป) ──
+               ยอดขายรวม = ก่อนหักคืนเงิน/ส่วนลด (บิลที่เคยรับเงิน: ขายแล้ว + คืนเงิน)
+               สุทธิ = รวม − คืนเงิน − ส่วนลด = ยอดของบิลที่ขายอยู่ (ตรงกับ summary.sales)
+               ★ คืนเงินนับเข้าวันทำการของบิล ไม่ใช่วันที่คืน — บิลหนึ่งใบอยู่วันเดียว ยอดย้อนหลังไม่ขยับข้ามวัน */
+            const PAID_EVER = [...SOLD, 'REFUNDED'];
+            const dayRows = (await c.query(
+                `SELECT to_char(o.business_date, 'YYYY-MM-DD') AS day,
+                        COALESCE(SUM(o.total + o.discount), 0) AS gross,
+                        COALESCE(SUM(o.total) FILTER (WHERE o.status = 'REFUNDED'), 0) AS refunds,
+                        COALESCE(SUM(o.discount), 0) AS discounts,
+                        count(*) FILTER (WHERE o.status = ANY($4))::int AS orders,
+                        count(*) FILTER (WHERE o.discount > 0)::int AS discount_orders
+                   FROM cf_order o WHERE ${inRange} AND o.status = ANY($5)
+                  GROUP BY 1 ORDER BY 1`, [...args, PAID_EVER])).rows;
+            const costRows = (await c.query(
+                `SELECT to_char(o.business_date, 'YYYY-MM-DD') AS day,
+                        SUM(i.qty * i.unit_cost) AS cost, bool_or(i.unit_cost IS NULL) AS cost_missing
+                   FROM order_item i JOIN cf_order o ON o.id = i.order_id
+                  WHERE ${inRange} AND o.status = ANY($4) AND i.item_status <> 'VOID'
+                  GROUP BY 1`, args)).rows;
+            const costOf = new Map(costRows.map((r) => [r.day, r]));
+            const daily = dayRows.map((r) => {
+                const k = costOf.get(r.day);
+                const net = n(r.gross) - n(r.refunds) - n(r.discounts);
+                const cost = k && !k.cost_missing ? n(k.cost) : null;      // บางแก้วไม่มีต้นทุน = ไม่เดากำไร
+                return { day: r.day, orders: r.orders, gross: n(r.gross), refunds: n(r.refunds),
+                         discounts: n(r.discounts), discountOrders: r.discount_orders,
+                         net, cost, profit: cost == null ? null : net - cost };
+            });
+
+            /* ── ต่อสินค้า (พร้อมหมวดปัจจุบันของสินค้า) → รวมเป็นต่อหมวดที่นี่ ไม่ query ซ้ำ ──
+               amount = qty × unit_price (รวมราคาตัวเลือกแล้ว) · ต้นทุน ณ วันขาย ไม่รวมต้นทุนท็อปปิ้ง */
+            const prodRows = (await c.query(
+                `SELECT i.product_id, i.name_snapshot AS name,
+                        COALESCE(cat.id, '') AS cat_id, COALESCE(cat.name_th, 'ไม่มีหมวด') AS cat_name,
+                        SUM(i.qty)::int AS qty, SUM(i.qty * i.unit_price) AS amount,
+                        SUM(i.qty * i.unit_cost) AS cost, bool_or(i.unit_cost IS NULL) AS cost_missing
+                   FROM order_item i JOIN cf_order o ON o.id = i.order_id
+                   LEFT JOIN product p ON p.id = i.product_id
+                   LEFT JOIN category cat ON cat.id = p.category_id
+                  WHERE ${inRange} AND o.status = ANY($4) AND i.item_status <> 'VOID'
+                  GROUP BY 1, 2, 3, 4 ORDER BY qty DESC, amount DESC`, args)).rows;
+            const products = prodRows.map((r) => ({
+                productId: r.product_id, name: r.name, category: r.cat_name,
+                qty: r.qty, amount: n(r.amount), cost: r.cost_missing ? null : n(r.cost),
+            }));
+            const cats = new Map();
+            for (const p of products) {
+                const k = cats.get(p.category) || { name: p.category, qty: 0, amount: 0, cost: 0, items: 0 };
+                k.qty += p.qty; k.amount += p.amount; k.items += 1;
+                k.cost = k.cost == null || p.cost == null ? null : k.cost + p.cost;
+                cats.set(p.category, k);
+            }
+            const categories = [...cats.values()].sort((a, b) => b.amount - a.amount);
+
+            /* ── ต่อประเภทการชำระ — ขาย / คืนเงิน / สุทธิ ── */
+            const payments = (await c.query(
+                `SELECT o.payment_method AS method,
+                        count(*) FILTER (WHERE o.status = ANY($4))::int AS orders,
+                        COALESCE(SUM(o.total) FILTER (WHERE o.status = ANY($4)), 0) AS amount,
+                        count(*) FILTER (WHERE o.status = 'REFUNDED')::int AS refund_orders,
+                        COALESCE(SUM(o.total) FILTER (WHERE o.status = 'REFUNDED'), 0) AS refunds
+                   FROM cf_order o WHERE ${inRange} AND o.status = ANY($5)
+                  GROUP BY 1 ORDER BY amount DESC`, [...args, PAID_EVER])).rows.map((r) => ({
+                method: r.method, orders: r.orders, refundOrders: r.refund_orders,
+                gross: n(r.amount) + n(r.refunds), refunds: n(r.refunds), net: n(r.amount),
+            }));
+
+            /* ── ต่อตัวเลือกเพิ่มเติม — นับเป็นจำนวนแก้ว (qty ของรายการ) · ยอด = ราคาเพิ่มของตัวเลือก ── */
+            const modifiers = (await c.query(
+                `SELECT m.group_id, COALESCE(g.name_th, m.group_id) AS group_name, m.label,
+                        SUM(i.qty)::int AS qty, SUM(i.qty * m.price_delta) AS amount
+                   FROM order_item_modifier m
+                   JOIN order_item i ON i.id = m.order_item_id
+                   JOIN cf_order o ON o.id = i.order_id
+                   LEFT JOIN modifier_group g ON g.id = m.group_id
+                  WHERE ${inRange} AND o.status = ANY($4) AND i.item_status <> 'VOID'
+                  GROUP BY 1, 2, 3 ORDER BY group_name, qty DESC`, args)).rows.map((r) => ({
+                group: r.group_name, label: r.label, qty: r.qty, amount: n(r.amount),
+            }));
+
+            /* ── ภาษี — เฉพาะสาขาที่จด VAT · ราคาขายรวม VAT แล้ว (สูตรเดียวกับใบเสร็จ raster.receipt) ── */
+            const br = (await c.query('SELECT vat_registered, vat_percent FROM branch WHERE id = $1',
+                [branchId()])).rows[0] || {};
+            const rate = Number(br.vat_percent ?? 7);
+            const tax = {
+                registered: !!br.vat_registered, rate,
+                days: daily.map((d) => {
+                    const vat = d.net - d.net / (1 + rate / 100);
+                    return { day: d.day, net: d.net, beforeVat: d.net - vat, vat };
+                }),
+            };
+
             return {
                 from, to,
                 summary: await summarize(c, branchId(), scope),
-                byHour, byDay,
-                products: await topProducts(c, branchId(), scope, 200, true),
+                byHour, byDay, daily,
+                products, categories, payments, modifiers, tax,
                 staff: [...staff.values()].sort((a, b) => b.sales - a.sales),
             };
         } finally { c.release(); }
+    }));
+
+    /**
+     * รายงาน › ใบเสร็จรับเงิน — บิลที่เคยรับเงินในช่วงวันทำการ (ขายแล้ว + คืนเงิน) ใหม่สุดก่อน
+     * แบ่งหน้า (ร้านขายดีเดือนหนึ่งหลายพันใบ) · all=1 = ทั้งหมดสำหรับ CSV (เพดาน 20,000 ใบ)
+     */
+    app.get('/api/reports/receipts', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        if (!['ADMIN', 'MANAGER'].includes(ctx.user.role)) throw new ApiError(403, 'รายงานดูได้เฉพาะผู้จัดการและแอดมิน');
+        const DAY = /^\d{4}-\d{2}-\d{2}$/;
+        const { from, to } = req.query;
+        if (!DAY.test(String(from || '')) || !DAY.test(String(to || ''))) throw new ApiError(400, 'ต้องระบุ from และ to เป็น YYYY-MM-DD');
+        if (from > to) throw new ApiError(400, 'วันเริ่มต้องไม่หลังวันสิ้นสุด');
+
+        const all = req.query.all === '1';
+        const limit = all ? 20000 : Math.min(parseInt(req.query.limit || '100', 10) || 100, 500);
+        const offset = all ? 0 : Math.max(0, parseInt(req.query.offset || '0', 10) || 0);
+        const args = [branchId(), from, to, [...SOLD, 'REFUNDED']];
+        const where = `o.branch_id = $1 AND o.business_date BETWEEN $2::date AND $3::date AND o.status = ANY($4)`;
+
+        const rows = (await query(
+            `SELECT o.id, o.order_no, o.status, o.total, o.discount, o.payment_method, o.dining_option,
+                    o.created_at, o.paid_at, o.refunded_at, o.cashier_id, u.name_th AS cashier_name,
+                    (SELECT COALESCE(SUM(i.qty), 0)::int FROM order_item i
+                      WHERE i.order_id = o.id AND i.item_status <> 'VOID') AS item_qty
+               FROM cf_order o LEFT JOIN app_user u ON u.id = o.cashier_id
+              WHERE ${where}
+              ORDER BY COALESCE(o.paid_at, o.created_at) DESC
+              LIMIT $5 OFFSET $6`, [...args, limit, offset])).rows;
+        const total = (await query(`SELECT count(*)::int AS n FROM cf_order o WHERE ${where}`, args)).rows[0].n;
+
+        return {
+            total, limit, offset,
+            receipts: rows.map((o) => ({
+                id: o.id, orderNo: o.order_no, status: o.status, total: n(o.total), discount: n(o.discount),
+                paymentMethod: o.payment_method, diningOption: o.dining_option,
+                paidAt: o.paid_at || o.created_at, refundedAt: o.refunded_at,
+                // บิลที่ระบบปิดเองจากสลิปผ่าน ไม่มีพนักงาน
+                cashier: o.cashier_id ? (o.cashier_name || o.cashier_id) : 'ระบบอัตโนมัติ',
+                itemQty: o.item_qty,
+            })),
+        };
     }));
 
     /**

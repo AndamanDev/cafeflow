@@ -457,6 +457,8 @@ function closingSlip({ shift, summary: k, cash: cc, branch, staff, width = '80mm
     s.row('ควรมี', money(cc.expected), { size: base + 2, bold: true });
     s.row('นับได้จริง', cc.actual == null ? blank : money(cc.actual), { size: base });
     s.row('ผลต่าง', cc.difference == null ? blank : money(cc.difference), { size: base + 2, bold: true });
+    // หมายเหตุตอนปิดรอบ (migration 015) — เหตุผลของเงินขาด/เกิน
+    if (shift && shift.close_note) s.wrap('หมายเหตุ: ' + shift.close_note, { size: narrow ? 17 : 18, lh: 1.35 });
     s.rule();
 
     s.gap(10);

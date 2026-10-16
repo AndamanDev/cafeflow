@@ -76,9 +76,47 @@
     /** สถานะที่ถือว่าจบแล้ว ไม่มีทางไปต่อ */
     function isTerminal(status) { return nextStates(status).length === 0; }
 
+    /**
+     * กฎการรับเงิน (→ PAID) ที่เซิร์ฟเวอร์บังคับ ไม่เชื่อว่าหน้าจอส่ง override มาครบ
+     *   p = { from, bySystem, amount, received, override, reason, limit }
+     *   คืน { ok:true, override } หรือ { ok:false, status, message }
+     *
+     * ★ ยิง API ตรงต้องไม่ได้มากกว่ากดปุ่ม — เดิมเพดาน/เหตุผลถูกตรวจเฉพาะเมื่อหน้าจอส่ง override
+     *   มา จึงตั้งออเดอร์ QR เป็น PAID ได้โดยไม่มีหลักฐานว่าเงินเข้า
+     *   มีหลักฐานจริงแค่สองทาง: เงินสดในมือ (จาก WAITING_CASH) กับสลิปที่ระบบตรวจผ่าน (bySystem)
+     *   ที่เหลือคือคนยืนยันแทนระบบ → ติดเพดาน + ต้องมีเหตุผลเสมอ
+     */
+    function checkSettle(p) {
+        const amount = Number(p.amount);
+        const override = !!p.override || (!p.bySystem && p.from !== 'WAITING_CASH');
+
+        if (p.received != null) {
+            const r = Number(p.received);
+            if (!isFinite(r) || r < 0) {
+                return { ok: false, status: 400, message: 'จำนวนเงินที่รับมาไม่ถูกต้อง' };
+            }
+            // เทียบเป็นสตางค์ — ทศนิยมแบบ float ทำให้ 120.1 < 120.1 ได้
+            if (Math.round(r * 100) < Math.round(amount * 100)) {
+                return { ok: false, status: 400,
+                         message: `รับเงินมา ฿${r.toFixed(2)} ไม่พอกับยอด ฿${amount.toFixed(2)}` };
+            }
+        }
+
+        if (override) {
+            if (p.limit != null && amount > Number(p.limit)) {
+                return { ok: false, status: 403,
+                         message: `ยอด ฿${amount.toFixed(2)} เกินเพดานที่ยืนยันแทนได้ (฿${Number(p.limit).toFixed(2)})` };
+            }
+            if (!String(p.reason || '').trim()) {
+                return { ok: false, status: 400, message: 'การยืนยันแทนต้องระบุเหตุผล' };
+            }
+        }
+        return { ok: true, override };
+    }
+
     // ค่าคงที่ขึ้นต้น CF_ ปล่อยเป็น global ได้ (ชื่อเฉพาะพอ) ส่วนฟังก์ชันรวมเป็น CFFlow
     return {
         CF_FLOW, CF_REASON_REQUIRED, CF_ACTION_LABEL, CF_STAMP,
-        CFFlow: { nextStates, canGo, needsReason, stampFor, isTerminal },
+        CFFlow: { nextStates, canGo, needsReason, stampFor, isTerminal, checkSettle },
     };
 });

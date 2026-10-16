@@ -77,7 +77,7 @@
                 <button class="ds-chip-toggle" id="fOnSale" onclick="MenuPage.toggleFilter('onSale')">เฉพาะที่เปิดขาย</button>
                 <button class="ds-chip-toggle" id="fSoldOut" onclick="MenuPage.toggleFilter('soldOut')">เฉพาะสินค้าหมด</button>
                 <button class="btn btn-outline btn-sm" data-role-gate="ADMIN MANAGER" onclick="MenuPage.openBulkPrice()"
-                        title="ปรับราคาสินค้าที่แสดงในตารางตอนนี้ทีเดียว">
+                        title="ปรับราคาทุกรายการที่ผ่านตัวกรองตอนนี้ (ทุกหน้า) ทีเดียว">
                     <i data-lucide="tags" class="icon-sm"></i> ปรับราคาหลายรายการ</button>
             </div>
         </div>
@@ -97,6 +97,8 @@
                 <tbody id="rows"></tbody>
             </table>
         </div>
+        <!-- แบ่งหน้า — MenuPage.renderPager() -->
+        <div class="cf-pager" id="pager"></div>
     </div>
 
 </div>

@@ -36,79 +36,44 @@
 
 <div class="page-container">
 
+    <!-- ภาพรวม: วันนี้ขายเท่าไร → มีอะไรต้องจัดการ → ร้านเป็นยังไงตอนนี้ (ผู้ใช้ขอจัดใหม่ 16/10/2569)
+         ทุกตัวเลขบนหน้านี้คือ "วันทำการนี้" ยกเว้นรายการต้องจัดการ ซึ่งรวมของค้างจากวันก่อน -->
     <div class="page-header">
         <div>
             <div class="page-title">
                 <i data-lucide="layout-dashboard" class="mi"></i>
-                <span>ภาพรวมการปฏิบัติงาน</span>
+                <span>ภาพรวม</span>
             </div>
-            <div class="page-subtitle" id="shiftLine">—</div>
+            <div class="page-subtitle" id="dayLine">—</div>
         </div>
+        <div class="section-actions" id="shiftLine"></div>
     </div>
 
-    <!-- รอบเปิดค้างข้ามวันทำการ — CFApp.staleShiftHtml() -->
-    <div id="staleShift"></div>
+    <div class="ds-kpi-grid" id="kpis"></div>
 
-    <!-- เตือนผู้จัดการเมื่อมีเครื่องหลุดการจับคู่ (ค้างหน้าขอรหัส) — DashPage.renderDevWaits() -->
-    <div id="devWaitBanner" style="display:none;margin-bottom:14px"></div>
+    <!-- ต้องจัดการ — รวมทุกเรื่องที่รอคนทำไว้ที่เดียว · ไม่มีเรื่อง = ซ่อนทั้งกล่อง -->
+    <div class="section-card cf-attn" id="attn" hidden></div>
 
-    <!-- เตือนเมื่อไม่ได้สำรองข้อมูลนานเกิน 2 วัน -->
-    <div id="backupBanner" style="display:none;margin-bottom:14px"></div>
-
-    <!-- เตือนแอดมินเมื่อยังมีบัญชีใช้รหัสตั้งต้น -->
-    <div id="weakPwBanner" style="display:none;margin-bottom:14px"></div>
-
-    <!-- ยอดขาย (§25) — ตัวเลขที่เจ้าของร้านดูก่อนเสมอ จึงใหญ่สุด -->
-    <div class="cf-dash-sales" id="kpiSales"></div>
-
-    <!-- ตอนนี้ในร้าน — งานค้างที่ต้องมีคนจัดการ + ความเร็วการบริการ -->
-    <div class="cf-dash-label">ตอนนี้ในร้าน</div>
-    <div class="cf-dash-ops" id="kpiOps"></div>
-
-    <div class="cf-dash-main">
-        <div class="section-card cf-dash-activity">
-            <div class="section-header">
-                <div class="section-title">
-                    <i data-lucide="activity" class="mi"></i> กิจกรรมล่าสุด
-                </div>
-                <div class="section-actions">
-                    <a class="btn btn-outline btn-sm" href="orders.html">
-                        ดูประวัติบิล <i data-lucide="arrow-right" class="icon-sm"></i>
-                    </a>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="cf-activity" id="activity"></div>
-            </div>
+    <div class="cf-dash-grid">
+        <div class="clinical-card cf-dash-hours">
+            <div class="card-title">ยอดขายรายชั่วโมง · วันนี้</div>
+            <div id="hourChart"></div>
         </div>
-
-        <div class="cf-dash-side">
-            <div class="clinical-card">
-                <div class="card-title">ภาระงานแต่ละสถานี</div>
-                <div id="stationLoad"></div>
-                <div class="card-footer">นับเฉพาะออเดอร์ที่ยังอยู่ในสายการผลิต</div>
+        <div class="clinical-card cf-dash-top">
+            <div class="card-title cf-card-title-row">ขายดีวันนี้
+                <a class="btn btn-outline btn-sm" href="reports.html#items" data-role-gate="ADMIN MANAGER">ดูทั้งหมด <i data-lucide="arrow-right" class="icon-sm"></i></a>
             </div>
-            <div class="clinical-card">
-                <div class="card-title">สินค้าหมดวันนี้</div>
-                <div id="soldOut"></div>
+            <div id="topToday"></div>
+        </div>
+        <div class="clinical-card cf-dash-live">
+            <div class="card-title">ตอนนี้ในร้าน · วันนี้</div>
+            <div id="liveOps"></div>
+        </div>
+        <div class="clinical-card cf-dash-recent">
+            <div class="card-title cf-card-title-row">บิลล่าสุด
+                <a class="btn btn-outline btn-sm" href="orders.html">ดูทั้งหมด <i data-lucide="arrow-right" class="icon-sm"></i></a>
             </div>
-            <div class="clinical-card">
-                <div class="card-title">ตั้งค่าร้าน</div>
-                <div class="cf-dash-tools">
-                    <button class="cf-tool" onclick="DashPage.openDevices()">
-                        <i data-lucide="monitor"></i><span>อุปกรณ์</span></button>
-                    <button class="cf-tool" data-role-gate="ADMIN MANAGER" id="btnPrinters" onclick="DashPage.openPrinters()">
-                        <i data-lucide="printer"></i><span>เครื่องพิมพ์</span></button>
-                    <button class="cf-tool" data-role-gate="ADMIN MANAGER" onclick="DashPage.openSlipAccuracy()">
-                        <i data-lucide="scan-text"></i><span>ตรวจสลิป</span></button>
-                    <button class="cf-tool" data-role-gate="ADMIN MANAGER" onclick="DashPage.openShop()">
-                        <i data-lucide="store"></i><span>ข้อมูลร้าน</span></button>
-                    <button class="cf-tool" data-role-gate="ADMIN MANAGER" onclick="DashPage.openKioskSettings()">
-                        <i data-lucide="tablet-smartphone"></i><span>คีออสก์</span></button>
-                    <button class="cf-tool" data-role-gate="ADMIN" onclick="DashPage.openUsers()">
-                        <i data-lucide="users"></i><span>ผู้ใช้และสิทธิ์</span></button>
-                </div>
-            </div>
+            <div id="recent"></div>
         </div>
     </div>
 

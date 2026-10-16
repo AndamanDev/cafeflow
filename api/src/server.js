@@ -212,6 +212,12 @@ async function start() {
     const host = process.env.HOST || '::';     // dual-stack — ดูเหตุผลใน .env.example
     await app.listen({ port, host });
 
+    // รหัสฐานเริ่มต้นอยู่ใน repo สาธารณะ — เตือนทุกครั้งที่เปิด จนกว่าจะเปลี่ยน
+    // (ไม่ปฏิเสธการเปิด: เครื่องร้านที่อัปเดตโค้ดแล้วยังไม่ได้รันสคริปต์ต้องขายต่อได้)
+    if ((process.env.PGPASSWORD || 'cafeflow_dev') === 'cafeflow_dev') {
+        app.log.warn('ฐานข้อมูลยังใช้รหัสเริ่มต้น cafeflow_dev — เปลี่ยนด้วย node ops/rotate-db-password.js');
+    }
+
     // เฝ้าสถานะอุปกรณ์ (หลุดออฟไลน์ / คำเตือนหมดอายุ) → หน้าภาพรวมอัปเดตเอง
     require('./routes/devices').startDeviceWatch(query, () => BRANCH_ID);
     // ล้าง session หมดอายุ / change_log เก่า — ไม่แตะข้อมูลบัญชี

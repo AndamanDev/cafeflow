@@ -300,17 +300,18 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
     }
 
     // เงินสดที่ควรมีคิดจากฐาน ไม่เชื่อตัวเลขที่หน้าจอส่งมา
-    const cash = Number((await c.query(
-        `SELECT COALESCE(SUM(p.amount), 0) AS v FROM payment p
-           JOIN cf_order o ON o.id = p.order_id
-          WHERE o.shift_id = $1 AND p.method = 'CASH' AND p.status = 'PAID'`,
-        [shiftId])).rows[0].v);
+    // ใช้สูตรเดียวกับหน้าปิดรอบ (summarize → cashControl) — เดิมรวมจากตาราง payment ที่ status='PAID'
+    // ซึ่งบิล VOID ยังเป็น PAID อยู่ ตัวเลขที่บันทึกจึงมากกว่าที่หน้าจอโชว์ = เงินขาดปลอม
+    const { summarize } = require('./reports');
+    const cash = (await summarize(c, branchId, { shiftId })).cash;
     const expected = Number(s.opening_cash) + cash;
 
+    // หมายเหตุ (ไม่บังคับ) — อธิบายเงินขาด/เกิน ผู้จัดการดูย้อนหลังได้ · พิมพ์บนใบปิดรอบ (migration 015)
+    const note = String(body.note || '').trim().slice(0, 500) || null;
     await c.query(
         `UPDATE shift SET status = 'CLOSED', closed_at = now(), closed_by = $2,
-                actual_cash = $3, expected_cash = $4 WHERE id = $1`,
-        [shiftId, ctx.actorUserId || null, actual, expected]);
+                actual_cash = $3, expected_cash = $4, close_note = $5 WHERE id = $1`,
+        [shiftId, ctx.actorUserId || null, actual, expected, note]);
 
     // เปลี่ยนกะ — เปิดรอบใหม่ทันที เงินตั้งต้นคือเงินที่นับได้จริง
     const reopen = body.reopen === true;
@@ -320,7 +321,7 @@ async function closeShift(c, branchId, shiftId, body, ctx) {
     await audit(c, branchId, {
         eventType: 'SHIFT_CLOSE', actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
         deviceId: ctx.deviceId, ip: ctx.ip,
-        reason: `ปิดรอบ ${shiftId} · ผลต่าง ${(actual - expected).toFixed(2)}`,
+        reason: `ปิดรอบ ${shiftId} · ผลต่าง ${(actual - expected).toFixed(2)}${note ? ' · ' + note : ''}`,
         payload: { shiftId, expected, actual, cashSales: cash, nextShift: newId, carriedOver: carried },
     });
     await touch(c, branchId, 'shifts', shiftId, 'update');

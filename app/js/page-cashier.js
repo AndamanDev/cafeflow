@@ -15,12 +15,14 @@ const CashierPage = {
         this.refreshSlipOcr();
         const k = CFKpi.summary();
         const shift = CFStore.openShift();
-        this.renderShiftAlert(shift);
+        CFApp.staleShiftToast();     // ไม่มีรอบ — การ์ดเปิดรอบแทนรายการออเดอร์แล้ว (renderOpenShift)
         this.renderDevAlert();
         const me = CFAuth.getUser();
 
+        // เวลาเปิดรอบ ไม่ใช่รหัสรอบ (SH-…) — พนักงานไม่ต้องรู้รหัส ดูได้ที่หน้าปิดรอบ
         document.getElementById('cashierSub').textContent =
-            (me ? me.full_name + ' · ' : '') + (shift ? 'รอบ ' + shift.id : 'ยังไม่เปิดรอบ');
+            (me ? me.full_name + ' · ' : '') +
+            (shift ? 'เปิดรอบตั้งแต่ ' + CFApp.date(shift.openedAt) + ' ' + CFApp.time(shift.openedAt) : 'ยังไม่เปิดรอบ');
 
         this._autoTab(k);
 
@@ -109,34 +111,68 @@ const CashierPage = {
             return;
         }
 
-        area.innerHTML = '<div class="cf-order-grid">' + orders.map((o) => {
-            const items = CFOrders.items(o.id);
-            const lines = items.slice(0, 3).map((i) =>
-                `<div class="td-sub">${i.qty} × ${e(i.nameSnapshot)}</div>`).join('');
-            const more = items.length > 3 ? `<div class="td-sub">และอีก ${items.length - 3} รายการ</div>` : '';
+        // ใบที่ค้างจากวันก่อนแยกไว้ท้าย — ไม่ปนกับลูกค้าที่ยืนรออยู่ตอนนี้ (ผู้ใช้ปรับหน้าตา 16/10/2569)
+        const today = CFDay.businessDate(Date.now(), CFDay.startHourOf(CFStore.settings()));
+        const now = orders.filter((o) => !o.businessDate || o.businessDate >= today);
+        const old = orders.filter((o) => o.businessDate && o.businessDate < today);
+        const grid = (list) => '<div class="cf-order-grid">' + list.map((o) => this.cardHtml(o, old.includes(o))).join('') + '</div>';
+        area.innerHTML =
+            (now.length ? grid(now) : old.length ? '<div class="ds-empty-sm">ไม่มีรายการของวันนี้ในแท็บนี้</div>' : '') +
+            (old.length ? `<div class="cf-oc-section"><i data-lucide="history" class="icon-sm"></i>
+                ค้างจากวันก่อน <span class="ds-pane-count">${old.length}</span>
+                <span class="td-sub">— จบหรือยกเลิกให้หมดก่อนปิดรอบ</span></div>` + grid(old) : '');
+    },
 
-            // การ์ดเรียบแบบเดียวกับรายการหน้าจัดการออเดอร์: เลขคิว + ยอด · จุดสีสถานะ + เวลา · รายละเอียดตัวเล็ก
-            // — เดิมมีป้ายสี 4 อันต่อใบ (สถานะ · กินที่ร้าน · หมายเหตุ · QR) ดูรก
-            const st = CF_STATUS[o.status] || { label: o.status, chip: 'sip-chip-muted' };
-            const tone = { 'sip-chip-danger': 'danger', 'sip-chip-active': 'warn', 'sip-chip-success': 'ok',
-                           'sip-chip-progress': 'info' }[st.chip] || 'muted';
-            return `<div class="sip-card sip-card-hover cf-order-card" onclick="CashierPage.open('${o.id}')">
-                <div class="cf-oc-head">
-                    <span class="cf-oc-no">${e(o.orderNo)}</span>
-                    <span class="cf-oc-amt">${CFApp.baht(o.total)}</span>
-                </div>
-                <div class="cf-oc-meta">
-                    <span class="cf-lc-status ${tone}"><i></i>${e(st.label)}</span>
-                    <span class="cf-lc-time">${CFApp.time(o.createdAt)}</span>
-                </div>
-                <div class="cf-oc-sub">
-                    ${e(o.kioskId || '—')} · ${e((CF_DINING[o.diningOption] || CF_DINING.DINE_IN).label)} ·
-                    ${o.paymentMethod === 'CASH' ? 'เงินสด' : 'QR / โอน'}
-                </div>
-                ${this._reviewBadge(o)}
-                <div class="cf-oc-items">${lines}${more}</div>
-            </div>`;
-        }).join('') + '</div>';
+    /**
+     * การ์ดออเดอร์ — มีปุ่มบอกสิ่งที่ต้องทำต่อทุกใบ (พนักงานใหม่ไม่ต้องเดาว่าต้องกดตรงไหน)
+     * รายละเอียดเฉพาะที่ต่างกันระหว่างใบ: กลับบ้าน (กินที่ร้านเป็นค่าปกติ ไม่ต้องบอก) · วิธีจ่ายเฉพาะแท็บที่ปนกัน
+     */
+    cardHtml(o, stale) {
+        const e = CFApp.esc;
+        const items = CFOrders.items(o.id);
+        const lines = items.slice(0, 3).map((i) =>
+            `<div class="td-sub">${i.qty} × ${e(i.nameSnapshot)}</div>`).join('');
+        const more = items.length > 3 ? `<div class="td-sub">และอีก ${items.length - 3} รายการ</div>` : '';
+
+        // การ์ดเรียบแบบเดียวกับรายการหน้าจัดการออเดอร์: เลขคิว + ยอด · จุดสีสถานะ + เวลา · รายละเอียดตัวเล็ก
+        // — เดิมมีป้ายสี 4 อันต่อใบ (สถานะ · กินที่ร้าน · หมายเหตุ · QR) ดูรก
+        const st = CF_STATUS[o.status] || { label: o.status, chip: 'sip-chip-muted' };
+        const tone = { 'sip-chip-danger': 'danger', 'sip-chip-active': 'warn', 'sip-chip-success': 'ok',
+                       'sip-chip-progress': 'info' }[st.chip] || 'muted';
+        return `<div class="sip-card sip-card-hover cf-order-card" onclick="CashierPage.open('${o.id}')">
+            <div class="cf-oc-head">
+                <span class="cf-oc-no">${e(o.orderNo)}</span>
+                <span class="cf-oc-amt">${CFApp.baht(o.total)}</span>
+            </div>
+            <div class="cf-oc-meta">
+                <span class="cf-lc-status ${tone}"><i></i>${e(st.label)}</span>
+                <span class="cf-lc-time">${CFApp.time(o.createdAt)}</span>
+            </div>
+            ${this._cardSub(o)}
+            ${this._reviewBadge(o)}
+            <div class="cf-oc-items">${lines}${more}</div>
+            ${this._cardAction(o, stale)}
+        </div>`;
+    },
+
+    _cardSub(o) {
+        const bits = [];
+        if (o.diningOption === 'TAKE_AWAY') bits.push('<span class="sip-chip sip-chip-amber">กลับบ้าน</span>');
+        if (['cooking', 'ready'].includes(this.state.tab)) bits.push(o.paymentMethod === 'CASH' ? 'จ่ายเงินสด' : 'จ่าย QR');
+        return bits.length ? `<div class="cf-oc-sub">${bits.join(' ')}</div>` : '';
+    },
+
+    /**
+     * ปุ่มหลักของการ์ด — ตามสิ่งที่ต้องทำในแท็บนั้น (รอโอน/กำลังทำ = รอคนอื่น ไม่มีปุ่ม)
+     * stale = ค้างจากวันก่อน → ปุ่มขอบบาง ให้ของลูกค้าที่รออยู่ตอนนี้เด่นกว่า
+     */
+    _cardAction(o, stale) {
+        const btn = (label, icon, onclick) => `<button class="btn ${stale ? 'btn-outline' : 'btn-primary'} btn-sm cf-oc-act"
+            onclick="event.stopPropagation();${onclick}"><i data-lucide="${icon}" class="icon-sm"></i> ${label}</button>`;
+        if (o.status === 'WAITING_CASH') return btn('รับเงินสด', 'banknote', `CashierPage.open('${o.id}')`);
+        if (['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status)) return btn('ตรวจการชำระ', 'scan-text', `CashierPage.open('${o.id}')`);
+        if (o.status === 'READY') return btn('ส่งมอบให้ลูกค้า', 'hand-platter', `CashierPage.serve('${o.id}')`);
+        return '';
     },
 
     /**
@@ -372,29 +408,6 @@ const CashierPage = {
             this._cash.busy = false;
             if (btn && document.body.contains(btn)) btn.disabled = false;
         }
-    },
-
-    /**
-     * แถบเตือนยังไม่เปิดรอบ — ปิดรอบตอนปิดร้านแล้วระบบไม่เปิดรอบใหม่ให้
-     * ลืมกดเปิดตอนเช้า = คีออสก์รับออเดอร์ไม่ได้ทั้งร้าน จึงต้องเห็นชัดตั้งแต่เปิดหน้า
-     */
-    renderShiftAlert(shift) {
-        const el = document.getElementById('shiftAlert');
-        if (!el) return;
-        if (shift) {                                  // เปิดอยู่ — เตือนเฉพาะตอนค้างข้ามวันทำการ
-            const stale = CFApp.staleShiftHtml();
-            el.hidden = !stale;
-            el.innerHTML = stale;
-            return;
-        }
-        el.hidden = true;            // ไม่มีรอบ — การ์ดเปิดรอบแทนรายการออเดอร์แล้ว (renderOpenShift) ไม่ต้องมีแถบซ้ำ
-        return;
-        el.innerHTML = `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-            <i data-lucide="lock" class="icon-sm"></i>
-            <span style="flex:1"><strong>ยังไม่ได้เปิดรอบการขาย</strong> — คีออสก์ยังไม่รับออเดอร์ · นับเงินทอนในลิ้นชักแล้วกดเปิดรอบ</span>
-            <button class="btn btn-primary btn-sm" onclick="location.href='closing.html'">
-                <i data-lucide="unlock" class="icon-sm"></i> เปิดรอบ</button>
-        </div>`;
     },
 
     /**

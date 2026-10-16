@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- =========================================================================
-  CafeFlow — รายงาน (ยอดตามช่วงวันทำการ · รายชั่วโมง · สินค้าขายดี · กำไรต่อเมนู · พนักงาน)
+  CafeFlow — รายงาน 9 แบบ (สรุปยอดขาย · สินค้า · หมวดหมู่ · พนักงาน · ประเภทการชำระ ·
+                         ใบเสร็จ · ตัวเลือกเพิ่มเติม · ส่วนลด · ภาษี) — ทุกตารางส่งออก CSV ได้
   โครง: .page-container (หน้าเลื่อนปกติ) · ผู้จัดการ + แอดมินเท่านั้น (PRICE_EDIT = ระดับผู้จัดการ)
-  ข้อมูลมาจาก GET /api/reports/days — ไม่ใช้ cache 24 ชม. ของเบราว์เซอร์ ดูย้อนหลังได้ถูก
+  ข้อมูลมาจาก GET /api/reports/days (+ /api/reports/receipts) — ไม่ใช้ cache 24 ชม. ของเบราว์เซอร์ ดูย้อนหลังได้ถูก
   ========================================================================= -->
 <html lang="th">
 <head>
@@ -55,31 +56,10 @@
         </div>
     </div>
 
-    <div class="ds-kpi-grid" id="kpis"></div>
-
-    <div class="clinical-card"><div class="card-title">ยอดขายรายชั่วโมง</div>
-        <div id="hourChart"></div>
-    </div>
-
-    <div class="clinical-card" id="dayCard" hidden><div class="card-title">ยอดขายรายวัน</div>
-        <div id="dayChart"></div>
-    </div>
-
-    <div class="cf-rp-grid">
-        <div class="clinical-card"><div class="card-title">สินค้าขายดี</div>
-            <div id="topList"></div>
-        </div>
-        <div class="clinical-card"><div class="card-title">พนักงาน</div>
-            <div id="staffTable"></div>
-        </div>
-    </div>
-
-    <div class="clinical-card"><div class="card-title">กำไรต่อเมนู</div>
-        <div id="profitTable"></div>
-        <div class="ds-note" style="margin-top:10px">
-            ต้นทุนใช้ค่าที่ตั้งไว้ ณ วันที่ขาย (แก้ต้นทุนทีหลัง กำไรย้อนหลังไม่เปลี่ยน) · <b>ยังไม่รวมต้นทุนท็อปปิ้ง</b>
-            เมนูที่ขายท็อปปิ้งเสริมเยอะจะแสดงกำไรสูงกว่าจริงเล็กน้อย · ตั้งต้นทุนได้ที่หน้าเมนูและสินค้า
-        </div>
+    <div class="cf-rp-layout">
+        <!-- เมนูรายงาน — RP_LIST ใน page-reports.js · จอแคบกลายเป็นแถบเลื่อนแนวนอน -->
+        <nav class="cf-rp-nav" id="rpNav" aria-label="รายงาน"></nav>
+        <section class="cf-rp-body" id="rpBody"></section>
     </div>
 
 </div>
@@ -95,6 +75,7 @@
 
 <script src="js/cf-orders.js"></script>
 <script src="js/cf-kpi.js"></script>
+<script src="js/cf-export.js"></script>
 <script src="js/cf-nav.js"></script>
 <script src="js/cf-app.js"></script>
 <script src="js/cf-alerts.js"></script>

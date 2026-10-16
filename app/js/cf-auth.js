@@ -42,10 +42,7 @@
                     // เก็บเฉพาะข้อมูลแสดงผล — ตัวตนจริงอยู่ใน cookie httpOnly
                     // ที่ JavaScript แตะไม่ได้ และเซิร์ฟเวอร์ตรวจทุก request
                     write({ userId: res.user.id, name: res.user.name, role: res.user.role,
-                            at: new Date().toISOString(),
-                            // ล็อกอินด้วยรหัสตั้งต้น — เปิดหน้าต่างเปลี่ยนรหัสครั้งเดียวต่อการล็อกอิน
-                            // (ล็อกอินใหม่เขียนทับทั้งก้อน ธง pwPromptShown จึงรีเซ็ตเอง)
-                            mustChangePassword: !!res.mustChangePassword });
+                            at: new Date().toISOString() });
                     return { ok: true, user: res.user };
                 })
                 .catch((err) => ({
@@ -75,18 +72,6 @@
             try { localStorage.removeItem(K_SESSION); } catch (e) { /* ไม่เป็นไร */ }
             location.replace('login.html?next=' + encodeURIComponent(location.pathname.split('/').pop()) +
                              (reason ? '&reason=' + encodeURIComponent(reason) : ''));
-        },
-
-        /** หน้าต่างเปลี่ยนรหัสเด้งไปแล้วในการล็อกอินนี้ — หน้าถัดไปไม่ต้องเด้งซ้ำ */
-        markPwPromptShown() {
-            const s = read();
-            if (s) { s.pwPromptShown = true; write(s); }
-        },
-
-        /** เปลี่ยนรหัสสำเร็จแล้ว — เลิกบังคับ */
-        clearMustChange() {
-            const s = read();
-            if (s) { delete s.mustChangePassword; write(s); }
         },
 
         session()   { return read(); },

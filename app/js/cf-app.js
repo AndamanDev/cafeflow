@@ -20,14 +20,6 @@ const CFApp = {
             CFAlerts.start('staff');
         }
 
-        // บัญชียังใช้รหัสตั้งต้น — เด้งหน้าต่างเปลี่ยนรหัสครั้งเดียวต่อการล็อกอิน ไม่ใช่ทุกหน้า
-        // (เปลี่ยนเองทีหลังได้จากเมนูบัญชี "เปลี่ยนรหัสผ่าน")
-        const sess = CFAuth.session();
-        if (sess && sess.mustChangePassword && !sess.pwPromptShown) {
-            CFAuth.markPwPromptShown();
-            setTimeout(() => this.changePassword({ forced: true }), 300);
-        }
-
         // session หมดอายุ (12 ชม. / ข้ามวัน) ระหว่างเปิดหน้าค้าง → พาไปหน้าเข้าสู่ระบบเอง
         // เครื่องแคชเชียร์/KDS ที่จับคู่แล้วดึงข้อมูลผ่านได้ด้วย cookie อุปกรณ์ จึงต้องถามตัวตนพนักงานตรง ๆ
         // 401 ถูกจัดการใน CFApi.request() — ตรงนี้แค่ถาม · เน็ตหลุดเงียบไว้
@@ -132,18 +124,14 @@ const CFApp = {
     },
 
     /**
-     * เปลี่ยนรหัสผ่านของตัวเอง
-     * forced = ล็อกอินด้วยรหัสตั้งต้น — เด้งเองครั้งเดียวต่อการล็อกอิน (ดู boot) ปิดได้ เปลี่ยนทีหลังได้
+     * เปลี่ยนรหัสผ่านของตัวเอง — จากเมนูบัญชีเท่านั้น
+     * ★ ไม่เด้งเตือน/บังคับเปลี่ยนเมื่อใช้รหัสตั้งต้น (ผู้ใช้เลือก 16/10/2569: อยากเปลี่ยนจะไปเปลี่ยนเอง)
      */
-    changePassword(opts) {
-        opts = opts || {};
+    changePassword() {
         Drawer.open({
             title: 'เปลี่ยนรหัสผ่าน',
             width: '440px',
             contentHtml: `
-                ${opts.forced ? `<div class="ds-warn" style="margin-bottom:14px">
-                    บัญชีนี้ยังใช้รหัสผ่านตั้งต้น ใครที่อยู่ใน Wi‑Fi ร้านก็เข้าได้ — กรุณาตั้งรหัสใหม่ก่อนใช้งาน
-                </div>` : ''}
                 <div class="sip-field">
                     <label class="sip-label">รหัสผ่านเดิม</label>
                     <input class="sip-input" id="pwCur" type="password" autocomplete="current-password">
@@ -158,7 +146,7 @@ const CFApp = {
                            onkeydown="if(event.key==='Enter')CFApp.savePassword()">
                 </div>`,
             footerHtml: `
-                <button class="btn btn-outline" onclick="Drawer.close()">${opts.forced ? 'ไว้ทีหลัง' : 'ยกเลิก'}</button>
+                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
                 <button class="btn btn-primary" onclick="CFApp.savePassword()">บันทึก</button>`,
             onOpen: () => setTimeout(() => document.getElementById('pwCur')?.focus(), 50),
         });
@@ -170,7 +158,6 @@ const CFApp = {
         if (next !== v('pwNew2')) { showToast('รหัสผ่านใหม่สองช่องไม่ตรงกัน', 'error'); return; }
         try {
             await CFApi.post('/api/auth/password', { current: v('pwCur'), next });
-            CFAuth.clearMustChange();
             Drawer.close();
             showToast('เปลี่ยนรหัสผ่านแล้ว', 'success');
         } catch (err) {
@@ -461,26 +448,46 @@ const CFApp = {
     },
 
     /**
-     * รอบที่เปิดค้างข้ามวันทำการ — แถบเตือนสีส้ม (แคชเชียร์ · ภาพรวม · ปิดรอบ)
+     * toast เตือนที่ต้องให้คนไปจัดการ — แตะแล้วพาไปที่จัดการ (onTap) · แสดงครั้งเดียวต่อการเปิดหน้า (key)
+     * ★ ใช้แทนแถบเตือนที่ค้างบนหน้า (ผู้ใช้เลือก 16/10/2569) · toast ของ design-system-2 รับแค่ข้อความ
+     *   จึงผูกการแตะกับ element ที่ showToast คืนมาแทนการแก้ design system
+     */
+    nagToast(key, msg, onTap, ms = 10000) {
+        this._nagged = this._nagged || {};
+        if (this._nagged[key]) return;
+        this._nagged[key] = true;
+        const t = showToast(msg, 'warning', ms);
+        if (t && onTap) {
+            t.style.cursor = 'pointer';
+            t.addEventListener('click', onTap);
+        }
+    },
+
+    /**
+     * รอบที่เปิดค้างข้ามวันทำการ — toast เตือน (แคชเชียร์ · ภาพรวม · ปิดรอบ)
      * ไม่ปิดรอบให้เอง (แบบ POS ทั่วไป): ปิดรอบ = นับเงินจริงในลิ้นชัก ระบบปิดแทนตัวเลขเงินขาด/เกินจะไม่มีความหมาย
      * ยอดรายวัน/เลข A001 ตัดวันเองอยู่แล้ว (CFDay) — ที่ปนคือ "เงินสดที่ควรมี" ของรอบ ซึ่งรวมทุกวันที่ค้าง
-     * onClosing = อยู่หน้าปิดรอบแล้ว ไม่ต้องมีปุ่มพาไป · คืน '' เมื่อไม่ค้าง
+     * onClosing = อยู่หน้าปิดรอบแล้ว ไม่ต้องพาไป · เรียกได้ทุกครั้งที่ render (เตือนครั้งเดียวต่อหน้า)
      */
-    staleShiftHtml(onClosing) {
+    /** รอบที่เปิดค้างข้ามวันทำการ → { shift, days } · ไม่ค้าง/ไม่มีรอบ → null (หน้าภาพรวมใช้ทำรายการ "ต้องจัดการ") */
+    staleShiftInfo() {
         const shift = CFStore.openShift();
-        if (!shift || !shift.openedAt) return '';
+        if (!shift || !shift.openedAt) return null;
         const h = CFDay.startHourOf(CFStore.settings());
         const opened = CFDay.businessDate(shift.openedAt, h);
         const today = CFDay.businessDate(Date.now(), h);
-        if (opened >= today) return '';
-        const days = Math.round((new Date(today) - new Date(opened)) / 86400000);
-        return `<div class="sip-banner sip-banner-warning" style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-            <i data-lucide="clock-alert" class="icon-sm"></i>
-            <span style="flex:1"><strong>รอบนี้เปิดตั้งแต่ ${this.esc(this.date(shift.openedAt))} ยังไม่ได้ปิด</strong>
-                (ค้าง ${days} วัน) — นับเงินในลิ้นชักแล้วปิดรอบก่อนขายต่อ ยอดเงินสดของรอบจะได้ไม่ปนข้ามวัน</span>
-            ${onClosing ? '' : `<button class="btn btn-primary btn-sm" onclick="location.href='closing.html'">
-                <i data-lucide="lock" class="icon-sm"></i> ไปปิดรอบ</button>`}
-        </div>`;
+        if (opened >= today) return null;
+        return { shift, days: Math.round((new Date(today) - new Date(opened)) / 86400000) };
+    },
+
+    staleShiftToast(onClosing) {
+        const st = this.staleShiftInfo();
+        if (!st) return;
+        const { shift, days } = st;
+        this.nagToast('staleShift',
+            `รอบนี้เปิดตั้งแต่ ${this.date(shift.openedAt)} ยังไม่ได้ปิด (ค้าง ${days} วัน) — ` +
+            (onClosing ? 'นับเงินในลิ้นชักแล้วปิดรอบก่อนขายต่อ' : 'แตะเพื่อไปปิดรอบ'),
+            onClosing ? null : () => { location.href = 'closing.html'; });
     },
 
     /** อุปกรณ์ปัจจุบันของหน้านี้ — ใช้เขียนลง audit log */

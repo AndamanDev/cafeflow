@@ -165,7 +165,7 @@
 ### ตรวจก่อน commit ทุกครั้ง
 
 ```bash
-cd api && npm test                              # 47 เทสต์ (EMV payload · QR สลิป · กฎตรวจสลิป)
+cd api && npm test                              # 57 เทสต์ (EMV payload · QR สลิป · กฎตรวจสลิป · กฎรับเงิน)
 git diff --stat -- design-system-2
 ```
 

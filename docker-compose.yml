@@ -18,7 +18,10 @@ services:
       TZ: Asia/Bangkok
       PGTZ: Asia/Bangkok
     ports:
-      - '${PGPORT:-5433}:5432'      # 5433 กัน Postgres ตัวอื่นที่อาจมีในเครื่องอยู่แล้ว
+      # 5433 กัน Postgres ตัวอื่นที่อาจมีในเครื่องอยู่แล้ว
+      # 127.0.0.1 = รับเฉพาะในเครื่องนี้ · เดิมเปิดทุก interface ใครต่อ Wi-Fi ร้านก็ต่อฐานตรงได้
+      # (API · backup · docker exec อยู่ในเครื่องเดียวกันหมด ไม่มีอะไรต้องต่อจากข้างนอก)
+      - '127.0.0.1:${PGPORT:-5433}:5432'
     volumes:
       - cafeflow_pgdata:/var/lib/postgresql/data
     healthcheck:

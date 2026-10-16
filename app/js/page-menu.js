@@ -15,7 +15,9 @@
  */
 const MenuPage = {
 
-    state: { cat: 'all', q: '', onSale: false, soldOut: false },
+    // page/size = แบ่งหน้าตารางสินค้า (ผู้ใช้เลือก 16/10/2569) · เปลี่ยนตัวกรองแล้วกลับหน้าแรก
+    state: { cat: 'all', q: '', onSale: false, soldOut: false, page: 0, size: 20 },
+    PAGE_SIZES: [20, 50, 100],
     draft: null,
 
     /* ══════════════════════════════════════════════════════
@@ -63,8 +65,14 @@ const MenuPage = {
         document.getElementById('rowCount').textContent = list.length + ' รายการ';
         // เลื่อนลำดับได้เมื่อดูทีละหมวดและไม่ได้กรอง — ลำดับในหมวด = ลำดับบนคีออสก์
         const canMove = this.state.cat !== 'all' && !q && !this.state.onSale && !this.state.soldOut;
-        this._list = list;
-        document.getElementById('rows').innerHTML = list.length ? list.map((p, i) => {
+        this._list = list;                    // ทั้งหมดที่ผ่านตัวกรอง (ทุกหน้า) — ปรับราคาหลายรายการใช้ชุดนี้
+        const pages = Math.max(1, Math.ceil(list.length / this.state.size));
+        this.state.page = Math.min(this.state.page, pages - 1);      // ลบ/กรองจนหน้าปัจจุบันหายไป
+        const start = this.state.page * this.state.size;
+        const shown = list.slice(start, start + this.state.size);
+        this.renderPager(list.length, start, shown.length, pages);
+        document.getElementById('rows').innerHTML = shown.length ? shown.map((p, k) => {
+            const i = start + k;                // ลำดับในรายการทั้งหมด — ปุ่มเลื่อนข้ามรอยต่อหน้าได้
             const cat = CFStore.byId('categories', p.categoryId);
             const serves = CFApp.serveTypesOf(p);
             const stock = p.stockQty != null && p.active && !p.soldOut
@@ -86,6 +94,8 @@ const MenuPage = {
                             <button class="ds-icon-btn" title="เลื่อนลง" ${i < list.length - 1 ? '' : 'disabled'}
                                     onclick="MenuPage.moveProduct('${p.id}', 1)"><i data-lucide="chevron-down"></i></button>
                         </span>` : ''}
+                        <!-- รูปเล็กแบบเดียวกับคีออสก์/ฟอร์มแก้ไข — หาสินค้าในตารางด้วยตาได้เร็วกว่าอ่านชื่อ (16/10/2569) -->
+                        <span class="cf-art-preview cf-art-thumb">${CFKioskArt.tile(p, serves.find((k) => k !== 'STD') || serves[0] || 'ICED')}</span>
                         <div>
                             <div class="td-name">${e(p.nameTh)}</div>
                             <div class="td-sub">${sub}${sub && when ? ' · ' : ''}${when}</div>
@@ -121,9 +131,31 @@ const MenuPage = {
         refreshIcons();
     },
 
-    setCat(c) { this.state.cat = c; this.render(); },
-    setQuery(v) { this.state.q = v; this.render(); },
+    /** แถบแบ่งหน้าใต้ตาราง — รายการน้อยกว่าหนึ่งหน้าก็ยังโชว์จำนวน + เลือกขนาดหน้าได้ */
+    renderPager(total, start, count, pages) {
+        const el = document.getElementById('pager');
+        if (!el) return;
+        const p = this.state.page;
+        el.innerHTML = total ? `
+            <label class="cf-pager-size">แสดง
+                <select class="sip-input" onchange="MenuPage.setPageSize(this.value)">
+                    ${this.PAGE_SIZES.map((n) => `<option value="${n}" ${n === this.state.size ? 'selected' : ''}>${n}</option>`).join('')}
+                </select> รายการ/หน้า</label>
+            <span>${start + 1}–${start + count} จาก ${total} รายการ</span>
+            <button class="btn btn-outline btn-sm" title="หน้าก่อน" ${p ? '' : 'disabled'}
+                    onclick="MenuPage.setPage(${p - 1})"><i data-lucide="chevron-left" class="icon-sm"></i></button>
+            <span>หน้า ${p + 1} / ${pages}</span>
+            <button class="btn btn-outline btn-sm" title="หน้าถัดไป" ${p < pages - 1 ? '' : 'disabled'}
+                    onclick="MenuPage.setPage(${p + 1})"><i data-lucide="chevron-right" class="icon-sm"></i></button>` : '';
+    },
+
+    setPage(n) { this.state.page = Math.max(0, n); this.render(); },
+    setPageSize(n) { this.state.size = Number(n) || 20; this.state.page = 0; this.render(); },
+
+    setCat(c) { this.state.cat = c; this.state.page = 0; this.render(); },
+    setQuery(v) { this.state.q = v; this.state.page = 0; this.render(); },
     toggleFilter(k) {
+        this.state.page = 0;
         this.state[k] = !this.state[k];
         if (k === 'onSale' && this.state.onSale) this.state.soldOut = false;
         if (k === 'soldOut' && this.state.soldOut) this.state.onSale = false;
@@ -597,7 +629,7 @@ const MenuPage = {
     },
 
     /* ══════════════════════════════════════════════════════
-       ปรับราคาหลายรายการ — ใช้กับสินค้าที่แสดงในตารางตอนนี้ (กรองหมวด/ค้นหาก่อนได้)
+       ปรับราคาหลายรายการ — ใช้กับทุกรายการที่ผ่านตัวกรองตอนนี้ ทุกหน้า ไม่ใช่แค่หน้าที่เห็น (กรองหมวด/ค้นหาก่อนได้)
        ══════════════════════════════════════════════════════ */
     openBulkPrice() {
         const list = (this._list || []).filter((p) => Object.keys(p.prices || {}).length);

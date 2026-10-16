@@ -137,6 +137,7 @@ function toShift(r) {
         id: r.id, openedAt: iso(r.opened_at), closedAt: iso(r.closed_at),
         openedBy: r.opened_by, closedBy: r.closed_by,
         openingCash: num(r.opening_cash), actualCash: num(r.actual_cash),
+        closeNote: r.close_note || null,
         status: r.status,
     };
 }
