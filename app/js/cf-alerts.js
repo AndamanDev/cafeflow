@@ -102,6 +102,7 @@ const CFAlerts = {
             if (ctx && ctx.state !== 'running') ctx.resume().then(paint).catch(() => {});
         };
         document.addEventListener('pointerdown', unlock, { capture: true });
+        if (this.ctx) this.ctx.onstatechange = paint;     // ปลดล็อกเมื่อไร (เอง/แตะ) ไอคอนเปลี่ยนตาม
         b.onclick = (ev) => {
             ev.stopPropagation();
             const ctx = this.audio();
@@ -129,6 +130,9 @@ const CFAlerts = {
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) { this.unseen = 0; document.title = this.baseTitle; }
         });
+        // เปิดเสียงเองถ้าเบราว์เซอร์อนุญาต (เปิดด้วย ops/screen-edge.bat — Edge autoplay) · ไม่อนุญาต = รอแตะเหมือนเดิม
+        const c = this.audio();
+        if (c && c.state !== 'running') c.resume().catch(() => {});
         this.mountToggle();
         if (page === 'cashier') this.watchCashier();
         if (page === 'kds') this.watchKitchen();

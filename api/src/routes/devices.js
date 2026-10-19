@@ -252,6 +252,29 @@ function registerDevices(app, deps) {
     }));
 
     /** เครื่องถามว่าตัวเองจับคู่อยู่กับอะไร — ใช้ตอน boot */
+    /**
+     * ที่อยู่ของเครื่องเซิร์ฟเวอร์ในวง LAN — ตั้งเครื่องใหม่ (คีออสก์/ครัว/จอคิว) ต้องรู้ไว้กรอกในไฟล์เปิดจอ
+     * IP เครื่องเซิร์ฟเวอร์เปลี่ยนได้ (เราเตอร์แจกใหม่) ถ้ายังไม่ได้ล็อก IP — ดูที่นี่แทนการเดา (19/10/2569)
+     * ตัดการ์ดเสมือน (WSL/Hyper-V/VirtualBox/VMware) และ 169.254.x (ไม่ได้ IP จากเราเตอร์) · วง 192.168 ขึ้นก่อน
+     */
+    app.get('/api/server-address', handle(async (req) => {
+        const ctx = await context(req);
+        requirePerm(ctx, 'MENU_EDIT');
+        const os = require('os');
+        const port = parseInt(process.env.PORT || '8080', 10);
+        const out = [];
+        for (const [name, list] of Object.entries(os.networkInterfaces())) {
+            if (/vEthernet|WSL|Hyper-V|VirtualBox|VMware|Loopback|docker|vmnet/i.test(name)) continue;
+            for (const a of list || []) {
+                if (a.family !== 'IPv4' || a.internal || a.address.startsWith('169.254.')) continue;
+                out.push({ adapter: name, ip: a.address, url: `http://${a.address}:${port}` });
+            }
+        }
+        const rank = (ip) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : 2);
+        out.sort((a, b) => rank(a.ip) - rank(b.ip));
+        return { port, addresses: out };
+    }));
+
     app.get('/api/devices/me', handle(async (req) => {
         const dev = await currentDevice(query, req);
         const ip = (req.ip || '').replace(/^::ffff:/, '');

@@ -23,6 +23,7 @@ const DisplayPage = {
     async boot() {
         // ใช้ธีมที่จำไว้ก่อน — หน้ากำลังเชื่อมต่อ/จับคู่จะได้ไม่กระพริบสีผิดตอนเปิด
         try { this.applyTheme(localStorage.getItem('cfdTheme')); } catch { /* ไม่มี storage ก็ใช้โทนสว่าง */ }
+        this.initAudio();
         try {
             await this.refresh();
             this.loadHighlights();
@@ -137,12 +138,44 @@ const DisplayPage = {
 
         // คิวที่เพิ่งย้ายมาอยู่ "พร้อมรับ" — ต้องสะดุดตาและมีเสียงเรียก (§22, §31)
         const fresh = d.ready.filter((x) => !prevReady.has(x.orderNo));
+        // เรียกซ้ำ (แคชเชียร์กด "เรียกซ้ำ") — recallAt ใหม่กว่าที่จอเคยเห็น = เรียกอีกรอบ
+        // เปิดจอมาครั้งแรกจำค่าไว้เฉย ๆ ไม่เรียกย้อนหลัง
+        this._recalls = this._recalls || {};
+        const recalled = d.ready.filter((x) => x.recallAt && this._recalls[x.orderNo] !== x.recallAt &&
+                                               prevReady.has(x.orderNo));
+        d.ready.forEach((x) => { this._recalls[x.orderNo] = x.recallAt || null; });
         this.render();
         if (fresh.length && this._booted) {
             fresh.forEach((x) => this.flash(x.orderNo));
             this.ding();
         }
+        if (recalled.length && this._booted) {
+            recalled.forEach((x) => this.flash(x.orderNo));
+            this.callout(recalled.map((x) => x.orderNo));
+            // กริ่งสองรอบ — ต่างจากเรียกครั้งแรก คนที่ยังไม่มาจะรู้ว่าเรียกซ้ำ
+            this.ding();
+            setTimeout(() => this.ding(), 1100);
+        }
         this._booted = true;
+    },
+
+    /** ป้ายใหญ่กลางจอ "เชิญคิว A012" ตอนเรียกซ้ำ — คนที่นั่งไกลเห็นชัดกว่าไฮไลต์ในช่อง */
+    CALLOUT_MS: 6000,
+    callout(nos) {
+        let el = document.getElementById('cfdCallout');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'cfdCallout';
+            el.className = 'cfd-callout';
+            document.body.appendChild(el);
+        }
+        el.innerHTML = `<div class="cfd-callout-box">
+            <div class="cfd-callout-label">เชิญคิว <small>Now calling</small></div>
+            <div class="cfd-callout-no">${nos.map((n) => this.esc(n)).join(' · ')}</div>
+            <div class="cfd-callout-sub">รับที่เคาน์เตอร์ · Please pick up at the counter</div></div>`;
+        el.classList.add('is-on');
+        clearTimeout(this._calloutT);
+        this._calloutT = setTimeout(() => el.classList.remove('is-on'), this.CALLOUT_MS);
     },
 
     async loadHighlights() {
@@ -182,6 +215,28 @@ const DisplayPage = {
             osc.start(now + i * 0.18);
             osc.stop(now + i * 0.18 + 0.5);
         });
+    },
+
+    /**
+     * เปิดเสียงเองถ้าเบราว์เซอร์อนุญาต (19/10/2569)
+     * เปิดด้วย ops/screen-edge.bat (Edge --autoplay-policy=no-user-gesture-required) → AudioContext ทำงานทันที
+     * ไม่ต้องมีคนกด แม้รีเฟรช/อัปเดต/ไฟดับ · ปุ่ม "เปิดเสียงเรียกคิว" ไม่ขึ้น (render ซ่อนเมื่อ running)
+     * เบราว์เซอร์ธรรมดา → ยังถูกบล็อก ปุ่มขึ้นเหมือนเดิม · แตะตรงไหนของจอก็ปลดล็อกได้
+     */
+    initAudio() {
+        if (this._audio) return;
+        try {
+            this._audio = new (window.AudioContext || window.webkitAudioContext)();
+            if (this._audio.state !== 'running') this._audio.resume().catch(() => {});
+            // ปลดล็อกทีหลัง (แตะจอ) → ซ่อนปุ่มเปิดเสียงเอง
+            this._audio.onstatechange = () => { if (this._booted) this.render(); };
+        } catch { return; }
+        const unlock = () => {
+            if (this._audio.state === 'running') return;
+            this._audio.resume().then(() => this.render()).catch(() => {});
+        };
+        document.addEventListener('pointerdown', unlock, { capture: true });
+        document.addEventListener('keydown', unlock, { capture: true });
     },
 
     async enableSound() {

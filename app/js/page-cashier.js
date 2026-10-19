@@ -171,7 +171,16 @@ const CashierPage = {
             onclick="event.stopPropagation();${onclick}"><i data-lucide="${icon}" class="icon-sm"></i> ${label}</button>`;
         if (o.status === 'WAITING_CASH') return btn('รับเงินสด', 'banknote', `CashierPage.open('${o.id}')`);
         if (['PAYMENT_REVIEW', 'PAYMENT_TIMEOUT'].includes(o.status)) return btn('ตรวจการชำระ', 'scan-text', `CashierPage.open('${o.id}')`);
-        if (o.status === 'READY') return btn('ส่งมอบให้ลูกค้า', 'hand-platter', `CashierPage.serve('${o.id}')`);
+        if (o.status === 'READY') {
+            // เรียกซ้ำที่จอคิว — ลูกค้ายังไม่มารับ (16/10/2569) · ปุ่มรองข้างปุ่มส่งมอบ
+            const again = o.recallCount
+                ? `<div class="cf-oc-recall">เรียกซ้ำแล้ว ${o.recallCount} ครั้ง · ล่าสุด ${CFApp.time(o.recallAt)}</div>` : '';
+            return again + `<div class="cf-oc-acts">
+                <button class="btn btn-outline btn-sm" title="เรียกเลขคิวนี้อีกครั้งที่จอแสดงคิว"
+                        onclick="event.stopPropagation();CashierPage.recall('${o.id}')">
+                    <i data-lucide="megaphone" class="icon-sm"></i> เรียกซ้ำ</button>
+                ${btn('ส่งมอบให้ลูกค้า', 'hand-platter', `CashierPage.serve('${o.id}')`)}</div>`;
+        }
         return '';
     },
 
@@ -843,6 +852,18 @@ const CashierPage = {
             showToast('ส่งบัตรคิว (สำเนา) ไปที่ ' + ((r.printer && r.printer.name) || 'เครื่องพิมพ์') + ' แล้ว', 'success');
         } catch (err) {
             showToast(err.message || 'พิมพ์บัตรคิวไม่สำเร็จ', 'error', 5000);
+        }
+    },
+
+    /** เรียกคิวซ้ำที่จอแสดงคิว — จอกริ่งสองรอบ + ป้าย "เชิญคิว …" กลางจอ */
+    async recall(orderId) {
+        const o = CFStore.byId('orders', orderId);
+        try {
+            const r = await CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/recall', {});
+            showToast(r.duplicate ? 'เพิ่งเรียกไป — รอสักครู่ก่อนเรียกอีกครั้ง'
+                : 'เรียกคิว ' + (o ? o.orderNo : '') + ' ซ้ำที่จอแล้ว (ครั้งที่ ' + r.recallCount + ')', r.duplicate ? 'info' : 'success');
+        } catch (err) {
+            showToast(err.message || 'เรียกซ้ำไม่สำเร็จ', 'error', 4000);
         }
     },
 

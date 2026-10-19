@@ -1,6 +1,8 @@
 @echo off
 rem ================================================================
 rem  CafeFlow - open the kiosk in full screen (run on the kiosk machine)
+rem  ** Prefer ops\screen-edge.bat kiosk - it asks for the server IP once and remembers it,
+rem     and also turns sound on. This file needs SERVER= edited by hand when the IP changes. **
 rem
 rem  Why the flags:
 rem   --unsafely-treat-insecure-origin-as-secure

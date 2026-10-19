@@ -845,3 +845,14 @@ body.cf-kitchen-mode .cf-kds-check { width: 28px; height: 28px; }
 .cf-linkbtn { margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px;
               color: var(--primary-dark); text-decoration: underline; cursor: pointer; }
 #paySecPp[hidden], #paySecShop[hidden], .cf-qr-ok[hidden] { display: none; }
+/* แคชเชียร์ — การ์ดพร้อมรับ: [เรียกซ้ำ] [ส่งมอบ] + บรรทัดบอกจำนวนครั้งที่เรียกซ้ำ */
+.cf-oc-acts { display: flex; gap: 8px; margin-top: auto; }
+.cf-oc-acts .cf-oc-act { margin-top: 0; flex: 1; }
+.cf-oc-acts > .btn-outline { flex-shrink: 0; }
+.cf-oc-recall { font-size: 12.5px; color: var(--status-warning-strong); font-weight: 600; }
+/* อุปกรณ์ในเครือข่าย — ที่อยู่เครื่องเซิร์ฟเวอร์ (ใช้ตั้งเครื่องใหม่) */
+.cf-srv { margin-bottom: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--cf-line, #E6EAE7); background: #F8FAF9; }
+.cf-srv-label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.cf-srv-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.cf-srv-url { font-size: 20px; font-weight: 800; color: var(--primary-dark); background: none; padding: 0; }
+.cf-srv .td-sub { white-space: normal; overflow: visible; }

@@ -267,3 +267,21 @@ body.cfd-noad .cfd-col.is-ready .cfd-num { font-size: 8.5vmin; }
     .cfd-ticker.is-scroll span { animation: none; padding-left: 0; }
     .cfd-ticker.is-scroll { text-align: center; text-overflow: ellipsis; }
 }
+
+/* ── เรียกคิวซ้ำ (16/10/2569) — ป้ายใหญ่กลางจอ "เชิญคิว A012" 6 วิ ──
+   คนที่นั่งไกล/ไม่ได้มองช่องพร้อมรับต้องเห็นจากที่ไกล · ใช้ vmin ตามทั้งจอ (ทีวีทุกขนาด) */
+.cfd-callout {
+    position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+    background: rgba(0, 0, 0, .35); opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.cfd-callout.is-on { opacity: 1; }
+.cfd-callout-box {
+    background: var(--d-green); color: #fff; border-radius: 3vmin; padding: 4vmin 8vmin; text-align: center;
+    box-shadow: 0 2vmin 6vmin rgba(0, 0, 0, .3); transform: scale(.9); transition: transform .25s;
+}
+.cfd-callout.is-on .cfd-callout-box { animation: cfd-pop 1s ease-in-out 3; transform: scale(1); }
+.cfd-callout-label { font-size: 4vmin; font-weight: 700; }
+.cfd-callout-label small { display: block; font-size: 2.2vmin; font-weight: 600; opacity: .85; }
+.cfd-callout-no { font-size: 18vmin; font-weight: 800; line-height: 1.05; letter-spacing: .02em; }
+.cfd-callout-sub { font-size: 2.4vmin; opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .cfd-callout.is-on .cfd-callout-box { animation: none; } }

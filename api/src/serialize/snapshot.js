@@ -152,6 +152,7 @@ function toOrder(r) {
         subtotal: num(r.subtotal), discount: num(r.discount), total: num(r.total),
         stationStatus: r.station_status || {},
         reprintCount: r.reprint_count,
+        recallAt: iso(r.recall_at), recallCount: r.recall_count || 0,      // เรียกคิวซ้ำ (migration 016)
         ts: compact({
             createdAt: iso(r.created_at), paidAt: iso(r.paid_at), sentAt: iso(r.sent_at),
             preparingAt: iso(r.preparing_at), readyAt: iso(r.ready_at),

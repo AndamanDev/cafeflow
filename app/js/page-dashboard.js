@@ -300,6 +300,8 @@ const DashPage = {
             title: 'อุปกรณ์ในเครือข่าย',
             width: '880px',
             contentHtml: `
+                <!-- ที่อยู่เครื่องเซิร์ฟเวอร์ — ตั้งเครื่องใหม่ต้องกรอกในไฟล์เปิดจอ (ops/screen-edge.bat) · 19/10/2569 -->
+                <div class="cf-srv" id="srvAddr"><span class="td-sub">กำลังอ่านที่อยู่เครื่องเซิร์ฟเวอร์…</span></div>
                 <div class="sip-banner sip-banner-info" style="margin-bottom:12px">
                     <i data-lucide="info" class="icon-sm"></i>
                     อุปกรณ์ส่งสัญญาณทุก 10–30 วินาที · ไม่ได้ยินเกิน 60 วินาทีถือว่าออฟไลน์
@@ -311,8 +313,44 @@ const DashPage = {
                     </table>
                 </div>`,
             footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
-            onOpen: () => refreshIcons(),
+            onOpen: () => { refreshIcons(); this.loadServerAddress(); },
         });
+    },
+
+    /**
+     * ที่อยู่เครื่องเซิร์ฟเวอร์ (IP:พอร์ต) — เครื่องอื่นในร้านต้องเปิดที่อยู่นี้
+     * IP เปลี่ยนได้ถ้ายังไม่ได้ล็อกที่เราเตอร์ → เครื่องที่ตั้งไว้แล้วจะต่อไม่ติด ต้องแก้ไฟล์เปิดจอให้ตรง
+     */
+    async loadServerAddress() {
+        const el = document.getElementById('srvAddr');
+        if (!el) return;
+        const e = CFApp.esc;
+        try {
+            const r = await CFApi.get('/api/server-address');
+            const list = r.addresses || [];
+            if (!list.length) { el.innerHTML = '<span class="td-sub">เครื่องนี้ยังไม่ได้ต่อ Wi-Fi/LAN ของร้าน</span>'; return; }
+            const main = list[0];
+            el.innerHTML = `
+                <div class="cf-srv-label"><i data-lucide="server" class="icon-sm"></i> ที่อยู่เครื่องเซิร์ฟเวอร์ — ใช้ตั้งเครื่องใหม่ (คีออสก์ · แคชเชียร์ · ครัว · จอคิว)</div>
+                <div class="cf-srv-row">
+                    <code class="cf-srv-url">${e(main.url)}</code>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="DashPage.copyText('${e(main.url)}')">
+                        <i data-lucide="copy" class="icon-sm"></i> คัดลอก</button>
+                </div>
+                <div class="td-sub">IP <b>${e(main.ip)}</b> (${e(main.adapter)})
+                    ${list.length > 1 ? ' · อื่น ๆ: ' + list.slice(1).map((x) => e(x.ip) + ' (' + e(x.adapter) + ')').join(', ') : ''}
+                    — กรอก IP นี้ตอนเปิด <code>ops\\screen-edge.bat</code> ครั้งแรกบนเครื่องใหม่ ·
+                    IP เปลี่ยนได้ถ้ายังไม่ได้ล็อกที่เราเตอร์ (เครื่องเดิมจะต่อไม่ติด ต้องกรอกใหม่)</div>`;
+            refreshIcons();
+        } catch (err) {
+            el.innerHTML = '<span class="td-sub">อ่านที่อยู่เครื่องเซิร์ฟเวอร์ไม่ได้ — ' + e(err.message || '') + '</span>';
+        }
+    },
+
+    copyText(t) {
+        const done = () => showToast('คัดลอก ' + t + ' แล้ว', 'success');
+        if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(done, () => prompt('คัดลอกที่อยู่นี้', t)); return; }
+        prompt('คัดลอกที่อยู่นี้', t);     // http บน LAN ใช้ clipboard API ไม่ได้ — ให้คัดลอกจากกล่อง
     },
 
     /* ══════════════════════════════════════════════════════

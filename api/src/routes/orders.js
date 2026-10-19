@@ -848,6 +848,41 @@ function registerOrders(app, { pool, tx, query, branchId }) {
         return { ok: true };
     }));
 
+    /**
+     * เรียกคิวซ้ำที่จอแสดงคิว — ลูกค้ายังไม่มารับ (16/10/2569)
+     * จอเห็น recall_at ใหม่ → กริ่งสองรอบ + ป้าย "เชิญคิว …" กลางจอ + ย้ายเลขขึ้นบนสุด
+     * แคชเชียร์/ผู้จัดการ (รับเงิน) หรือครัวกดได้ · เฉพาะออเดอร์ที่พร้อมรับ · กดรัวภายใน 8 วิ = นับครั้งเดียว
+     */
+    app.post('/api/orders/:id/recall', handle(async (req) => {
+        const ctx = await context(req);
+        if (!ctx.user) throw new ApiError(401, 'ต้องเข้าสู่ระบบก่อน');
+        if (!CFPerms.can(ctx.user.role, 'PAY_RECEIVE') && !CFPerms.can(ctx.user.role, 'KITCHEN')) {
+            throw new ApiError(403, 'บัญชีนี้เรียกคิวไม่ได้');
+        }
+        const out = await tx(async (c) => {
+            const o = (await c.query(
+                'SELECT * FROM cf_order WHERE id = $1 AND branch_id = $2 FOR UPDATE',
+                [req.params.id, branchId()])).rows[0];
+            if (!o) throw new ApiError(404, 'ไม่พบออเดอร์');
+            if (o.status !== 'READY') throw new ApiError(409, 'เรียกซ้ำได้เฉพาะออเดอร์ที่พร้อมรับ');
+            if (o.recall_at && Date.now() - new Date(o.recall_at).getTime() < 8000) {
+                return { ok: true, recallCount: o.recall_count, duplicate: true };
+            }
+            const r = (await c.query(
+                `UPDATE cf_order SET recall_at = now(), recall_count = recall_count + 1,
+                        rev = nextval('global_rev'), updated_at = now()
+                  WHERE id = $1 RETURNING recall_count`, [o.id])).rows[0];
+            await audit(c, branchId(), {
+                eventType: 'ORDER_RECALL', orderId: o.id, actorKind: ctx.actorKind, actorUserId: ctx.actorUserId,
+                deviceId: ctx.deviceId, ip: ctx.ip, reason: 'เรียกคิวซ้ำครั้งที่ ' + r.recall_count,
+            });
+            await touch(c, branchId(), 'orders', o.id, 'update');
+            return { ok: true, recallCount: r.recall_count };
+        });
+        publish(branchId(), { entity: 'orders', op: 'update', id: req.params.id });
+        return out;
+    }));
+
     /** แคชเชียร์รับทราบว่ามีคนไปดูลูกค้าแล้ว — แถบเตือนและเสียงซ้ำหยุด */
     app.post('/api/orders/:id/help-ack', handle(async (req) => {
         const ctx = await context(req);

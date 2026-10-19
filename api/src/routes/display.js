@@ -18,7 +18,7 @@ const DISPLAY_KEYS = ['displayTheme', 'displayHighlights', 'displayHighlightSec'
 /** เรียงตามเวลาที่เข้าครัว — คิวที่สั่งก่อนต้องอยู่ก่อน ไม่ใช่เรียงตามเลข */
 const SQL = `
     SELECT o.order_no, o.status, o.dining_option,
-           o.sent_at, o.ready_at, o.created_at
+           o.sent_at, o.ready_at, o.created_at, o.recall_at
       FROM cf_order o
      WHERE o.branch_id = $1
        AND o.status IN ('SENT_TO_KITCHEN','PREPARING','READY')
@@ -52,12 +52,16 @@ function registerDisplay(app, deps) {
                 orderNo: r.order_no,
                 takeAway: r.dining_option === 'TAKE_AWAY',
                 since: r.status === 'READY' ? r.ready_at : (r.sent_at || r.created_at),
+                // เรียกซ้ำ (migration 016) — จอเห็นค่าใหม่ = เรียกอีกรอบ · ไม่มีราคา/ชื่อ ตามหัวไฟล์
+                recallAt: r.status === 'READY' && r.recall_at ? r.recall_at : null,
             };
             (r.status === 'READY' ? ready : preparing).push(item);
         }
         // คิวที่พร้อมแล้วเรียงใหม่ให้ใบที่เพิ่งพร้อมอยู่บนสุด — ลูกค้ามองหาเลขตัวเอง
         // ที่เพิ่งถูกเรียก ไม่ใช่ใบที่พร้อมมาตั้งแต่สิบนาทีที่แล้ว
-        ready.sort((a, b) => new Date(b.since) - new Date(a.since));
+        // เรียกซ้ำนับเป็น "เพิ่งถูกเรียก" — ขึ้นบนสุดเหมือนคิวที่เพิ่งพร้อม
+        const lastCall = (x) => Math.max(new Date(x.since).getTime() || 0, x.recallAt ? new Date(x.recallAt).getTime() : 0);
+        ready.sort((a, b) => lastCall(b) - lastCall(a));
 
         return {
             shopName: branch ? branch.name_th : 'CafeFlow',
