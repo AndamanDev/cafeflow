@@ -1,5 +1,5 @@
 """
-CafeFlow — วัดความเร็วตัวอ่านสลิปบนเครื่องนี้ (ใช้ผ่าน ops\\bench-ocr.bat)
+CafeFlow — วัดความเร็วตัวอ่านสลิปบนเครื่องนี้ (ใช้ผ่าน ops\\tools\\bench-ocr.bat)
     python bench.py paddle   <out.json>     ← รันด้วย ocr-svc\\.venv   (ตัวที่ร้านใช้อยู่)
     python bench.py openvino <out.json>     ← รันด้วย ocr-svc\\.venv-ov (ตัวทดลอง)
 ใช้สลิปจริงของเครื่องนี้ใน data\\slips (ล่าสุด 15 ใบ) · น้อยกว่า 5 ใบ ใช้ data\\slip-dataset เพิ่ม

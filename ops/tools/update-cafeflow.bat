@@ -17,7 +17,7 @@ rem  Stops at the first step that fails and tells you which one.
 rem  Log of the backup: logs\backup.log
 rem
 rem  Library marker = api\node_modules\.cafeflow-lock (lowercase sha256 of
-rem  api\package-lock.json) - same file ops\setup-shop.js writes and checks.
+rem  api\package-lock.json) - same file ops\tools\setup-shop.js writes and checks.
 rem  Waits use "ping -n N 127.0.0.1": "timeout" refuses to run when input is redirected.
 rem
 rem  This file copies itself to %TEMP% and runs from there: "git pull" may
@@ -30,7 +30,7 @@ if /I not "%~1"=="--from-temp" (
 )
 chcp 65001 >nul
 setlocal
-cd /d "%~2.."
+cd /d "%~2..\.."
 
 echo.
 echo [1/5] Backing up the database...

@@ -100,7 +100,7 @@
 
 - [ ] **C4 · สำเนานอกเครื่อง (offsite) อัตโนมัติ**
   สำรองในเครื่องทุกคืนตั้งเองแล้ว (Task Scheduler "CafeFlow Backup") · ที่ยังไม่มีคือส่งสำเนาออกนอกเครื่อง
-  `ops/offsite.sh` ใช้ได้ (ผ่าน Git Bash) แต่ยังไม่ได้ตั้งเวลา และต้องเสียบ USB หรือตั้ง rclone ก่อน
+  `ops/tools/offsite.sh` ใช้ได้ (ผ่าน Git Bash) แต่ยังไม่ได้ตั้งเวลา และต้องเสียบ USB หรือตั้ง rclone ก่อน
 
 ---
 
@@ -115,7 +115,7 @@
   **สลิปปลอมที่ทำยอด/ชื่อ/วันที่ได้ตรงจะผ่านเข้าครัว** (ผู้ใช้รับความเสี่ยงนี้ 14/10) · จุดที่ต่อ: `autoConfirmSlip()`
   เน็ตหลุดต้องถอยกลับเป็นตรวจในเครื่อง/แคชเชียร์ยืนยัน
 - [x] **สำรองโฟลเดอร์ `data/`** (ภาพสลิป + รูปสินค้า) — `ops/backup.js` (Windows) · `backup.sh` / `offsite.sh` / `restore.sh`
-- [x] **เปิดระบบเองตอน login** — `ops/run-cafeflow.ps1` (ลองซ้ำจนติด) + `ops/install-autostart.js` (Task Scheduler)
+- [x] **เปิดระบบเองตอน login** — `ops/run-cafeflow.ps1` (ลองซ้ำจนติด) + `ops/tools/install-autostart.js` (Task Scheduler)
 - [x] **ตั้งเวลาสำรองอัตโนมัติบน Windows** — Task Scheduler "CafeFlow Backup" ทุกคืน 23:30 (ตั้งโดย `install-autostart.js`)
 
 - [ ] **D2 · CMS โฆษณา (§23)**

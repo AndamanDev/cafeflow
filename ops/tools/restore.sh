@@ -2,16 +2,16 @@
 # ══════════════════════════════════════════════════════════════════
 # CafeFlow — กู้คืนฐานข้อมูล
 #
-#   ops/restore.sh                     กู้จากไฟล์ล่าสุดใน backup/
-#   ops/restore.sh backup/xxx.dump     กู้จากไฟล์ที่ระบุ
-#   ops/restore.sh --yes               ไม่ต้องถามยืนยัน (ใช้ในสคริปต์อัตโนมัติ)
+#   ops/tools/restore.sh                     กู้จากไฟล์ล่าสุดใน backup/
+#   ops/tools/restore.sh backup/xxx.dump     กู้จากไฟล์ที่ระบุ
+#   ops/tools/restore.sh --yes               ไม่ต้องถามยืนยัน (ใช้ในสคริปต์อัตโนมัติ)
 #
 # ⚠️ คำสั่งนี้ "ลบข้อมูลปัจจุบันทิ้งทั้งหมด" แล้วเขียนทับด้วยไฟล์สำรอง
 #    ใช้ตอนเครื่องพัง ย้ายเครื่อง หรือซ้อมกู้เท่านั้น
 # ══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 CONTAINER="${CF_DB_CONTAINER:-cafeflow-db}"
@@ -32,7 +32,7 @@ if [ -z "$FILE" ]; then
     FILE="$(ls -1t "$OUT_DIR"/cafeflow-*.dump 2>/dev/null | head -1 || true)"
 fi
 if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
-    echo "!! ไม่พบไฟล์สำรอง — ระบุไฟล์เอง หรือรัน ops/backup.sh ก่อน" >&2
+    echo "!! ไม่พบไฟล์สำรอง — ระบุไฟล์เอง หรือรัน ops/tools/backup.sh ก่อน" >&2
     exit 1
 fi
 

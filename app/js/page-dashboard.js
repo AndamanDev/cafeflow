@@ -700,7 +700,7 @@ const DashPage = {
                 <div id="pUsb">
                     <div class="ds-note" id="pUsbKiosk" style="display:none;margin-bottom:12px">
                         เสียบเครื่องพิมพ์ที่ <strong>ตัวตู้คีออสก์</strong> แล้วตั้งให้เป็นเครื่องพิมพ์หลัก (Default) ของ Windows ที่ตู้
-                        · เปิดตู้ด้วย <code>kiosk-edge.bat</code> ตัวใหม่ (มี --kiosk-printing) ตู้จะพิมพ์บัตรคิวเองโดยไม่ถาม
+                        · เปิดตู้ด้วย <code>screen-edge.bat</code> (มี --kiosk-printing) ตู้จะพิมพ์บัตรคิวเองโดยไม่ถาม
                     </div>
                     <div class="sip-field" id="pUsbServer">
                         <label class="sip-label">เลือกเครื่องพิมพ์ USB</label>

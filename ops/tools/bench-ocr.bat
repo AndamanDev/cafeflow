@@ -14,7 +14,7 @@ rem   - Take a photo of the result screen and send it to the technician.
 rem ================================================================
 chcp 65001 >nul
 setlocal
-cd /d "%~dp0.."
+cd /d "%~dp0..\.."
 if not exist logs mkdir logs
 
 if not exist "ocr-svc\.venv\Scripts\python.exe" (

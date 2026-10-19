@@ -4,8 +4,8 @@
  * ══════════════════════════════════════════════════════════════════
  * ทำครั้งเดียวต่อเครื่อง ตอนติดตั้งร้าน (รันซ้ำได้ ได้รหัสใหม่ทุกครั้ง)
  *
- *   node ops/rotate-db-password.js
- *   แล้วรีสตาร์ท API: ops\restart-api.bat
+ *   node ops/tools/rotate-db-password.js
+ *   แล้วรีสตาร์ท API: ops\tools\restart-api.bat
  *
  * ลำดับ (กันกรณีเปลี่ยนรหัสในฐานแล้วแต่ .env ไม่ตาม → API ต่อฐานไม่ได้ทั้งร้าน):
  *   1. เขียน .env ฉบับใหม่ลงไฟล์ชั่วคราวก่อน — เขียนไม่ได้ก็หยุด ฐานยังไม่ถูกแตะ
@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '..', '..');
 const { Client } = require(path.join(ROOT, 'api', 'node_modules', 'pg'));
 const { loadEnv } = require(path.join(ROOT, 'api', 'src', 'env'));
 
@@ -80,7 +80,7 @@ async function main() {
     await v.end();
 
     console.log('✔ เปลี่ยนรหัสฐานข้อมูลแล้ว และบันทึกลง .env');
-    console.log('  ต่อไป: รีสตาร์ท API ด้วย ops\\restart-api.bat');
+    console.log('  ต่อไป: รีสตาร์ท API ด้วย ops\\tools\\restart-api.bat');
 }
 
 main().catch((e) => { console.error('✖ ' + e.message); process.exit(1); });

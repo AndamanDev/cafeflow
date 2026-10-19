@@ -29,6 +29,23 @@ const LoginPage = {
         }
     },
 
+    /** ดู/ซ่อนรหัสผ่าน — พิมพ์บนจอสัมผัสพลาดง่าย ให้ตรวจก่อนกดได้ */
+    togglePw() {
+        const el = document.getElementById('loginPass');
+        const btn = document.getElementById('pwEye');
+        const show = el.type === 'password';
+        el.type = show ? 'text' : 'password';
+        btn.textContent = show ? 'ซ่อน' : 'แสดง';
+        btn.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+        el.focus();
+    },
+
+    /** เตือนเมื่อ Caps Lock เปิด — สาเหตุอันดับหนึ่งของ "รหัสผ่านผิด" ทั้งที่จำถูก */
+    caps(ev) {
+        const on = ev.getModifierState && ev.getModifierState('CapsLock');
+        document.getElementById('capsHint').hidden = !on;
+    },
+
     submit(ev) {
         ev.preventDefault();
         this.attempt(document.getElementById('loginUser').value,

@@ -215,7 +215,7 @@ async function start() {
     // รหัสฐานเริ่มต้นอยู่ใน repo สาธารณะ — เตือนทุกครั้งที่เปิด จนกว่าจะเปลี่ยน
     // (ไม่ปฏิเสธการเปิด: เครื่องร้านที่อัปเดตโค้ดแล้วยังไม่ได้รันสคริปต์ต้องขายต่อได้)
     if ((process.env.PGPASSWORD || 'cafeflow_dev') === 'cafeflow_dev') {
-        app.log.warn('ฐานข้อมูลยังใช้รหัสเริ่มต้น cafeflow_dev — เปลี่ยนด้วย node ops/rotate-db-password.js');
+        app.log.warn('ฐานข้อมูลยังใช้รหัสเริ่มต้น cafeflow_dev — เปลี่ยนด้วย node ops/tools/rotate-db-password.js');
     }
 
     // เฝ้าสถานะอุปกรณ์ (หลุดออฟไลน์ / คำเตือนหมดอายุ) → หน้าภาพรวมอัปเดตเอง

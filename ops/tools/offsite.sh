@@ -5,9 +5,9 @@
 # ไฟล์สำรองที่อยู่ในเครื่องเดียวกับฐานข้อมูล ช่วยตอน "ลบข้อมูลผิด" ได้
 # แต่ช่วยตอน "ไฟไหม้ / เครื่องหาย / SSD พัง" ไม่ได้เลย
 #
-#   ops/offsite.sh /d/cafeflow-backup        คัดลอกไป USB หรือ NAS ที่ mount ไว้
-#   ops/offsite.sh rclone:gdrive:cafeflow    คัดลอกขึ้นคลาวด์ผ่าน rclone
-#   ops/offsite.sh --check /d/cafeflow-backup  ตรวจว่าปลายทางมีครบและไฟล์ไม่เพี้ยน
+#   ops/tools/offsite.sh /d/cafeflow-backup        คัดลอกไป USB หรือ NAS ที่ mount ไว้
+#   ops/tools/offsite.sh rclone:gdrive:cafeflow    คัดลอกขึ้นคลาวด์ผ่าน rclone
+#   ops/tools/offsite.sh --check /d/cafeflow-backup  ตรวจว่าปลายทางมีครบและไฟล์ไม่เพี้ยน
 #
 # ตั้งค่าไว้ล่วงหน้าได้ที่ CF_OFFSITE ใน .env แล้วเรียกเปล่า ๆ
 #
@@ -16,7 +16,7 @@
 # ══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 [ -f .env ] && set -a && . ./.env && set +a || true
 
@@ -37,8 +37,8 @@ if [ -z "$DEST" ]; then
     cat >&2 <<'MSG'
 !! ยังไม่ได้ระบุปลายทาง
 
-   ops/offsite.sh /d/cafeflow-backup          USB หรือ NAS
-   ops/offsite.sh rclone:gdrive:cafeflow      คลาวด์ผ่าน rclone
+   ops/tools/offsite.sh /d/cafeflow-backup          USB หรือ NAS
+   ops/tools/offsite.sh rclone:gdrive:cafeflow      คลาวด์ผ่าน rclone
 
    หรือใส่ CF_OFFSITE=... ไว้ใน .env แล้วเรียกเปล่า ๆ
 MSG
@@ -46,7 +46,7 @@ MSG
 fi
 
 files() { ls -1t "$SRC_DIR"/cafeflow-*.dump 2>/dev/null || true; }
-[ -z "$(files)" ] && { echo "!! ไม่มีไฟล์สำรองใน $SRC_DIR — รัน ops/backup.sh ก่อน" >&2; exit 1; }
+[ -z "$(files)" ] && { echo "!! ไม่มีไฟล์สำรองใน $SRC_DIR — รัน ops/tools/backup.sh ก่อน" >&2; exit 1; }
 
 sum_of() {
     if command -v sha256sum > /dev/null; then sha256sum "$1" | cut -d' ' -f1

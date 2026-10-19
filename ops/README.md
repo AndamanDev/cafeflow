@@ -3,6 +3,12 @@
 เขียนสำหรับคนที่ต้องแก้ปัญหาตอนร้านเปิดไม่ได้ ไม่ใช่สำหรับคนที่เขียนโค้ด
 อ่านหัวข้อที่ตรงกับอาการ แล้วทำตามทีละบรรทัด
 
+> **เครื่องเซิร์ฟเวอร์: ดับเบิลคลิก `ops\cafeflow.bat` (หรือไอคอน CafeFlow บนหน้าจอ) ไฟล์เดียวพอ** — ขึ้นเมนูให้กดลูกศร ↑ ↓ เลือก แล้ว Enter
+> เครื่องที่ยังไม่ได้ติดตั้ง ไฟล์เดียวกันนี้จะเข้าโหมดติดตั้งเอง (ขอสิทธิ์ admin เอง กด Yes)
+> (ตรวจสถานะ · รีสตาร์ท · ดู IP · เปิดจอ · สำรอง · ดู log · อัปเดต · ล้างข้อมูลขาย · ตั้งเปิดเอง · เปลี่ยนรหัสฐาน · ซ่อมระบบ)
+> ไฟล์ย่อยที่เมนูเรียกอยู่ใน `ops\tools\` (รีสตาร์ท · วัดตัวอ่านสลิป ฯลฯ) — ดับเบิลคลิกตรงได้ถ้าเมนูเปิดไม่ขึ้น
+> **เครื่องอื่น** (คีออสก์/ครัว/จอคิว) ใช้ `screen-edge.bat` ตัวเดียว · `kiosk-edge.bat` · `clear-sales.bat` · `install-cafeflow.bat` เลิกใช้แล้ว (19/10/2569)
+
 ---
 
 ## ร้านเปิดไม่ได้ — ทำอะไรก่อน
@@ -37,7 +43,7 @@ curl http://localhost:8080/api/health      # API ตอบไหม
 | ครัวไม่ได้ตั๋ว แต่ KDS มี | เครื่องพิมพ์ | หัวข้อ "เครื่องพิมพ์" |
 
 ### สตาร์ทใหม่ทั้งชุด
-เปิดเองทุกครั้งที่ login (Task Scheduler ชื่อ **CafeFlow** ตั้งด้วย `node ops\install-autostart.js` · ถอนด้วย `--remove`)
+เปิดเองทุกครั้งที่ login (Task Scheduler ชื่อ **CafeFlow** ตั้งด้วย `node ops\tools\install-autostart.js` · ถอนด้วย `--remove`)
 สั่งเองก็ได้ เรียกซ้ำได้ ตัวไหนเปิดอยู่แล้วจะข้าม:
 ```powershell
 powershell -ExecutionPolicy Bypass -File ops\run-cafeflow.ps1
@@ -58,8 +64,8 @@ powershell -ExecutionPolicy Bypass -File ops\run-cafeflow.ps1
 ## สำรองข้อมูล
 
 ```bash
-ops/backup.sh            # สำรองหนึ่งครั้ง
-ops/backup.sh --verify   # สำรองแล้วกู้ลงฐานชั่วคราวเพื่อพิสูจน์ว่าไฟล์ใช้ได้จริง
+ops/tools/backup.sh            # สำรองหนึ่งครั้ง
+ops/tools/backup.sh --verify   # สำรองแล้วกู้ลงฐานชั่วคราวเพื่อพิสูจน์ว่าไฟล์ใช้ได้จริง
 ```
 
 ไฟล์ไปอยู่ที่ `backup/cafeflow-YYYYMMDD-HHMMSS.dump` พร้อมไฟล์ `.counts`
@@ -73,9 +79,9 @@ ops/backup.sh --verify   # สำรองแล้วกู้ลงฐาน�
 Linux (mini PC ในร้าน) — `crontab -e`:
 ```cron
 # ทุกชั่วโมงระหว่างเวลาทำการ
-0 8-21 * * *  cd /opt/cafeflow && ops/backup.sh            >> /var/log/cafeflow-backup.log 2>&1
+0 8-21 * * *  cd /opt/cafeflow && ops/tools/backup.sh            >> /var/log/cafeflow-backup.log 2>&1
 # ตรวจสอบเต็มรูปแบบวันละครั้งหลังปิดร้าน
-30 22 * * *   cd /opt/cafeflow && ops/backup.sh --verify   >> /var/log/cafeflow-backup.log 2>&1
+30 22 * * *   cd /opt/cafeflow && ops/tools/backup.sh --verify   >> /var/log/cafeflow-backup.log 2>&1
 ```
 
 เก็บย้อนหลัง 14 วัน (ปรับที่ `CF_BACKUP_KEEP_DAYS`)
@@ -88,12 +94,12 @@ Linux (mini PC ในร้าน) — `crontab -e`:
 แต่ช่วยตอน "ไฟไหม้ / เครื่องหาย / SSD พัง" ไม่ได้เลย**
 
 ```bash
-ops/offsite.sh /d/cafeflow-backup          # USB หรือ NAS ที่ mount ไว้
-ops/offsite.sh rclone:gdrive:cafeflow      # คลาวด์ผ่าน rclone
-ops/offsite.sh --check /d/cafeflow-backup  # ตรวจว่าปลายทางมีครบและไฟล์ไม่เพี้ยน
+ops/tools/offsite.sh /d/cafeflow-backup          # USB หรือ NAS ที่ mount ไว้
+ops/tools/offsite.sh rclone:gdrive:cafeflow      # คลาวด์ผ่าน rclone
+ops/tools/offsite.sh --check /d/cafeflow-backup  # ตรวจว่าปลายทางมีครบและไฟล์ไม่เพี้ยน
 ```
 
-ตั้ง `CF_OFFSITE=/d/cafeflow-backup` ไว้ใน `.env` แล้วเรียก `ops/offsite.sh` เปล่า ๆ ได้
+ตั้ง `CF_OFFSITE=/d/cafeflow-backup` ไว้ใน `.env` แล้วเรียก `ops/tools/offsite.sh` เปล่า ๆ ได้
 
 **สิ่งที่สคริปต์นี้ระวังให้**
 - **ตรวจ checksum ที่ปลายทางทุกไฟล์** — การคัดลอกที่ "ดูเหมือนสำเร็จ" แต่ไฟล์เสีย
@@ -108,9 +114,9 @@ ops/offsite.sh --check /d/cafeflow-backup  # ตรวจว่าปลาย�
 
 ```cron
 # คัดลอกออกนอกเครื่องหลังสำรองเสร็จ
-45 22 * * *   cd /opt/cafeflow && ops/offsite.sh              >> /var/log/cafeflow-backup.log 2>&1
+45 22 * * *   cd /opt/cafeflow && ops/tools/offsite.sh              >> /var/log/cafeflow-backup.log 2>&1
 # ตรวจปลายทางเช้าวันจันทร์ — จะได้รู้ก่อนว่า USB เริ่มพัง
-0 7 * * 1     cd /opt/cafeflow && ops/offsite.sh --check      >> /var/log/cafeflow-backup.log 2>&1
+0 7 * * 1     cd /opt/cafeflow && ops/tools/offsite.sh --check      >> /var/log/cafeflow-backup.log 2>&1
 ```
 
 ---
@@ -118,8 +124,8 @@ ops/offsite.sh --check /d/cafeflow-backup  # ตรวจว่าปลาย�
 ## กู้คืน
 
 ```bash
-ops/restore.sh                      # จากไฟล์ล่าสุด
-ops/restore.sh backup/xxx.dump      # จากไฟล์ที่ระบุ
+ops/tools/restore.sh                      # จากไฟล์ล่าสุด
+ops/tools/restore.sh backup/xxx.dump      # จากไฟล์ที่ระบุ
 ```
 
 จะถามยืนยันด้วยการพิมพ์ `YES` เพราะ **ข้อมูลปัจจุบันจะถูกลบทิ้งทั้งหมด**
@@ -131,7 +137,7 @@ ops/restore.sh backup/xxx.dump      # จากไฟล์ที่ระบุ
 # 2. ตั้ง .env ให้เหมือนเดิม (คัดลอกมาจากเครื่องเก่าหรือจาก .env.example)
 docker compose up -d db
 cd api && npm install && npm run migrate
-cd .. && ops/restore.sh --yes
+cd .. && ops/tools/restore.sh --yes
 cd api && npm start
 # 3. ตั้ง IP ของเครื่องใหม่ให้ตรงกับที่แคชเชียร์/KDS/คีออสก์ชี้อยู่
 #    (ง่ายกว่าไปไล่แก้ทุกเครื่อง)
@@ -144,7 +150,7 @@ cd api && npm start
 | ขั้น | ผล |
 |---|---|
 | ลบ volume แล้วเปิดใหม่ | ฐานว่างเปล่า `relation "cf_order" does not exist` |
-| `ops/restore.sh --yes` | **12 วินาที** · จำนวนแถวตรงทุกตาราง |
+| `ops/tools/restore.sh --yes` | **12 วินาที** · จำนวนแถวตรงทุกตาราง |
 | ล็อกอินด้วยรหัสเดิม | ได้ |
 | สั่งออเดอร์ใหม่ | ได้เลข **A010** เดินต่อจาก A009 ไม่ชนกัน |
 | รับเงิน | สำเร็จ |
@@ -162,7 +168,7 @@ cd api && npm start
 |---|---|---|
 | สำรองเป็นช่วง ๆ ไม่ใช่ต่อเนื่อง | ข้อมูลระหว่างการสำรองครั้งล่าสุดถึงตอนพัง **หายจริง** (สูงสุด 1 ชั่วโมงตามตาราง cron) | เปิด WAL archiving (`pg_receivewal`) ลดเหลือระดับวินาที |
 | ไม่มีเครื่องสำรองพร้อมใช้ | ต้องหาเครื่อง ลงของ แล้วค่อยกู้ — หลายชั่วโมง | เตรียม mini PC เครื่องสองที่ลง image เดียวกันไว้ในลิ้นชัก |
-| ไฟล์สำรองยังอยู่ในเครื่องเดียวกัน | ไฟไหม้/ของหาย = หายทั้งคู่ | **มีเครื่องมือแล้ว** (`ops/offsite.sh`) — เหลือแค่เสียบ USB หรือตั้ง rclone แล้วใส่ใน cron |
+| ไฟล์สำรองยังอยู่ในเครื่องเดียวกัน | ไฟไหม้/ของหาย = หายทั้งคู่ | **มีเครื่องมือแล้ว** (`ops/tools/offsite.sh`) — เหลือแค่เสียบ USB หรือตั้ง rclone แล้วใส่ใน cron |
 
 พูดตรง ๆ: ตอนนี้ **RPO ประมาณ 1 ชั่วโมง · RTO ประมาณ 15 นาที** ถ้ามีเครื่องพร้อม
 
@@ -235,7 +241,6 @@ cd api && npm start
 | จอคิวเงียบ มีปุ่ม "เปิดเสียงเรียกคิว" | ไม่ได้เปิดด้วย `screen-edge.bat` — ปิดแล้วเปิดใหม่ด้วยไฟล์นี้ |
 
 > ล็อก IP เครื่องเซิร์ฟเวอร์ที่เราเตอร์ (DHCP reservation) แล้วจะไม่ต้องกรอกใหม่อีกเลย
-> `kiosk-edge.bat` ตัวเดิมยังใช้ได้ แต่ต้องแก้ IP ในไฟล์เอง — แนะนำ `screen-edge.bat`
 
 ---
 
@@ -285,7 +290,7 @@ cd api && npm start
 
 **ถ้าตัวอ่านสลิปไม่ได้เปิด ร้านขายได้ปกติ** — สลิปรอในคิว แล้วอ่านต่อเองเมื่อเปิดกลับมา
 ภาพสลิปอยู่ที่ `data/slips/` (มีชื่อ/เลขบัญชีบางส่วนของลูกค้า ห้ามแชร์ออกนอกร้าน)
-`ops/backup.sh` สำรองโฟลเดอร์ `data/` ไปที่ `backup/data/` ด้วย (คัดลอกเฉพาะไฟล์ใหม่) · `offsite.sh` คัดลอกตามไป · `restore.sh` คืนให้
+`ops/tools/backup.sh` สำรองโฟลเดอร์ `data/` ไปที่ `backup/data/` ด้วย (คัดลอกเฉพาะไฟล์ใหม่) · `offsite.sh` คัดลอกตามไป · `restore.sh` คืนให้
 
 ---
 

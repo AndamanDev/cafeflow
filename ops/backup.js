@@ -2,11 +2,11 @@
 /**
  * CafeFlow — สำรองฐานข้อมูล (Windows / ทุกระบบ — ไม่ต้องมี Git Bash)
  * ══════════════════════════════════════════════════════════════════
- * ทำเหมือน ops/backup.sh: pg_dump "จากใน container" (เวอร์ชันตรงกับฐานเสมอ) แบบ -Fc
+ * ทำเหมือน ops/tools/backup.sh: pg_dump "จากใน container" (เวอร์ชันตรงกับฐานเสมอ) แบบ -Fc
  * + ไฟล์ .counts ไว้เทียบตอนกู้ + คัดลอกภาพสลิป/รูปสินค้า (data/) เฉพาะไฟล์ใหม่ + ลบไฟล์เก่าเกิน 30 วัน
  *
  * ถูกเรียกอัตโนมัติ 2 ทาง:
- *   · Task Scheduler "CafeFlow Backup" ทุกคืน 23:30 (ตั้งโดย ops/install-autostart.js)
+ *   · Task Scheduler "CafeFlow Backup" ทุกคืน 23:30 (ตั้งโดย ops/tools/install-autostart.js)
  *     เครื่องปิดตอนนั้น → ทำตอนเปิดเครื่องครั้งถัดไป (StartWhenAvailable)
  *   · API หลังปิดรอบสำเร็จ (ยอดของรอบนั้นอยู่ในไฟล์สำรองทันที)
  *
@@ -14,7 +14,7 @@
  *   node ops/backup.js --reason=shift  (ใส่เหตุผลลง log)
  *
  * log: logs/backup.log · ไฟล์: backup/cafeflow-YYYYMMDD-HHMMSS.dump
- * กู้คืน: ops/restore.sh (Git Bash) — ดู ops/README.md
+ * กู้คืน: ops/tools/restore.sh (Git Bash) — ดู ops/README.md
  */
 'use strict';
 const fs = require('fs');

@@ -1,8 +1,8 @@
 /**
  * CafeFlow — ตั้งให้ระบบเปิดเองทุกครั้งที่ login เข้า Windows (ทำครั้งเดียว)
  *
- *   node D:\cafeflow\ops\install-autostart.js            ตั้ง
- *   node D:\cafeflow\ops\install-autostart.js --remove   ถอน
+ *   node D:\cafeflow\ops\tools\install-autostart.js            ตั้ง
+ *   node D:\cafeflow\ops\tools\install-autostart.js --remove   ถอน
  *
  * ลงทะเบียน Task Scheduler ชื่อ "CafeFlow" (เมื่อ login + หน่วง 30 วิ) → เรียก run-cafeflow.ps1
  * และ "CafeFlow Backup" ทุกคืน 23:30 → ops/backup.js (เครื่องปิดตอนนั้น = ทำตอนเปิดครั้งถัดไป)
@@ -22,7 +22,8 @@ const { spawnSync } = require('child_process');
 
 const TASK = 'CafeFlow';
 const BACKUP_TASK = 'CafeFlow Backup';
-const SCRIPT = path.join(__dirname, 'run-cafeflow.ps1');
+const OPS = path.resolve(__dirname, '..');   // ย้ายไฟล์นี้มา ops/tools 19/10/2569 — งานที่ตั้งยังชี้ ops/ เหมือนเดิม
+const SCRIPT = path.join(OPS, 'run-cafeflow.ps1');
 // ทางลัดของวิธีเดิม — ลบทิ้งทั้งตอนตั้งและถอน กันเปิดซ้อน
 const OLD_LNK = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'CafeFlow.lnk');
 
@@ -93,7 +94,7 @@ const xml = `<?xml version="1.0" encoding="UTF-16"?>
     <Exec>
       <Command>${xmlEsc(cmdExe)}</Command>
       <Arguments>${xmlEsc(args)}</Arguments>
-      <WorkingDirectory>${xmlEsc(__dirname)}</WorkingDirectory>
+      <WorkingDirectory>${xmlEsc(OPS)}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>
@@ -142,8 +143,8 @@ const backupXml = `<?xml version="1.0" encoding="UTF-16"?>
   <Actions Context="Author">
     <Exec>
       <Command>${xmlEsc(process.execPath)}</Command>
-      <Arguments>${xmlEsc('"' + path.join(__dirname, 'backup.js') + '" --reason=nightly')}</Arguments>
-      <WorkingDirectory>${xmlEsc(path.resolve(__dirname, '..'))}</WorkingDirectory>
+      <Arguments>${xmlEsc('"' + path.join(OPS, 'backup.js') + '" --reason=nightly')}</Arguments>
+      <WorkingDirectory>${xmlEsc(path.resolve(OPS, '..'))}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>

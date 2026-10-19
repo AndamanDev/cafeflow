@@ -1,2 +1,3 @@
 # ไฟล์ติดตั้งอัตโนมัติ — เก็บ CRLF ตามจริง (ไม่แปลง) โหลดตรงจาก GitHub แล้ว cmd ยังอ่านถูก
 ops/install-cafeflow.bat -text
+ops/cafeflow.bat -text

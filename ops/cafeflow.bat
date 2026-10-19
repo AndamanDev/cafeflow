@@ -1,32 +1,86 @@
 @echo off
 rem ================================================================
-rem  CafeFlow - one-click installer for the shop server.
+rem  CafeFlow - ONE file for the shop server. Just double-click.
 rem
-rem  Right-click -> "Run as administrator". Safe to run again and again:
-rem  every step checks first and skips what is already done.
-rem    Run 1: installs Git, Node.js, Python 3.11, Docker Desktop (winget)
-rem           -> asks you to RESTART if Docker/WSL was just installed
-rem    Run 2: downloads CafeFlow, then ops\setup-shop.js does the rest
-rem           (database, packages, slip reader, autostart, firewall ...)
+rem  It checks this machine first:
+rem   - CafeFlow installed and ready  -> maintenance menu (ops\tools\menu.js)
+rem       arrow keys up/down, Enter, Esc to quit
+rem       status - restart - server IP - screens - backup - logs -
+rem       update - clear sales data - autostart - DB password - repair
+rem   - not installed / half installed -> installs it (asks Windows for
+rem       administrator permission by itself - no right-click needed)
+rem       Run 1: Git, Node.js, Python 3.11, WSL, Docker Desktop (winget)
+rem              -> asks you to RESTART if Docker/WSL was just installed
+rem       Run 2: downloads CafeFlow, then ops\tools\setup-shop.js does the rest
+rem              (database, packages, slip reader, autostart, firewall ...)
+rem              and puts a "CafeFlow" shortcut on the desktop
+rem   - "cafeflow.bat install" = run the installer again (repair). Safe to
+rem       repeat: every step checks first and skips what is already done.
 rem
-rem  Works on its own (USB stick / downloaded) or from inside the repo.
+rem  Works on its own (USB stick / downloaded from GitHub) or from inside the repo.
+rem  "Ready" = Node.js found + api\node_modules\.cafeflow-lock (written by tools\setup-shop.js).
 rem  No labels/goto on purpose: this file may arrive with LF line endings
 rem  (raw download from GitHub) and cmd mis-reads labels in LF files.
+rem  The installer runs from a copy in %TEMP%: "git pull" may replace this
+rem  very file, and cmd reads a .bat line by line while it runs.
+rem  (Replaces install-cafeflow.bat - merged here 19/10/2569.)
 rem ================================================================
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
-title CafeFlow installer
+title CafeFlow
+
+rem ---- where am I / where is CafeFlow ------------------------------
+set "SELF=%~dp0"
+if /i "%~2"=="--from-temp" set "SELF=%~3"
+set "DIR="
+if exist "%SELF%tools\menu.js" for %%I in ("%SELF%..") do set "DIR=%%~fI"
+if not defined DIR if exist "D:\cafeflow\ops\tools\menu.js" set "DIR=D:\cafeflow"
+if not defined DIR if exist "C:\cafeflow\ops\tools\menu.js" set "DIR=C:\cafeflow"
+
+set "READY=0"
+if defined DIR if exist "%DIR%\api\node_modules\.cafeflow-lock" (
+    where node >nul 2>&1
+    if not errorlevel 1 set "READY=1"
+)
+if /i "%~1"=="install" set "READY=0"
+
+rem ---- ready: open the menu ----------------------------------------
+if "%READY%"=="1" (
+    cd /d "%DIR%"
+    node ops\tools\menu.js
+    exit /b !errorlevel!
+)
+
+rem ---- not ready: install / repair ---------------------------------
 echo.
 echo  ===== CafeFlow installer =====
 echo.
+if /i not "%~1"=="install" (
+    echo  CafeFlow is not installed on this computer yet ^(or not finished^).
+    echo  Installing now - you can run this file again any time, finished steps are skipped.
+    echo.
+)
 
 net session >nul 2>&1
 if errorlevel 1 (
-    echo  [!] Please right-click this file and choose "Run as administrator".
-    echo.
-    pause
-    exit /b 1
+    echo  Asking Windows for administrator permission - press "Yes" ...
+    powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -ArgumentList 'install' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
+    if errorlevel 1 (
+        echo.
+        echo  [!] Permission was refused - the installer needs "Yes" to install programs.
+        echo.
+        pause
+        exit /b 1
+    )
+    exit /b 0
 )
+
+if /i not "%~2"=="--from-temp" (
+    copy /y "%~f0" "%TEMP%\cafeflow-install.bat" >nul
+    call "%TEMP%\cafeflow-install.bat" install --from-temp "%~dp0"
+    exit /b !errorlevel!
+)
+title CafeFlow installer
 
 where winget >nul 2>&1
 if errorlevel 1 (
@@ -117,7 +171,7 @@ if "%RESTART%"=="1" (
     echo.
     echo  ==========================================================
     echo   Programs installed. RESTART the computer now,
-    echo   then run this file again ^(Run as administrator^).
+    echo   then double-click this file again.
     echo  ==========================================================
     echo.
     pause
@@ -125,9 +179,8 @@ if "%RESTART%"=="1" (
 )
 
 rem ---- CafeFlow folder ---------------------------------------------
-rem  1) the repo this file sits in  2) an existing install  3) D: if it is a fixed disk, else C:
-set "DIR="
-if exist "%~dp0..\.git" for %%I in ("%~dp0..") do set "DIR=%%~fI"
+rem  1) the repo this file sits in / an existing install (found above)  2) D: if it is a fixed disk, else C:
+if not defined DIR if exist "%SELF%..\.git" for %%I in ("%SELF%..") do set "DIR=%%~fI"
 if not defined DIR if exist "D:\cafeflow\.git" set "DIR=D:\cafeflow"
 if not defined DIR if exist "C:\cafeflow\.git" set "DIR=C:\cafeflow"
 if not defined DIR (
@@ -163,8 +216,16 @@ rem  Freshly installed programs are not on this window's PATH yet
 set "PATH=%ProgramFiles%\nodejs;%ProgramFiles%\Git\cmd;%ProgramFiles%\Docker\Docker\resources\bin;%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin;%PATH%"
 
 echo.
-"%NODE%" "%DIR%\ops\setup-shop.js"
+"%NODE%" "%DIR%\ops\tools\setup-shop.js"
 set "RC=%errorlevel%"
+
+rem  Desktop shortcut for every user -> the menu inside the CafeFlow folder
+if "%RC%"=="0" (
+    powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('CommonDesktopDirectory')+'\CafeFlow.lnk'); $s.TargetPath='%DIR%\ops\cafeflow.bat'; $s.WorkingDirectory='%DIR%'; $s.Description='CafeFlow menu'; $s.Save()" >nul 2>&1
+    echo.
+    echo  From now on: double-click "CafeFlow" on the desktop ^(= %DIR%\ops\cafeflow.bat^)
+    echo  for every task - status, restart, update, backup ...
+)
 echo.
 pause
 exit /b %RC%

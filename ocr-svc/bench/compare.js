@@ -1,5 +1,5 @@
 /**
- * CafeFlow — สรุปผลวัดตัวอ่านสลิป (ops\bench-ocr.bat เรียก)
+ * CafeFlow — สรุปผลวัดตัวอ่านสลิป (ops\tools\bench-ocr.bat เรียก)
  *   node compare.js <paddle.json> <openvino.json>
  * เวลา + ค่าที่อ่านได้ (ยอด · วันเวลา · บัญชีผู้รับ) ด้วยกฎตัวจริง shared/cf-slip-rules.js
  */

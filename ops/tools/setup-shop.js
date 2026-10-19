@@ -1,7 +1,7 @@
 /**
- * CafeFlow — ตั้งค่าเครื่องหลักของร้านให้พร้อมขาย (ส่วนที่ 2 ของ ops\install-cafeflow.bat)
+ * CafeFlow — ตั้งค่าเครื่องหลักของร้านให้พร้อมขาย (ส่วนที่ 2 ของโหมดติดตั้งใน ops\cafeflow.bat)
  *
- *   node ops\setup-shop.js          ต้องรันแบบ admin (ไฟร์วอลล์)
+ *   node ops\tools\setup-shop.js          ต้องรันแบบ admin (ไฟร์วอลล์)
  *
  * กดซ้ำได้เสมอ — ทุกขั้นตรวจก่อน ทำแล้วข้าม · ล้มตรงไหน แก้แล้วกดไฟล์ติดตั้งอีกครั้งจะทำต่อจากตรงนั้น
  * ไม่ seed ทับร้านที่มีเมนูแล้ว · ไม่แตะข้อมูลออเดอร์
@@ -17,9 +17,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '..', '..');
 const API = path.join(ROOT, 'api');
-const OPS = __dirname;
+const OPS = path.resolve(__dirname, '..');
 const LOGS = path.join(ROOT, 'logs');
 const API_PORT = 8080;
 const FW_RULE = 'CafeFlow 8080';
@@ -220,7 +220,7 @@ function ocrEngine() {
 
 function stepAutostart() {
     doing('ตั้งให้ระบบเปิดเองทุกครั้งที่ login');
-    const r = run(process.execPath, [path.join(OPS, 'install-autostart.js')]);
+    const r = run(process.execPath, [path.join(__dirname, 'install-autostart.js')]);
     log('     ' + r.out.split(/\r?\n/).join('\n     '));
     if (r.code !== 0) stop('ตั้งเปิดอัตโนมัติไม่สำเร็จ — ดูข้อความด้านบน');
 }

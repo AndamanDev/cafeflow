@@ -21,7 +21,7 @@ echo Starting CafeFlow again...
 schtasks /Run /TN CafeFlow >nul 2>&1
 if errorlevel 1 (
   rem no autostart task on this machine - run the startup script directly
-  start "" /min powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0run-cafeflow.ps1"
+  start "" /min powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0..\run-cafeflow.ps1"
 )
 
 echo Waiting for the API (up to 60 seconds)...

@@ -856,3 +856,68 @@ body.cf-kitchen-mode .cf-kds-check { width: 28px; height: 28px; }
 .cf-srv-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .cf-srv-url { font-size: 20px; font-weight: 800; color: var(--primary-dark); background: none; padding: 0; }
 .cf-srv .td-sub { white-space: normal; overflow: visible; }
+
+/* ══════════════════════════════════════════════════════════
+   หน้าเข้าสู่ระบบ (จัดใหม่ 19/10/2569) — ซ้ายแผงแบรนด์เขียว · ขวาฟอร์ม · จอแคบคอลัมน์เดียว
+   ══════════════════════════════════════════════════════════ */
+body[data-page="login"] { background: var(--cf-bg, #F3F6F4); }
+.cf-login { min-height: 100vh; display: grid; grid-template-columns: minmax(380px, 46%) 1fr; }
+
+.cf-login-brand {
+    position: relative; overflow: hidden; color: #fff; padding: 44px 52px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    background: radial-gradient(120% 90% at 0% 0%, #0BBF5C 0%, #06A34A 45%, #04703A 100%);
+}
+.cf-login-logo { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+.cf-login-logo b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.cf-login-logo small { display: block; font-size: 12px; opacity: .8; }
+.cf-login-mark { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+                 background: rgba(255,255,255,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.cf-login-hero { position: relative; z-index: 1; max-width: 440px; }
+.cf-login-hero h2 { font-size: 36px; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; margin: 0 0 14px; color: #fff; }
+.cf-login-hero p { font-size: 16px; opacity: .9; margin: 0 0 22px; }
+.cf-login-points { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font-size: 15px; }
+.cf-login-points li { display: flex; align-items: center; gap: 10px; }
+.cf-login-points span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+                        background: rgba(255,255,255,.2); font-size: 13px; font-weight: 800; }
+.cf-login-art { position: absolute; right: -60px; bottom: -40px; width: 380px; height: 380px; opacity: .9; }
+.cf-login-copy { position: relative; z-index: 1; font-size: 12px; opacity: .7; }
+
+.cf-login-main { display: grid; place-items: center; padding: 32px 20px; }
+.cf-login-card { width: 100%; max-width: 400px; }
+.cf-login-logo-sm { display: none; margin-bottom: 24px; color: var(--text); }
+.cf-login-logo-sm .cf-login-mark { background: var(--primary); width: 40px; height: 40px; border-radius: 12px; box-shadow: none; }
+.cf-login-title { font-size: 30px; font-weight: 800; color: var(--text); margin: 0 0 6px; letter-spacing: -.01em; }
+.cf-login-sub { color: var(--text-muted); font-size: 15px; margin: 0 0 26px; }
+.cf-login-error { display: none; margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; font-size: 14px;
+                  background: var(--status-danger-soft); color: var(--status-danger-strong); border: 1px solid #F5C2C0; }
+.cf-login-label { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 6px; }
+.cf-login-field { position: relative; display: flex; align-items: center; margin-bottom: 18px; }
+.cf-login-field > svg { position: absolute; left: 14px; width: 18px; height: 18px; fill: none; stroke: var(--text-muted);
+                        stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.cf-login-field input {
+    width: 100%; height: 50px; padding: 0 74px 0 44px; border-radius: 12px; font: inherit; font-size: 16px;
+    border: 1.5px solid var(--brand-border); background: #fff; color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.cf-login-field input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(6, 199, 85, .15); }
+.cf-login-field input:focus + .cf-login-eye, .cf-login-field:focus-within > svg { stroke: var(--primary-dark); }
+.cf-login-eye { position: absolute; right: 8px; height: 34px; padding: 0 12px; border: 0; border-radius: 8px; cursor: pointer;
+                background: var(--brand-bg); color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; }
+.cf-login-eye:hover { background: var(--brand-bg-strong); }
+.cf-login-caps { margin: -10px 0 16px; font-size: 13px; font-weight: 600; color: var(--status-warning-strong); }
+.cf-login-caps[hidden] { display: none; }
+.cf-login-btn {
+    width: 100%; height: 52px; margin-top: 6px; border: 0; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(135deg, #06C755, #05A548); color: #fff; font: inherit; font-size: 17px; font-weight: 700;
+    box-shadow: 0 6px 18px rgba(5, 135, 57, .28); transition: transform .1s, box-shadow .15s;
+}
+.cf-login-btn:hover { box-shadow: 0 8px 24px rgba(5, 135, 57, .35); }
+.cf-login-btn:active { transform: translateY(1px); }
+.cf-login-btn:disabled { opacity: .65; cursor: wait; }
+.cf-login-footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--text-light); }
+
+@media (max-width: 900px) {
+    .cf-login { grid-template-columns: 1fr; }
+    .cf-login-brand { display: none; }
+    .cf-login-logo-sm { display: flex; }
+}

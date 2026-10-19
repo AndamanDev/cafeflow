@@ -3,7 +3,7 @@ rem ================================================================
 rem  CafeFlow - install the FAST slip reader engine (OpenVINO).
 rem  Same OCR models, ~3x faster on Intel CPUs (i3-6100U: 3.3s -> 1.0s per slip).
 rem  Run ONCE while the machine has internet (~200 MB). Safe to run again.
-rem  Afterwards ops\restart-api.bat (or a reboot) switches the reader to it.
+rem  Afterwards ops\tools\restart-api.bat (or a reboot) switches the reader to it.
 rem  Without this the shop keeps the normal engine (.venv) - still works.
 rem  Needs Python 3.11 (same as setup.bat).
 rem ================================================================
@@ -19,7 +19,7 @@ set CF_OCR_ENGINE=openvino
 set PYTHONIOENCODING=utf-8
 .venv-ov\Scripts\python.exe server.py --warmup || goto :fail
 echo.
-echo Done. Run ops\restart-api.bat to start using the fast engine.
+echo Done. Run ops\tools\restart-api.bat to start using the fast engine.
 popd
 if /I not "%~1"=="--no-pause" pause
 exit /b 0
