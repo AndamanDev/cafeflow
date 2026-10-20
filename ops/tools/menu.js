@@ -237,8 +237,10 @@ async function choose() {
     const it = ITEMS[sel];
     if (!it.run) return quit();
     busy = true;
-    process.stdin.setRawMode(false);
+    // หยุดอ่านก่อน แล้วค่อยออกจากโหมดดิบ — สลับกันบน Windows จะมีการอ่านบรรทัดค้างอยู่
+    // บรรทัดแรกที่พิมพ์ในงานลูก (เช่น n ของล้างข้อมูลขาย) ถูกเมนูแย่งไป
     process.stdin.pause();
+    process.stdin.setRawMode(false);
     console.clear();
     console.log(`${C.b}${C.g}▶ ${it.label}${C.x}\n`);
     try { await it.run(); } catch (e) { console.log(`\n${C.r}ทำไม่สำเร็จ: ${e.message}${C.x}`); }

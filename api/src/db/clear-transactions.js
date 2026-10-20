@@ -55,7 +55,14 @@ function sizeOf(p) {
     if (!st.isDirectory()) return st.size;
     return fs.readdirSync(p).reduce((a, f) => a + sizeOf(path.join(p, f)), 0);
 }
-function ask(rl, q) { return new Promise((r) => rl.question(q, (a) => r(String(a || '').trim()))); }
+/** แป้นค้างภาษาไทย (เกษมณี) → ตัวอังกฤษปุ่มเดียวกัน: ื=n ์=N ั=y ํ=Y ฎ=E ฆ=S · คำว่า ไม่/ใช่ ก็ได้ */
+const THAI_KEY = { 'ื': 'n', '์': 'N', 'ั': 'y', 'ํ': 'Y', 'ฎ': 'E', 'ฆ': 'S' };
+function latin(s) {
+    if (/^ไม่/.test(s)) return 'n';
+    if (/^ใช่/.test(s)) return 'y';
+    return s.replace(/[ื์ัํฎฆ]/g, (c) => THAI_KEY[c]);
+}
+function ask(rl, q) { return new Promise((r) => rl.question(q, (a) => r(latin(String(a || '').trim())))); }
 
 function countSlipFiles(dir) {
     if (!fs.existsSync(dir)) return 0;
