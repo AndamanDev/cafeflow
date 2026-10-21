@@ -49,30 +49,18 @@ async function issueQr(c, branchId, orderId, ctx) {
     const br = (await c.query('SELECT promptpay_id, name_th FROM branch WHERE id = $1',
         [branchId])).rows[0];
     const settings = await settingsOf(c, branchId);
-    // ช่องทางรับเงิน 2 แบบ (16/10/2569): พร้อมเพย์ของร้าน · QR ร้านค้าของธนาคารที่ร้านอัปโหลด (Thai QR ชำระบิล)
-    // payQrSource = ร้านเลือกเองว่าคีออสก์แสดงแบบไหน ('promptpay' | 'shopqr') · ไม่ได้เลือก = พร้อมเพย์ก่อน
-    // แบบที่เลือกยังไม่ได้ตั้งค่า → ใช้อีกแบบแทน (ลูกค้าต้องจ่ายได้ ดีกว่าออก QR ไม่ได้ทั้งร้าน)
-    const tplRaw = settings.shopQrTemplate ? String(settings.shopQrTemplate) : '';
-    const tpl = tplRaw ? CFEmv.classify(tplRaw) : null;
-    const hasPp = !!br.promptpay_id;
-    // QR ที่อัปโหลดเป็นได้ทั้ง QR ร้านค้า (ชำระบิล) และ QR พร้อมเพย์ — withAmount ใส่ยอดได้ทั้งคู่
-    const hasShop = !!(tpl && (tpl.kind === 'billpay' || tpl.kind === 'promptpay'));
-    if (!hasPp && !hasShop) {
+    // รับเงินทางพร้อมเพย์ของร้านอย่างเดียว — เลิก QR ที่อัปโหลดจากธนาคาร (ผู้ใช้สั่ง 21/10/2569)
+    if (!br.promptpay_id) {
         // บอกให้ชัดว่าต้องไปตั้งที่ไหน — ไม่ใช่ error ลอย ๆ ที่หน้าร้านแก้เองไม่ได้
         throw new ApiError(409,
-            'ยังไม่ได้ตั้งช่องทางรับเงินของร้าน — ใส่พร้อมเพย์ หรืออัปโหลดภาพ QR รับเงินของร้าน ' +
-            'ได้ที่ ⚙ ตั้งค่า › ข้อมูลร้าน › การรับเงิน');
+            'ยังไม่ได้ใส่พร้อมเพย์ของร้าน — ตั้งได้ที่ ⚙ ตั้งค่า › ข้อมูลร้าน › การรับเงิน');
     }
-    const useShop = hasShop && (!hasPp || settings.payQrSource === 'shopqr');
 
     const amount = Number(o.total);
     if (!(amount > 0)) throw new ApiError(409, 'ยอดออเดอร์ต้องมากกว่า 0');
 
-    const payload = useShop
-        ? CFEmv.withAmount(tplRaw, amount)
-        : generatePayload(String(br.promptpay_id), { amount });
-    const target = !useShop ? String(br.promptpay_id)
-        : tpl.kind === 'billpay' ? 'BILLER:' + tpl.billerId : 'QR:' + tpl.id;
+    const payload = generatePayload(String(br.promptpay_id), { amount });
+    const target = String(br.promptpay_id);
 
     // ตรวจก่อนส่งออกไป — QR ที่ CRC ผิดจะสแกนติดแต่ธนาคารปฏิเสธ
     // ปล่อยให้ลูกค้าเจอหน้าร้านแล้วหาสาเหตุยากกว่านี้มาก

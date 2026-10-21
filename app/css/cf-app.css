@@ -823,29 +823,14 @@ body.cf-kitchen-mode .cf-kds-allday-chip b { font-size: 20px; }
 .cf-kds-li.is-done .cf-kds-item, .cf-kds-li.is-done .cf-kds-mods { text-decoration: line-through; color: var(--text-muted); }
 body.cf-kitchen-mode .cf-kds-check { width: 28px; height: 28px; }
 
-/* ตั้งค่าคีออสก์ — ผลอ่าน QR รับเงินที่อัปโหลด */
+/* ข้อมูลร้าน — ผลอ่านเลขพร้อมเพย์จากภาพ QR */
 .cf-qr-msg { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
 .cf-qr-msg.ok  { background: var(--primary-bg); color: var(--primary-dark); }
 .cf-qr-msg.bad { background: var(--status-danger-soft); color: var(--status-danger-strong); }
 .cf-qr-msg svg { flex-shrink: 0; margin-top: 2px; }
-.cf-qr-ok { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 10px;
-            border: 1px solid var(--cf-line, #E6EAE7); background: #fff; }
-.cf-qr-ok > svg { color: var(--primary); flex-shrink: 0; }
-.cf-qr-ok > div { flex: 1; min-width: 0; }
-/* ตั้งค่าคีออสก์ — เลือก QR ที่แสดงตอนจ่าย (พร้อมเพย์ / QR ร้านค้า) */
-.cf-paysrc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.cf-paysrc { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 10px; cursor: pointer; text-align: left;
-             border: 1.5px solid var(--brand-border); background: #fff; font: inherit; font-size: 14px; color: var(--text); }
-.cf-paysrc > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.cf-paysrc .td-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cf-paysrc.active { border-color: var(--primary); background: var(--primary-bg); }
-.cf-paysrc-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--brand-border-strong); flex-shrink: 0; margin-top: 2px; }
-.cf-paysrc.active .cf-paysrc-dot { border-color: var(--primary); box-shadow: inset 0 0 0 3px #fff; background: var(--primary); }
-.cf-paysrc-miss { color: var(--status-warning-strong) !important; }
 /* ปุ่มแบบลิงก์ตัวเล็ก (ข้อมูลร้าน › "ไม่รู้เลข? อ่านจากภาพ QR") */
 .cf-linkbtn { margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px;
               color: var(--primary-dark); text-decoration: underline; cursor: pointer; }
-#paySecPp[hidden], #paySecShop[hidden], .cf-qr-ok[hidden] { display: none; }
 /* แคชเชียร์ — การ์ดพร้อมรับ: [เรียกซ้ำ] [ส่งมอบ] + บรรทัดบอกจำนวนครั้งที่เรียกซ้ำ */
 .cf-oc-acts { display: flex; gap: 8px; margin-top: auto; }
 .cf-oc-acts .cf-oc-act { margin-top: 0; flex: 1; }
@@ -1206,4 +1191,3 @@ table.dataTable td:has(> .sip-chip:only-child), table.dataTable td:has(> .status
     div.dt-container .dt-search input { width: 100%; margin: 0; box-sizing: border-box; }
     div.dt-container .dt-layout-cell { min-width: 0; }
 }
-.cf-qr-ok .td-sub { white-space: normal; }  /* ข้อความใต้ QR ที่อัปโหลด ตัดบรรทัดได้ ไม่ทับปุ่มลบ */

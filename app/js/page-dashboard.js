@@ -963,98 +963,15 @@ const DashPage = {
         });
     },
 
-    /** สถานะ QR ร้านค้าที่ตั้งไว้ (แม่แบบ) — วาดใต้ปุ่มอัปโหลด */
-    shopQrHtml(msg) {
-        const e = CFApp.esc;
-        const t = this._kd && this._kd.shopQrTemplate;
-        const k = t ? CFEmv.classify(t) : null;
-        // แสดงเฉพาะเมื่อเลือกใช้ QR ร้านค้า (โหมดพร้อมเพย์ซ่อนไว้ — ยังเก็บอยู่ สลับกลับมาเห็นเหมือนเดิม)
-        const ok = k && (k.kind === 'billpay' || k.kind === 'promptpay');
-        const saved = ok ? `
-            <div class="cf-qr-ok" ${this._kd.payQrSource === 'shopqr' ? '' : 'hidden'}><i data-lucide="badge-check" class="icon-sm"></i>
-                <div><b>${k.kind === 'billpay' ? 'QR ร้านค้า' : 'QR พร้อมเพย์'}: ${e(k.name || (k.kind === 'billpay' ? 'ไม่มีชื่อใน QR' : k.type === 'ewallet' ? 'จากแอปธนาคาร' : k.id))}</b>
-                    <div class="td-sub">${k.kind === 'billpay'
-                        ? 'รหัสร้าน ' + e(k.billerId) + (k.ref1 ? ' · ' + e(k.ref1) : '')
-                        : this.qrIdText(k, true)} — ใส่ยอดได้ ✓</div></div>
-                <button type="button" class="btn btn-outline btn-sm" onclick="DashPage.clearShopQr()">ลบ</button>
-            </div>` : '';
-        return (msg || '') + saved;
-    },
-
     /**
-     * บอกว่าเลขใน QR พร้อมเพย์คืออะไร (21/10/2569) — QR "รับเงิน" ของ K PLUS ไม่มีเลขบัญชี/เบอร์โทร
-     * มีแต่รหัสพร้อมเพย์ 15 หลักที่ผูกกับบัญชี ซึ่งแอปธนาคารพิมพ์ใต้ QR ว่า "เลขที่อ้างอิง" → ใช้คำเดียวกับแอป ผู้ใช้จะได้เทียบได้
-     * 3 หลักแรก = รหัสธนาคาร (004 = กสิกรไทย) · เงินเข้าบัญชีที่ผูกกับรหัสนี้
+     * อ่านเลขพร้อมเพย์จากภาพ QR "รับเงิน" ในแอปธนาคาร (ในเครื่อง ไม่ส่งภาพออกไปไหน) → เติมลงช่องพร้อมเพย์
+     * เลิกโหมด "ใช้ QR ที่อัปโหลดที่คีออสก์" แล้ว (ผู้ใช้สั่ง 21/10/2569) — คีออสก์ใช้พร้อมเพย์อย่างเดียว
      */
-    qrIdText(k, long) {
-        const BANK = { '002': 'กรุงเทพ', '004': 'กสิกรไทย', '006': 'กรุงไทย', '011': 'ทีทีบี', '014': 'ไทยพาณิชย์',
-                       '025': 'กรุงศรี', '030': 'ออมสิน', '034': 'ธ.ก.ส.', '069': 'เกียรตินาคินภัทร', '073': 'แลนด์ แอนด์ เฮ้าส์' };
-        if (k.type === 'phone') return long ? 'พร้อมเพย์เบอร์โทร ' + k.id : 'พร้อมเพย์ ' + k.id;
-        if (k.type === 'id') return long ? 'พร้อมเพย์เลขประจำตัว 13 หลัก ' + k.id : 'พร้อมเพย์ ' + k.id;
-        const bank = BANK[String(k.id).slice(0, 3)];
-        return long
-            ? `เลขที่อ้างอิง ${k.id}${bank ? ' · บัญชีธนาคาร' + bank : ''} (ตรงกับใต้ QR ในแอปธนาคาร)`
-            : `พร้อมเพย์${bank ? ' บัญชี' + bank : ''} · อ้างอิง ${k.id}`;
-    },
-
-    clearShopQr() {
-        this._kd.shopQrTemplate = '';
-        if (this._kd.payQrSource === 'shopqr') this._kd.payQrSource = 'promptpay';
-        document.getElementById('kQrResult').innerHTML = this.shopQrHtml();
-        this.repaintPaySrc();
-        refreshIcons();
-    },
-
-    /**
-     * เลือกแบบ QR ที่คีออสก์แสดง — พร้อมเพย์ / QR ร้านค้าของธนาคาร
-     * บอกสถานะของแต่ละแบบ (ตั้งแล้ว/ยัง) · เลือกแบบที่ยังไม่ได้ตั้ง → ระบบใช้อีกแบบแทน (issueQr) จึงเตือนไว้
-     */
-    paySrcHtml() {
-        const e = CFApp.esc;
-        const d = this._kd || {};
-        const ppEl = document.getElementById('kPromptpay');
-        const pp = (ppEl ? ppEl.value : d.promptpayId || '').replace(/[^0-9]/g, '');
-        const k = d.shopQrTemplate ? CFEmv.classify(d.shopQrTemplate) : null;
-        const shop = k && (k.kind === 'billpay' || k.kind === 'promptpay') ? k : null;
-        const src = d.payQrSource === 'shopqr' ? 'shopqr' : 'promptpay';
-        const opt = (key, title, status, ok) => `
-            <button type="button" class="cf-paysrc ${src === key ? 'active' : ''}" onclick="DashPage.setPaySrc('${key}')">
-                <span class="cf-paysrc-dot"></span>
-                <span><b>${title}</b><span class="td-sub ${ok ? '' : 'cf-paysrc-miss'}">${status}</span></span>
-            </button>`;
-        const chosenMissing = (src === 'promptpay' && !pp) || (src === 'shopqr' && !shop);
-        return `<div class="cf-paysrc-row">
-                ${opt('promptpay', 'พร้อมเพย์', pp ? e(pp) : 'ยังไม่ได้ใส่เลข', !!pp)}
-                ${opt('shopqr', 'QR ที่อัปโหลดจากธนาคาร', shop ? e(shop.name || (shop.billerId ? 'รหัสร้าน ' + shop.billerId : this.qrIdText(shop))) : 'ยังไม่ได้อัปโหลด', !!shop)}
-            </div>
-            ${chosenMissing && (pp || shop) ? `<div class="ds-warn">
-                แบบที่เลือกยังไม่ได้ตั้งค่า — ตอนนี้คีออสก์จะใช้${src === 'promptpay' ? 'QR ร้านค้า' : 'พร้อมเพย์'}แทน</div>` : ''}`;
-    },
-    setPaySrc(key) {
-        this._kd.payQrSource = key;
-        this.repaintPaySrc();
-    },
-    repaintPaySrc() {
-        const el = document.getElementById('kPaySrc');
-        if (el) el.innerHTML = this.paySrcHtml();
-        // แสดงเฉพาะส่วนของแบบที่เลือก: พร้อมเพย์ = ช่องเลข · QR ร้านค้า = ปุ่มอัปโหลด + QR ที่ตั้งไว้
-        const shop = this._kd && this._kd.payQrSource === 'shopqr';
-        const pp = document.getElementById('paySecPp'), sh = document.getElementById('paySecShop');
-        if (pp) pp.hidden = shop;
-        if (sh) sh.hidden = !shop;
-        const saved = document.querySelector('#kQrResult .cf-qr-ok');
-        if (saved) saved.hidden = !shop;
-    },
-
-    /**
-     * อ่านภาพ QR ที่อัปโหลด (ในเครื่อง ไม่ส่งภาพออกไปไหน) → แยกประเภทด้วย CFEmv.classify
-     *   พร้อมเพย์ → เติมเลขลงช่องพร้อมเพย์ (ทางเดิม) · QR ร้านค้า → เก็บเป็นแม่แบบ · อื่น ๆ → บอกเหตุผล
-     */
-    readShopQr(file) {
+    readPromptpayQr(file) {
         if (!file) return;
         const out = document.getElementById('kQrResult');
         const say = (cls, icon, text) => {
-            out.innerHTML = this.shopQrHtml(`<div class="cf-qr-msg ${cls}"><i data-lucide="${icon}" class="icon-sm"></i> ${text}</div>`);
+            out.innerHTML = `<div class="cf-qr-msg ${cls}"><i data-lucide="${icon}" class="icon-sm"></i> ${text}</div>`;
             refreshIcons();
         };
         if (typeof jsQR !== 'function') { say('bad', 'alert-circle', 'ตัวอ่าน QR ไม่พร้อม — รีเฟรชหน้าแล้วลองใหม่'); return; }
@@ -1076,39 +993,14 @@ const DashPage = {
             const data = scan(1200) || scan(2400);
             if (!data) { say('bad', 'scan-line', 'อ่าน QR ในภาพไม่ได้ — ใช้ภาพหน้าจอที่เห็น QR ชัด ๆ เต็มกรอบ'); return; }
             const k = CFEmv.classify(data);
-            if (k.kind !== 'promptpay' && k.kind !== 'billpay') {
-                say('bad', 'alert-circle', CFApp.esc(k.reason || 'QR นี้ใช้รับเงินไม่ได้'));
+            if (k.kind !== 'promptpay') {
+                say('bad', 'alert-circle', k.kind === 'billpay'
+                    ? 'QR นี้เป็น QR ร้านค้าของธนาคาร ไม่มีเลขพร้อมเพย์ — ใส่เบอร์โทรหรือเลขบัตรที่ผูกพร้อมเพย์เอง'
+                    : CFApp.esc(k.reason || 'QR นี้ไม่ใช่พร้อมเพย์'));
                 return;
             }
-            /*
-             * ★ ไม่สลับโหมดเอง (เดิมเจอ QR พร้อมเพย์แล้วเด้งไปโหมดพร้อมเพย์ ผู้ใช้งง)
-             *   โหมด "QR ที่อัปโหลด" → เก็บ QR นี้ตามที่อัปโหลด (ร้านค้าหรือพร้อมเพย์ จากธนาคารไหนก็ได้ ใส่ยอดได้ทั้งคู่)
-             *   โหมดพร้อมเพย์ (ลิงก์ "ไม่รู้เลข?") → QR พร้อมเพย์ = เติมเลขให้ · QR ร้านค้า = เก็บไว้ + ปุ่มให้กดเปลี่ยนเอง
-             */
-            const inShopMode = this._kd.payQrSource === 'shopqr';
-            if (!inShopMode && k.kind === 'promptpay') {
-                const pp = document.getElementById('kPromptpay');
-                if (pp) pp.value = k.id;
-                this.repaintPaySrc();
-                say('ok', 'check-circle', `พบพร้อมเพย์ <b>${CFApp.esc(k.id)}</b>${k.name ? ' (' + CFApp.esc(k.name) + ')' : ''} — ใส่ในช่องให้แล้ว กดบันทึกเพื่อใช้`);
-                return;
-            }
-            // ตรวจว่าใส่ยอดได้จริงก่อนเก็บ — ใส่ ฿1 แล้วผ่านตัวตรวจเดียวกับตอนออก QR ให้ลูกค้า
-            try {
-                const test = CFEmv.withAmount(data, 1);
-                if (!CFEmv.verify(test, { amount: 1 }).ok) throw new Error('verify');
-            } catch (err) { say('bad', 'alert-circle', 'QR นี้ใส่ยอดไม่ได้ — ลองภาพ QR อื่น หรือใช้พร้อมเพย์แทน'); return; }
-            this._kd.shopQrTemplate = data;
-            const acc = document.getElementById('shAccName');
-            if (acc && !acc.value.trim() && k.name) acc.value = k.name;
-            this.repaintPaySrc();
-            if (!inShopMode) {
-                say('ok', 'info', `QR นี้เป็น QR ร้านค้าของธนาคาร (${CFApp.esc(k.name || 'รหัสร้าน ' + k.billerId)}) ไม่ใช่เลขพร้อมเพย์ —
-                    <button type="button" class="cf-linkbtn" style="margin:0" onclick="DashPage.setPaySrc('shopqr')">ใช้ QR นี้ที่คีออสก์</button>`);
-                return;
-            }
-            say('ok', 'check-circle', `อ่าน${k.kind === 'billpay' ? ' QR ร้านค้า' : ' QR พร้อมเพย์'}ได้ — กดบันทึกเพื่อใช้ · <b>ลองโอนจริง ฿1 ก่อนเปิดร้าน</b>`);
-            return;
+            document.getElementById('kPromptpay').value = k.id;
+            say('ok', 'check-circle', `พบพร้อมเพย์ <b>${CFApp.esc(k.id)}</b>${k.name ? ' (' + CFApp.esc(k.name) + ')' : ''} — ใส่ในช่องให้แล้ว กดบันทึกเพื่อใช้`);
         };
         img.onerror = () => { URL.revokeObjectURL(url); say('bad', 'alert-circle', 'เปิดไฟล์ภาพไม่ได้'); };
         img.src = url;
@@ -1434,8 +1326,6 @@ const DashPage = {
        ══════════════════════════════════════════════════════ */
     openShop() {
         const s = CFStore.settings();
-        // ค่าที่ลิ้นชักนี้แก้ระหว่างเปิด (อัปโหลด QR / เลือกแบบ QR) — paySrcHtml/shopQrHtml/readShopQr อ่านจากที่นี่
-        this._kd = Object.assign({}, s);
         const e = CFApp.esc;
         const field = (id, label, value, extra) => `
             <div class="sip-field">
@@ -1473,37 +1363,27 @@ const DashPage = {
                     </select>
                     <div class="ds-note">ออเดอร์ก่อนเวลานี้นับเป็นยอดของเมื่อวาน (ร้านปิดหลังเที่ยงคืนได้) · มีผลตั้งแต่ออเดอร์ถัดไป</div>
                 </div>`) +
-                // ร้านเลือกเองว่าคีออสก์แสดง QR แบบไหน (16/10/2569) · ตัวเลือกจริงอยู่ที่ issueQr (payQrSource)
-                // แสดงเฉพาะส่วนของแบบที่เลือก (ผู้ใช้ขอ 16/10/2569) — สลับด้วย repaintPaySrc()
+                // คีออสก์ใช้พร้อมเพย์อย่างเดียว — เลิกโหมด QR ที่อัปโหลดจากธนาคาร (ผู้ใช้สั่ง 21/10/2569)
                 CFApp.card('การรับเงิน', `
                 <div class="sip-field">
-                    <label class="sip-label">แบบ QR</label>
-                    <div id="kPaySrc">${this.paySrcHtml()}</div>
-                </div>
-                <div class="sip-field" id="paySecPp" ${this._kd.payQrSource === 'shopqr' ? 'hidden' : ''}>
                     <label class="sip-label">พร้อมเพย์ของร้าน</label>
-                    <input class="sip-input" id="kPromptpay" inputmode="numeric" oninput="DashPage.repaintPaySrc()"
+                    <input class="sip-input" id="kPromptpay" inputmode="numeric"
                            placeholder="เช่น 0812345678" value="${e(s.promptpayId || '')}">
                     <div class="ds-note">เบอร์โทร 10 หลัก · เลขบัตร 13 หลัก · e-wallet 15 หลัก —
                         <b>ตรวจให้ดี ผิดหนึ่งตัวเงินลูกค้าเข้าบัญชีคนอื่น</b></div>
                     <button type="button" class="cf-linkbtn" onclick="document.getElementById('kQrFile').click()">
                         ไม่รู้เลข? อ่านจากภาพ QR "รับเงิน" ในแอปธนาคาร</button>
+                    <div id="kQrResult" class="cf-qr-result"></div>
                 </div>
-                <div class="sip-field" id="paySecShop" ${this._kd.payQrSource === 'shopqr' ? '' : 'hidden'}>
-                    <label class="sip-label">ภาพ QR รับเงินจากแอปธนาคาร (ธนาคารไหนก็ได้)</label>
-                    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('kQrFile').click()">
-                        <i data-lucide="upload" class="icon-sm"></i> เลือกภาพ QR</button>
-                </div>
-                <input type="file" id="kQrFile" accept="image/*" hidden onchange="DashPage.readShopQr(this.files[0]); this.value=''">
-                <div id="kQrResult" class="cf-qr-result">${this.shopQrHtml()}</div>`, { hint: 'QR ที่คีออสก์ให้ลูกค้าสแกนจ่าย' }) +
+                <input type="file" id="kQrFile" accept="image/*" hidden onchange="DashPage.readPromptpayQr(this.files[0]); this.value=''">`,
+                { hint: 'คีออสก์สร้าง QR พร้อมเพย์ใส่ยอดของแต่ละบิลให้ลูกค้าสแกนจ่าย' }) +
                 CFApp.card('ตรวจสลิป', `
                 <div class="form-row">
                     ${field('shAccName', 'ชื่อบัญชีผู้รับเงิน (ตามสลิป)', s.shopAccountName, 'placeholder="ชื่อร้าน หรือชื่อเจ้าของบัญชี"')}
                     ${field('shAccNos', 'เลขบัญชีธนาคารที่รับเงิน', s.shopAccountNos, 'inputmode="numeric" placeholder="เต็ม หรือ 4 ตัวท้าย · คั่นด้วยจุลภาค"')}
                 </div>
-                ${this._kd.payQrSource === 'shopqr' && !s.shopAccountName && !s.shopAccountNos ? `<div class="ds-warn">
-                    สลิปจะแสดงเลขบัญชีธนาคารจริง (เช่น xxx-x-x3118-x) ไม่ใช่เลขใต้ QR —
-                    ใส่ชื่อบัญชี หรือเลขบัญชี (4 ตัวท้ายก็ได้) ที่เห็นในสลิป ไม่งั้นระบบบอกไม่ได้ว่าเงินเข้าร้าน</div>` : ''}`,
+                <div class="ds-note">บางธนาคารพิมพ์เลขบัญชีจริงบนสลิป (เช่น xxx-x-x3118-x) แทนเบอร์พร้อมเพย์ —
+                    ใส่เลขนั้น (4 ตัวท้ายก็ได้) ระบบจะรู้ว่าเป็นบัญชีร้าน</div>`,
                 { hint: 'สลิปที่ผู้รับไม่ตรงชื่อ/เลขบัญชีนี้จะขึ้นแดง "ไม่ใช่บัญชีร้าน"' }),
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
@@ -1517,8 +1397,6 @@ const DashPage = {
         const digits = (x) => x.replace(/[^0-9]/g, '');
         const body = { shopName: v('shName'), address: v('shAddr'),
                        taxId: digits(v('shTax')), promptpayId: digits(v('kPromptpay')),
-                       payQrSource: this._kd.payQrSource === 'shopqr' ? 'shopqr' : 'promptpay',
-                       shopQrTemplate: this._kd.shopQrTemplate || '',
                        shopAccountName: v('shAccName'),
                        shopPhone: v('shPhone'), receiptFooter: v('shFooter'),
                        shopAccountNos: v('shAccNos').split(',').map(digits).filter(Boolean).join(', '),
