@@ -1499,8 +1499,12 @@ const DashPage = {
                 CFApp.card('ตรวจสลิป', `
                 <div class="form-row">
                     ${field('shAccName', 'ชื่อบัญชีผู้รับเงิน (ตามสลิป)', s.shopAccountName, 'placeholder="ชื่อร้าน หรือชื่อเจ้าของบัญชี"')}
-                    ${field('shAccNos', 'เลขบัญชีอื่นที่รับเงิน (ถ้ามี)', s.shopAccountNos, 'inputmode="numeric" placeholder="คั่นด้วยจุลภาค"')}
-                </div>`, { hint: 'พร้อมเพย์ด้านบนนับเป็นบัญชีร้านอยู่แล้ว · สลิปที่ผู้รับไม่ตรงจะขึ้นแดง "ไม่ใช่บัญชีร้าน"' }),
+                    ${field('shAccNos', 'เลขบัญชีธนาคารที่รับเงิน', s.shopAccountNos, 'inputmode="numeric" placeholder="เต็ม หรือ 4 ตัวท้าย · คั่นด้วยจุลภาค"')}
+                </div>
+                ${this._kd.payQrSource === 'shopqr' && !s.shopAccountName && !s.shopAccountNos ? `<div class="ds-warn">
+                    สลิปจะแสดงเลขบัญชีธนาคารจริง (เช่น xxx-x-x3118-x) ไม่ใช่เลขใต้ QR —
+                    ใส่ชื่อบัญชี หรือเลขบัญชี (4 ตัวท้ายก็ได้) ที่เห็นในสลิป ไม่งั้นระบบบอกไม่ได้ว่าเงินเข้าร้าน</div>` : ''}`,
+                { hint: 'สลิปที่ผู้รับไม่ตรงชื่อ/เลขบัญชีนี้จะขึ้นแดง "ไม่ใช่บัญชีร้าน"' }),
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
                 <button class="btn btn-primary" onclick="DashPage.saveShop()">

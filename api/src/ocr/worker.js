@@ -46,11 +46,13 @@ async function shopAccount(pool, branchId) {
         "SELECT key, value FROM app_setting WHERE branch_id = $1 AND key IN ('shopAccountName','shopAccountNos','shopQrTemplate')",
         [branchId])).rows) kv[r.key] = r.value;
     const br = (await pool.query('SELECT promptpay_id FROM branch WHERE id = $1', [branchId])).rows[0] || {};
-    const accounts = String(kv.shopAccountNos || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+    const bankAccounts = String(kv.shopAccountNos || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+    const accounts = bankAccounts.slice();
     if (br.promptpay_id) accounts.push(br.promptpay_id);
     const up = kv.shopQrTemplate ? CFEmv.classify(String(kv.shopQrTemplate)) : null;
     if (up && up.kind === 'promptpay' && !accounts.includes(up.id)) accounts.push(up.id);
-    return { name: kv.shopAccountName || '', accounts };
+    // bankAccounts = เลขบัญชีจริงที่ร้านกรอก — ใช้ตัดสิน "ไม่ใช่บัญชีร้าน" ได้ · พร้อมเพย์/e-wallet ใช้จับคู่ให้ผ่านอย่างเดียว
+    return { name: kv.shopAccountName || '', accounts, bankAccounts };
 }
 
 // ภาพที่อ่านออกล่าสุดต้องพลิกไหม — ใบถัดไปลองด้านนี้ก่อน (จำในหน่วยความจำ รีสตาร์ตแล้วเริ่มด้านปกติ)

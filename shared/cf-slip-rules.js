@@ -305,8 +305,11 @@
         if (!receiver || (!receiver.name && !receiver.tail)) return 'UNKNOWN';
         if (receiver.tail && accounts.length) {
             if (accounts.some((a) => a.includes(receiver.tail))) return 'PASS';
-            if (!shopName || !receiver.name || !nameMatch(receiver.name, shopName)) return 'FAIL';
-            return 'PASS';
+            if (shopName && receiver.name) return nameMatch(receiver.name, shopName) ? 'PASS' : 'FAIL';
+            // เลขท้ายไม่ตรงและไม่มีชื่อให้เทียบ — ตัดสินว่าไม่ใช่ร้านได้เฉพาะเมื่อร้านกรอกเลขบัญชีจริงไว้
+            // (พร้อมเพย์/e-wallet จาก QR ไม่โผล่บนสลิป สลิปกสิกรโชว์แต่เลขบัญชีจริง xxx-x-x3118-x · 21/10/2569)
+            const bank = shop.bankAccounts ? shop.bankAccounts.map((a) => String(a).replace(/\D/g, '')).filter((a) => a.length >= 4) : accounts;
+            return bank.length ? 'FAIL' : 'UNKNOWN';
         }
         if (receiver.name && shopName) return nameMatch(receiver.name, shopName) ? 'PASS' : 'FAIL';
         return 'UNKNOWN';
@@ -431,7 +434,8 @@
         const who = [rv.name, rv.tail ? 'บัญชีลงท้าย ' + rv.tail : null].filter(Boolean).join(' · ');
         notes.push(checks.receiver === 'PASS' ? 'โอนเข้าบัญชีร้าน (' + who + ')'
             : checks.receiver === 'FAIL' ? 'ผู้รับเงินคือ ' + who + ' — ไม่ใช่บัญชีร้าน'
-            : checks.receiver === 'UNKNOWN' ? 'ไม่เห็นชื่อผู้รับเงิน — ดูจากภาพเอง' : '');
+            : checks.receiver === 'UNKNOWN' ? (who ? 'ผู้รับเงินคือ ' + who + ' — ร้านยังไม่ได้ใส่ชื่อ/เลขบัญชีรับเงิน ดูจากภาพเอง'
+                                                  : 'ไม่เห็นชื่อผู้รับเงิน — ดูจากภาพเอง') : '');
 
         const all = [checks.amount, checks.date, checks.receiver];
         const verdict = all.includes('FAIL') ? 'FAIL'

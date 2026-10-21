@@ -152,6 +152,15 @@ test('ตรวจบัญชีร้าน: เลขท้ายตรง = 
     assert.strictEqual(CFSlipRules.receiverCheck(null, { accounts: ['0801865706'] }), 'UNKNOWN');
 });
 
+test('QR จากแอปธนาคาร: มีแต่พร้อมเพย์/e-wallet ไม่มีเลขบัญชีจริง — เลขท้ายไม่ตรงห้ามตัดสินว่าไม่ใช่ร้าน (21/10/2569)', () => {
+    const rx = { name: 'อนุวัฒน์ จันทร์รัศมี', tail: '3118' };      // สลิป make ผู้รับ xxx-x-x3118-x
+    const pp = ['0801868987', '004999211995567'];
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, { accounts: pp, bankAccounts: [] }), 'UNKNOWN');
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, { name: 'นายอนุวัฒน์ จันทร์รัศมี', accounts: pp, bankAccounts: [] }), 'PASS');
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, { accounts: pp.concat('3118'), bankAccounts: ['3118'] }), 'PASS');
+    assert.strictEqual(CFSlipRules.receiverCheck(rx, { accounts: pp.concat('1234569999'), bankAccounts: ['1234569999'] }), 'FAIL');
+});
+
 test('ตรวจบัญชีร้านด้วยชื่อ — ยอมให้ OCR สะกดเพี้ยน (อนวัฒน์ / อนุวัฒน์)', () => {
     const rx = CFSlipRules.findParties(REAL.MAKE).receiver;       // "นายอนวัฒน์ จันทร์รัศมี" ไม่มีเลขร้านให้เทียบ
     assert.strictEqual(CFSlipRules.receiverCheck({ name: rx.name }, { name: 'อนุวัฒน์ จันทร์รัศมี' }), 'PASS');
