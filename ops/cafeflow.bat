@@ -10,6 +10,7 @@ rem       update - clear sales data - autostart - DB password - repair
 rem   - not installed / half installed -> installs it (asks Windows for
 rem       administrator permission by itself - no right-click needed)
 rem       Run 1: Git, Node.js, Python 3.11, WSL, Docker Desktop (winget)
+rem              + Windows Terminal (optional - Thai text; old console shows boxes)
 rem              -> asks you to RESTART if Docker/WSL was just installed
 rem       Run 2: downloads CafeFlow, then ops\tools\setup-shop.js does the rest
 rem              (database, packages, slip reader, autostart, firewall ...)
@@ -45,6 +46,18 @@ if defined DIR if exist "%DIR%\api\node_modules\.cafeflow-lock" (
 if /i "%~1"=="install" set "READY=0"
 
 rem ---- ready: open the menu ----------------------------------------
+rem  The menu is in Thai. The old console window (Windows 10) has no Thai
+rem  font and shows boxes - reopen this file inside Windows Terminal.
+if "%READY%"=="1" if not defined WT_SESSION (
+    where wt >nul 2>&1
+    if not errorlevel 1 (
+        start "" wt -w new --title CafeFlow -d "%DIR%" cmd /c "%~f0"
+        exit /b 0
+    )
+    echo  Thai text shows as boxes? Install Windows Terminal, then open this file again:
+    echo    winget install -e --id Microsoft.WindowsTerminal
+    echo.
+)
 if "%READY%"=="1" (
     cd /d "%DIR%"
     node ops\tools\menu.js
@@ -165,6 +178,16 @@ if "%DOCKER_OK%"=="1" (
         exit /b 1
     )
     set "RESTART=1"
+)
+
+rem ---- extra: Windows Terminal (Thai text in the menu) - not required --
+where wt >nul 2>&1
+if errorlevel 1 (
+    echo  [+]   Windows Terminal installing - so the menu can show Thai text
+    winget install -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --id Microsoft.WindowsTerminal
+    if errorlevel 1 echo  [!] Windows Terminal not installed - the menu still works, Thai may show as boxes.
+) else (
+    echo  [+]   Windows Terminal . already installed
 )
 
 if "%RESTART%"=="1" (
