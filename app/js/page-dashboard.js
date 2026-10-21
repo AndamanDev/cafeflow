@@ -972,13 +972,29 @@ const DashPage = {
         const ok = k && (k.kind === 'billpay' || k.kind === 'promptpay');
         const saved = ok ? `
             <div class="cf-qr-ok" ${this._kd.payQrSource === 'shopqr' ? '' : 'hidden'}><i data-lucide="badge-check" class="icon-sm"></i>
-                <div><b>${k.kind === 'billpay' ? 'QR ร้านค้า' : 'QR พร้อมเพย์'}: ${e(k.name || (k.kind === 'billpay' ? 'ไม่มีชื่อใน QR' : k.id))}</b>
+                <div><b>${k.kind === 'billpay' ? 'QR ร้านค้า' : 'QR พร้อมเพย์'}: ${e(k.name || (k.kind === 'billpay' ? 'ไม่มีชื่อใน QR' : k.type === 'ewallet' ? 'จากแอปธนาคาร' : k.id))}</b>
                     <div class="td-sub">${k.kind === 'billpay'
                         ? 'รหัสร้าน ' + e(k.billerId) + (k.ref1 ? ' · ' + e(k.ref1) : '')
-                        : 'เลข ' + e(k.id)} — ใส่ยอดได้ ✓</div></div>
+                        : this.qrIdText(k, true)} — ใส่ยอดได้ ✓</div></div>
                 <button type="button" class="btn btn-outline btn-sm" onclick="DashPage.clearShopQr()">ลบ</button>
             </div>` : '';
         return (msg || '') + saved;
+    },
+
+    /**
+     * บอกว่าเลขใน QR พร้อมเพย์คืออะไร (21/10/2569) — QR "รับเงิน" ของ K PLUS ไม่มีเลขบัญชี/เบอร์โทร
+     * มีแต่รหัสพร้อมเพย์ 15 หลักที่ผูกกับบัญชี ซึ่งแอปธนาคารพิมพ์ใต้ QR ว่า "เลขที่อ้างอิง" → ใช้คำเดียวกับแอป ผู้ใช้จะได้เทียบได้
+     * 3 หลักแรก = รหัสธนาคาร (004 = กสิกรไทย) · เงินเข้าบัญชีที่ผูกกับรหัสนี้
+     */
+    qrIdText(k, long) {
+        const BANK = { '002': 'กรุงเทพ', '004': 'กสิกรไทย', '006': 'กรุงไทย', '011': 'ทีทีบี', '014': 'ไทยพาณิชย์',
+                       '025': 'กรุงศรี', '030': 'ออมสิน', '034': 'ธ.ก.ส.', '069': 'เกียรตินาคินภัทร', '073': 'แลนด์ แอนด์ เฮ้าส์' };
+        if (k.type === 'phone') return long ? 'พร้อมเพย์เบอร์โทร ' + k.id : 'พร้อมเพย์ ' + k.id;
+        if (k.type === 'id') return long ? 'พร้อมเพย์เลขประจำตัว 13 หลัก ' + k.id : 'พร้อมเพย์ ' + k.id;
+        const bank = BANK[String(k.id).slice(0, 3)];
+        return long
+            ? `เลขที่อ้างอิง ${k.id}${bank ? ' · บัญชีธนาคาร' + bank : ''} (ตรงกับใต้ QR ในแอปธนาคาร)`
+            : `พร้อมเพย์${bank ? ' บัญชี' + bank : ''} · อ้างอิง ${k.id}`;
     },
 
     clearShopQr() {
@@ -1009,7 +1025,7 @@ const DashPage = {
         const chosenMissing = (src === 'promptpay' && !pp) || (src === 'shopqr' && !shop);
         return `<div class="cf-paysrc-row">
                 ${opt('promptpay', 'พร้อมเพย์', pp ? e(pp) : 'ยังไม่ได้ใส่เลข', !!pp)}
-                ${opt('shopqr', 'QR ที่อัปโหลดจากธนาคาร', shop ? e(shop.name || (shop.billerId ? 'รหัสร้าน ' + shop.billerId : 'พร้อมเพย์ ' + shop.id)) : 'ยังไม่ได้อัปโหลด', !!shop)}
+                ${opt('shopqr', 'QR ที่อัปโหลดจากธนาคาร', shop ? e(shop.name || (shop.billerId ? 'รหัสร้าน ' + shop.billerId : this.qrIdText(shop))) : 'ยังไม่ได้อัปโหลด', !!shop)}
             </div>
             ${chosenMissing && (pp || shop) ? `<div class="ds-warn">
                 แบบที่เลือกยังไม่ได้ตั้งค่า — ตอนนี้คีออสก์จะใช้${src === 'promptpay' ? 'QR ร้านค้า' : 'พร้อมเพย์'}แทน</div>` : ''}`;
@@ -1477,9 +1493,6 @@ const DashPage = {
                     <label class="sip-label">ภาพ QR รับเงินจากแอปธนาคาร (ธนาคารไหนก็ได้)</label>
                     <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('kQrFile').click()">
                         <i data-lucide="upload" class="icon-sm"></i> เลือกภาพ QR</button>
-                    <div class="ds-note">
-                        QR ร้านค้า (K SHOP · แม่มณี · ถุงเงิน ฯลฯ) หรือ QR "รับเงิน" พร้อมเพย์ — ระบบใส่ยอดของแต่ละบิลให้เอง
-                    </div>
                 </div>
                 <input type="file" id="kQrFile" accept="image/*" hidden onchange="DashPage.readShopQr(this.files[0]); this.value=''">
                 <div id="kQrResult" class="cf-qr-result">${this.shopQrHtml()}</div>`, { hint: 'QR ที่คีออสก์ให้ลูกค้าสแกนจ่าย' }) +

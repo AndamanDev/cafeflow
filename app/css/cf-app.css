@@ -1206,3 +1206,4 @@ table.dataTable td:has(> .sip-chip:only-child), table.dataTable td:has(> .status
     div.dt-container .dt-search input { width: 100%; margin: 0; box-sizing: border-box; }
     div.dt-container .dt-layout-cell { min-width: 0; }
 }
+.cf-qr-ok .td-sub { white-space: normal; }  /* ข้อความใต้ QR ที่อัปโหลด ตัดบรรทัดได้ ไม่ทับปุ่มลบ */
