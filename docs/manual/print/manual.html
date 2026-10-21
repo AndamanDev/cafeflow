@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>คู่มือ CafeFlow</title>
+<!-- ต้นฉบับของ CafeFlow-Manual.pdf — สร้างใหม่: docs/manual/print/build-pdf.bat (ฟอนต์ในเครื่อง ไม่ต้องใช้เน็ต) -->
+<link rel="stylesheet" href="../../../design-system-2/vendor/fonts.css">
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  :root { --g: #15803d; --g2: #dcfce7; --g3: #f0fdf4; --ink: #1f2937; --mute: #6b7280; --line: #e5e7eb;
+          --y: #fef9c3; --y2: #ca8a04; --r: #fee2e2; --r2: #b91c1c; --b: #dbeafe; --b2: #1d4ed8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Anuphan', 'Leelawadee UI', Tahoma, sans-serif; font-size: 11.5pt; line-height: 1.5;
+         color: var(--ink); background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h1, h2, h3 { line-height: 1.3; margin: 0; }
+  p { margin: 0 0 8px; }
+  b { font-weight: 700; }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+
+  /* ปก */
+  .cover { height: 260mm; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .cover .logo { font-size: 70pt; line-height: 1; }
+  .cover h1 { font-size: 40pt; color: var(--g); margin-top: 10px; }
+  .cover .sub { font-size: 17pt; color: var(--mute); margin-top: 4px; }
+  .toc { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 150mm; text-align: left; }
+  .toc div { border: 2px solid var(--g2); border-radius: 14px; padding: 12px 16px; background: var(--g3); }
+  .toc .n { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: var(--g); color: #fff;
+            align-items: center; justify-content: center; font-weight: 700; margin-right: 8px; }
+  .toc b { font-size: 14pt; }
+  .toc small { display: block; color: var(--mute); font-size: 10.5pt; margin-top: 2px; }
+  .cover .who { margin-top: 30px; font-size: 11pt; color: var(--mute); }
+
+  /* หัวบท */
+  .chap { display: flex; align-items: center; gap: 14px; background: var(--g); color: #fff; border-radius: 16px;
+          padding: 10px 18px; margin-bottom: 10px; }
+  .chap .num { font-size: 30pt; font-weight: 700; line-height: 1; }
+  .chap h1 { font-size: 22pt; }
+  .chap small { display: block; font-size: 11pt; opacity: .9; }
+  h2 { font-size: 14.5pt; color: var(--g); margin: 12px 0 6px; padding-bottom: 4px; border-bottom: 2px solid var(--g2); }
+  h3 { font-size: 13pt; margin: 12px 0 6px; }
+  .avoid { break-inside: avoid; }
+
+  /* ขั้นตอน */
+  .steps { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+  .steps > li { counter-increment: s; position: relative; padding: 3px 0 5px 44px; break-inside: avoid; }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 2px; width: 32px; height: 32px; border-radius: 50%;
+                        background: var(--g); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .steps .see { display: block; color: var(--g); font-size: 11pt; }
+  .steps .see::before { content: '✔ ต้องเห็น: '; font-weight: 700; }
+
+  /* กล่องเตือน */
+  .tip, .warn, .bad { border-radius: 12px; padding: 7px 12px; margin: 8px 0; break-inside: avoid; }
+  .tip { background: var(--b); } .tip::before { content: '💡 '; }
+  .warn { background: var(--y); } .warn::before { content: '⚠️ '; }
+  .bad { background: var(--r); } .bad::before { content: '⛔ '; }
+
+  /* การ์ด */
+  .grid { display: grid; gap: 10px; }
+  .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: 1fr 1fr 1fr; } .g4 { grid-template-columns: repeat(4, 1fr); }
+  .card { border: 1.5px solid var(--line); border-radius: 14px; padding: 8px 11px; break-inside: avoid; background: #fff; }
+  .card .ic { font-size: 22pt; line-height: 1.1; }
+  .card b { display: block; font-size: 12.5pt; }
+  .card small { display: block; color: var(--mute); font-size: 10.5pt; line-height: 1.45; }
+  .card.hl { border-color: var(--g); background: var(--g3); }
+
+  /* ลูกศรลำดับงาน */
+  .flow { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px; margin: 8px 0; break-inside: avoid; }
+  .flow .box { flex: 1; min-width: 0; border: 2px solid var(--g); background: var(--g3); border-radius: 12px; padding: 8px 6px;
+               text-align: center; font-size: 10.5pt; line-height: 1.35; display: flex; flex-direction: column; justify-content: center; }
+  .flow .box .ic { font-size: 18pt; }
+  .flow .box b { font-size: 11pt; }
+  .flow .arr { align-self: center; color: var(--g); font-size: 18pt; font-weight: 700; }
+  .flow .box.y { border-color: var(--y2); background: var(--y); }
+  .flow .box.r { border-color: var(--r2); background: var(--r); }
+  .vflow { display: flex; flex-direction: column; align-items: center; gap: 2px; break-inside: avoid; }
+  .vflow .box { width: 100%; }
+  .down { color: var(--g); font-size: 16pt; line-height: 1.1; }
+  .branch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+  .lbl { font-size: 10pt; font-weight: 700; color: var(--mute); text-align: center; }
+
+  /* ตาราง */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 6px 0 10px; font-size: 11pt; break-inside: avoid;
+          border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th { background: var(--g2); text-align: left; padding: 6px 9px; font-weight: 700; }
+  td { padding: 5px 9px; border-top: 1px solid var(--line); vertical-align: top; }
+  td.c, th.c { text-align: center; }
+  .yes { color: var(--g); font-weight: 700; font-size: 13pt; }
+  .no { color: #cbd5e1; }
+  .btn { display: inline-block; background: var(--g); color: #fff; border-radius: 6px; padding: 0 7px; font-size: 10.5pt; font-weight: 600; white-space: nowrap; }
+  .key { display: inline-block; border: 1.5px solid var(--ink); border-bottom-width: 3px; border-radius: 5px; padding: 0 6px; font-size: 10pt; font-weight: 700; }
+  .mono { font-family: Consolas, monospace; background: #f3f4f6; border-radius: 4px; padding: 0 4px; font-size: 10.5pt; }
+
+  /* บทบาท */
+  .role { border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; break-inside: avoid; }
+  .role .top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .role .ic { font-size: 30pt; line-height: 1; }
+  .role h3 { margin: 0; font-size: 15pt; }
+  .role .land { font-size: 10.5pt; color: var(--mute); }
+  .role ol { margin: 4px 0 6px; padding-left: 22px; }
+  .role .cant { font-size: 10.5pt; color: var(--r2); }
+  .role .cant::before { content: '✖ ทำไม่ได้: '; font-weight: 700; }
+
+  /* ภาพหน้าจอจากระบบจริง (ถ่ายด้วยออเดอร์ตัวอย่าง) */
+  .shot { margin: 8px 0 10px; break-inside: avoid; }
+  .shot img { width: 100%; display: block; border: 1px solid #d1d5db; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .shot figcaption { font-size: 9.5pt; color: var(--mute); text-align: center; margin-top: 3px; }
+  .shot.w75 { width: 75%; margin-left: auto; margin-right: auto; }
+  .shot.w60 { width: 56%; margin-left: auto; margin-right: auto; }
+  .shots2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; break-inside: avoid; }
+  .shots3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; break-inside: avoid; width: 74%; margin: 0 auto; }
+  .shots2 .shot, .shots3 .shot { margin: 4px 0 6px; }
+
+  /* เปิดดูในเบราว์เซอร์: ทำเป็นแผ่น A4 มีขอบ (ตอนพิมพ์/PDF ใช้ @page แทน) */
+  @media screen {
+    body { background: #cfd4da; padding: 24px 0; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 24px; padding: 14mm 14mm 16mm; background: #fff;
+            box-shadow: 0 6px 24px rgba(0,0,0,.18); border-radius: 3px; }
+    .page.cover { height: 297mm; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═════════════ ปก ═════════════ -->
+<section class="page cover">
+  <div class="logo">☕</div>
+  <h1>คู่มือ CafeFlow</h1>
+  <div class="sub">ระบบสั่งเองที่ตู้ · รับเงิน · ส่งครัว · เรียกคิว</div>
+  <div class="toc">
+    <div><span class="n">1</span><b>ติดตั้งระบบ</b><small>เจ้าของร้าน · ช่างที่มาติดตั้ง</small></div>
+    <div><span class="n">2</span><b>ใช้งานแต่ละหน้า</b><small>เจ้าของ · ผู้จัดการ · แคชเชียร์</small></div>
+    <div><span class="n">3</span><b>งานเดินยังไง</b><small>ทุกคนควรอ่าน</small></div>
+    <div><span class="n">4</span><b>ใครทำอะไร</b><small>อ่านเฉพาะหน้าของตัวเองก็พอ</small></div>
+  </div>
+  <div class="who">พนักงานใหม่: อ่านบทที่ 4 (หน้าของตัวเอง) แล้วบทที่ 3 — ใช้เวลาไม่ถึง 10 นาที</div>
+</section>
+
+<!-- ═════════════ บท 1 ติดตั้ง ═════════════ -->
+<section class="page">
+  <div class="chap"><span class="num">1</span><div><h1>ติดตั้งระบบ</h1><small>ทำครั้งเดียวตอนเปิดร้าน · ฉบับละเอียดสำหรับช่างอยู่ในไฟล์ INSTALL.md</small></div></div>
+
+  <h2>ระบบหน้าตาเป็นยังไง</h2>
+  <div class="grid g3">
+    <div class="card hl"><div class="ic">🖥️</div><b>เครื่องหลัก (1 เครื่อง)</b><small>คอมที่เก็บข้อมูลทั้งร้าน เปิดทิ้งไว้ตลอด ทุกจอดึงข้อมูลจากเครื่องนี้</small></div>
+    <div class="card"><div class="ic">📱</div><b>คีออสก์</b><small>จอสัมผัสให้ลูกค้าสั่งและจ่ายเงินเอง มีกล้องไว้ส่องสลิป</small></div>
+    <div class="card"><div class="ic">💵</div><b>แคชเชียร์</b><small>รับเงินสด ตรวจสลิป ส่งของให้ลูกค้า</small></div>
+    <div class="card"><div class="ic">👨‍🍳</div><b>จอครัว / บาร์</b><small>เห็นออเดอร์ที่ต้องทำ กดเมื่อทำเสร็จ</small></div>
+    <div class="card"><div class="ic">📺</div><b>จอเรียกคิว</b><small>บอกลูกค้าว่าเลขไหนรับของได้แล้ว</small></div>
+    <div class="card"><div class="ic">🖨️</div><b>เครื่องพิมพ์</b><small>ใบเสร็จ สลิปครัว บัตรคิว</small></div>
+  </div>
+  <div class="tip"><b>ทุกเครื่องต้องต่อ Wi-Fi หรือสายแลนวงเดียวกันในร้าน</b> · ใช้อินเทอร์เน็ตแค่ตอนติดตั้ง หลังจากนั้น<b>เน็ตล่มก็ยังขายได้</b></div>
+
+  <h2>ของที่ต้องเตรียม</h2>
+  <table>
+    <tr><th style="width:28%">อะไร</th><th>รายละเอียด</th></tr>
+    <tr><td>🖥️ เครื่องหลัก</td><td>คอม Windows 10/11 · แรม 8 GB ขึ้นไป · ที่ว่าง 10 GB · ต่อสายแลน</td></tr>
+    <tr><td>📱 คีออสก์</td><td>จอสัมผัส Windows + กล้องเว็บแคม 1080p <b>แบบโฟกัสอัตโนมัติ</b></td></tr>
+    <tr><td>📺 จออื่น ๆ</td><td>คอม Windows หรือแท็บเล็ตที่เปิดเว็บได้</td></tr>
+    <tr><td>🏪 ข้อมูลร้าน</td><td>ชื่อร้าน ที่อยู่ เบอร์โทร เลขผู้เสียภาษี (ถ้ามี)</td></tr>
+    <tr><td>💰 การรับเงิน</td><td><b>เบอร์พร้อมเพย์ของร้าน</b> · <b>ชื่อบัญชีที่ขึ้นในสลิป</b> · เลขบัญชีธนาคาร (4 ตัวท้ายก็พอ)<br>
+        <small>ขอเป็นข้อความในแชต อย่าจดจากปาก — ผิดตัวเดียวเงินเข้าบัญชีคนอื่น</small></td></tr>
+    <tr><td>☕ เมนู</td><td>ชื่อ ราคา ตัวเลือก (ความหวาน ท็อปปิ้ง) รูปสินค้า</td></tr>
+    <tr><td>🔑 อื่น ๆ</td><td>รหัสเข้าเครื่อง Windows · รหัส Wi-Fi · มือถือที่มีแอปธนาคาร + เงิน 1 บาทไว้ทดลอง</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h2>ขั้นที่ 1 — ติดตั้งเครื่องหลัก</h2>
+  <ol class="steps">
+    <li>เอาไฟล์ <span class="mono">cafeflow.bat</span> ใส่เครื่อง แล้ว<b>ดับเบิลคลิก</b> · ถ้าถามสิทธิ์ กด <span class="btn">ใช่</span></li>
+    <li>รอให้ลงโปรแกรมจนเสร็จ แล้ว<b>รีสตาร์ตเครื่อง</b></li>
+    <li>เปิดโปรแกรม <b>Docker Desktop</b> → กด <span class="btn">Accept</span> → กด <span class="btn">Skip</span> (ไม่ต้องสมัคร)</li>
+    <li><b>ดับเบิลคลิก <span class="mono">cafeflow.bat</span> อีกครั้ง</b> · ครั้งแรกนานหน่อย (โหลดตัวอ่านสลิป ~1 GB)
+      <span class="see">หน้าต่างบอก "ที่อยู่เครื่องหลัก" เช่น 192.168.1.50 — จดไว้</span></li>
+    <li>บนหน้าจอคอมจะมีไอคอน <b>CafeFlow</b> = เมนูดูแลระบบ</li>
+  </ol>
+  <div class="tip">ติดตรงไหน ดับเบิลคลิก <span class="mono">cafeflow.bat</span> ซ้ำได้เลย ขั้นที่ทำแล้วจะข้ามไปเอง</div>
+
+  <h2>ขั้นที่ 2 — ตั้งเครื่องหลักให้พร้อมขาย <small style="font-size:11pt;color:var(--mute)">(ช่างทำ)</small></h2>
+  <div class="grid g2">
+    <div class="card"><b>🛡️ แอนตี้ไวรัส</b><small>ตั้งยกเว้นโฟลเดอร์ <span class="mono">D:\cafeflow\ops</span></small></div>
+    <div class="card"><b>🔓 เข้าเครื่องเอง</b><small>ตั้ง Windows ให้เปิดแล้วเข้าเองไม่ต้องใส่รหัส (ระบบเริ่มหลังเข้าเครื่อง)</small></div>
+    <div class="card"><b>🔌 ไฟดับไฟมา เปิดเอง</b><small>ตั้งใน BIOS: Restore on AC Power Loss = Power On</small></div>
+    <div class="card"><b>🔄 Windows Update</b><small>ห้ามรีสตาร์ตเองในเวลาเปิดร้าน</small></div>
+    <div class="card"><b>📍 ที่อยู่เครื่องไม่เปลี่ยน</b><small>ตั้งที่เราเตอร์ให้เครื่องหลักได้ที่อยู่เดิมเสมอ (จอง IP)</small></div>
+    <div class="card hl"><b>✅ ทดสอบ</b><small>รีสตาร์ตเครื่องโดยไม่แตะอะไร — ภายใน 3 นาทีระบบต้องเปิดเอง</small></div>
+  </div>
+
+</section>
+
+<section class="page">
+  <h2>ขั้นที่ 3 — ตั้งค่าร้านครั้งแรก</h2>
+  <p>เปิดเว็บ <span class="mono">http://ที่อยู่เครื่องหลัก:8080</span> → เข้าด้วยชื่อ <b>admin</b> รหัส <b>demo</b> · การตั้งค่าอยู่ที่ปุ่ม <b>⚙</b> มุมขวาบน</p>
+  <ol class="steps">
+    <li><b>⚙ › ผู้ใช้และสิทธิ์</b> — เปลี่ยนรหัสผ่านทั้ง 4 บัญชี (admin · manager · cashier · kitchen) ห้ามใช้ demo</li>
+    <li><b>⚙ › ข้อมูลร้าน</b> — ชื่อร้าน ที่อยู่ เบอร์ · <b>เบอร์พร้อมเพย์</b> · ชื่อบัญชีและเลขบัญชีตามสลิป</li>
+    <li><b>เมนูและสินค้า</b> — ลบเมนูตัวอย่าง ใส่เมนูจริง ราคา รูป</li>
+    <li><b>⚙ › ตั้งค่าคีออสก์</b> และ <b>ตั้งค่าจอแสดงคิว</b> — ขนาดจอ กินที่ร้าน/กลับบ้าน</li>
+    <li><b>⚙ › เครื่องพิมพ์</b> — เพิ่มเครื่องพิมพ์ เลือกว่าพิมพ์ให้ใคร (เคาน์เตอร์/บาร์/ครัว) → <span class="btn">พิมพ์ทดสอบ</span>
+      <span class="see">กระดาษออกจากเครื่องพิมพ์</span></li>
+  </ol>
+  <div class="warn">เครื่องพิมพ์ต้องต่อสายแลน หรือเสียบ USB ที่<b>เครื่องหลัก</b>เท่านั้น · ต้องมีเครื่องพิมพ์ "เคาน์เตอร์" อย่างน้อย 1 เครื่อง</div>
+  <div class="shots2"><figure class="shot"><img src="img/set-shop.jpg" alt="⚙ › ข้อมูลร้าน — ใส่พร้อมเพย์และชื่อบัญชีตรงนี้"><figcaption>⚙ › ข้อมูลร้าน — ใส่พร้อมเพย์และชื่อบัญชีตรงนี้</figcaption></figure><figure class="shot"><img src="img/set-printers.jpg" alt="⚙ › เครื่องพิมพ์ — เพิ่มเครื่อง แล้วกดพิมพ์ทดสอบ"><figcaption>⚙ › เครื่องพิมพ์ — เพิ่มเครื่อง แล้วกดพิมพ์ทดสอบ</figcaption></figure></div>
+</section>
+
+<section class="page">
+  <h2>ขั้นที่ 4 — เปิดจออื่น ๆ</h2>
+  <ol class="steps">
+    <li>เอาไฟล์ <span class="mono">screen-edge.bat</span> ใส่ทุกเครื่อง แล้วดับเบิลคลิก</li>
+    <li>ครั้งแรกจะถามที่อยู่เครื่องหลัก → พิมพ์ที่จดไว้ เช่น <span class="mono">192.168.1.50</span> แล้วกด <span class="key">Enter</span></li>
+    <li>เลือกว่าเครื่องนี้คือจออะไร: <span class="key">1</span> คีออสก์ · <span class="key">2</span> แคชเชียร์ · <span class="key">3</span> จอครัว · <span class="key">4</span> จอเรียกคิว
+      <span class="see">จอเปิดเต็มจอ (ปิดด้วย Alt+F4)</span></li>
+  </ol>
+  <table>
+    <tr><th style="width:30%">จอ</th><th>เข้าใช้ยังไง</th></tr>
+    <tr><td>💵 แคชเชียร์</td><td>เข้าระบบด้วยบัญชีแคชเชียร์</td></tr>
+    <tr><td>👨‍🍳 จอครัว</td><td>เข้าระบบด้วยบัญชีครัว</td></tr>
+    <tr><td>📱 คีออสก์<br>📺 จอเรียกคิว</td><td><b>จับคู่ด้วยรหัส:</b> จอขึ้นช่องให้ใส่รหัส → แอดมินเปิด <b>⚙ › อุปกรณ์ในเครือข่าย</b> → กด <span class="btn">จับคู่</span> ที่แถวเครื่องนั้น → ได้รหัส 6 ตัว (ใช้ได้ 10 นาที) → พิมพ์ที่จอ</td></tr>
+  </table>
+<figure class="shot w75"><img src="img/set-devices.jpg" alt="⚙ › อุปกรณ์ในเครือข่าย — ที่อยู่เครื่องหลักอยู่บนสุด · ปุ่ม "จับคู่" อยู่ท้ายแถวแต่ละเครื่อง"><figcaption>⚙ › อุปกรณ์ในเครือข่าย — ที่อยู่เครื่องหลักอยู่บนสุด · ปุ่ม "จับคู่" อยู่ท้ายแถวแต่ละเครื่อง</figcaption></figure>
+  <div class="bad">ห้ามเข้าระบบด้วยบัญชีพนักงานที่คีออสก์ — ลูกค้าจะเข้าถึงข้อมูลร้านได้</div>
+
+  <h2>ขั้นที่ 5 — ทดลองก่อนเปิดร้านจริง</h2>
+  <ol class="steps">
+    <li>หน้าแคชเชียร์ กด <span class="btn">เปิดรอบ</span> <small>(ไม่เปิดรอบ คีออสก์รับออเดอร์ไม่ได้)</small></li>
+    <li>สั่งที่คีออสก์ จ่ายด้วย QR <b>โอนจริง 1 บาท</b> → ส่องสลิปที่กล้อง <span class="see">ออเดอร์เข้าจอครัวเอง</span></li>
+    <li>สั่งอีกใบ จ่ายเงินสดที่แคชเชียร์ → ครัวกด <span class="btn">พร้อมเสิร์ฟ</span> <span class="see">จอเรียกคิวขึ้นเลข + มีเสียง</span></li>
+    <li>ดูว่าใบเสร็จและสลิปครัวพิมพ์ออก</li>
+    <li>เปิดเมนูดูแลระบบ › <b>ล้างข้อมูลขาย (ก่อนเปิดร้านจริง)</b> — ลบออเดอร์ทดลอง เมนูและการตั้งค่ายังอยู่</li>
+  </ol>
+
+</section>
+
+<section class="page">
+  <h2>เมนูดูแลระบบ <small style="font-size:11pt;color:var(--mute)">(ไอคอน CafeFlow บนเครื่องหลัก)</small></h2>
+  <div class="grid g2">
+    <div class="card"><b>ใช้บ่อย</b><small>ตรวจสถานะระบบ · รีสตาร์ทระบบ · ดูที่อยู่เครื่องเซิร์ฟเวอร์ (IP) · เปิดจอบนเครื่องนี้ · สำรองข้อมูลตอนนี้</small></div>
+    <div class="card"><b>นาน ๆ ครั้ง</b><small>อัปเดตระบบเป็นรุ่นใหม่ · ล้างข้อมูลขาย · ตั้งให้ระบบเปิดเองตอนเปิดเครื่อง · เปลี่ยนรหัสผ่านฐานข้อมูล · ติดตั้งซ้ำ/ซ่อมระบบ</small></div>
+  </div>
+
+  <h2>สำรองข้อมูล</h2>
+  <div class="grid g3">
+    <div class="card hl"><div class="ic">🌙</div><b>ทุกคืน 23:30</b><small>ระบบสำรองเอง</small></div>
+    <div class="card hl"><div class="ic">🔒</div><b>ทุกครั้งที่ปิดรอบ</b><small>ระบบสำรองเอง</small></div>
+    <div class="card"><div class="ic">💾</div><b>สัปดาห์ละครั้ง</b><small>คัดลอกโฟลเดอร์ <span class="mono">backup</span> ใส่ USB เก็บนอกร้าน</small></div>
+  </div>
+  <div class="tip">ไม่ได้สำรองเกิน 2 วัน หน้าภาพรวมจะเตือน · เครื่องพัง ให้ช่างกู้ตาม INSTALL.md</div>
+</section>
+
+<!-- ═════════════ บท 2 ใช้งาน ═════════════ -->
+<section class="page">
+  <div class="chap"><span class="num">2</span><div><h1>ใช้งานแต่ละหน้า</h1><small>เปิดเว็บ http://ที่อยู่เครื่องหลัก:8080 · เห็นเฉพาะเมนูที่บทบาทของคุณใช้ได้</small></div></div>
+
+  <h2>🔑 เข้าสู่ระบบ / เปลี่ยนรหัส</h2>
+  <ul>
+    <li>ใส่<b>ชื่อผู้ใช้ + รหัสผ่าน</b> → ระบบพาไปหน้างานของคุณเอง · อยู่ในระบบได้ 12 ชั่วโมง</li>
+    <li>เปลี่ยนรหัส: กด<b>ชื่อตัวเอง</b>มุมขวาบน › <b>เปลี่ยนรหัสผ่าน</b> → ใส่รหัสเดิมให้ถูกก่อน แล้วค่อยใส่รหัสใหม่ (อย่างน้อย 6 ตัว)</li>
+    <li>ลืมรหัส → ให้แอดมินตั้งใหม่ให้</li>
+  </ul>
+  <div class="shots2"><figure class="shot"><img src="img/login.jpg" alt="หน้าเข้าสู่ระบบ"><figcaption>หน้าเข้าสู่ระบบ</figcaption></figure><figure class="shot"><img src="img/dashboard.jpg" alt="ภาพรวม — กล่อง "ต้องจัดการ" อยู่ใต้ตัวเลขยอดขาย"><figcaption>ภาพรวม — กล่อง "ต้องจัดการ" อยู่ใต้ตัวเลขยอดขาย</figcaption></figure></div>
+
+  <h2>📊 ภาพรวม</h2>
+  <p>ยอดขายวันนี้ จำนวนบิล เงินสด/โอน เทียบเมื่อวาน · กราฟรายชั่วโมง · ขายดี 5 อันดับ</p>
+  <div class="tip"><b>ดูกล่อง "ต้องจัดการ" ทุกเช้า</b> — บอกเรื่องที่ต้องทำ เช่น ยังไม่เปิดรอบ · มีสลิปรอตรวจ · จอหลุด · ไม่ได้สำรองข้อมูล · สินค้าหมด</div>
+
+</section>
+
+<section class="page">
+  <h2>💵 แคชเชียร์</h2>
+  <p>ยังไม่เปิดรอบ จะเห็นแค่การ์ด <span class="btn">เปิดรอบ</span> — ใส่เงินทอนตั้งต้นแล้วกด</p>
+  <table>
+    <tr><th style="width:24%">แท็บ</th><th>ทำอะไร</th></tr>
+    <tr><td><b>รอจ่าย · เงินสด</b></td><td>กด <span class="btn">รับเงินสด</span> → ใส่เงินที่รับ (หรือกดปุ่มแบงก์) → ดูเงินทอน → <span class="btn">รับชำระ</span></td></tr>
+    <tr><td><b>รอโอน · QR</b></td><td>ลูกค้ากำลังโอนที่ตู้ — ไม่ต้องทำอะไร</td></tr>
+    <tr><td><b>เช็กสลิป</b></td><td>สลิปที่ระบบไม่แน่ใจ → <span class="btn">ตรวจการชำระ</span> → <b>เปิดแอปธนาคารร้านดูว่าเงินเข้าจริง</b> → เลือกเหตุผล → <span class="btn">ยืนยันการชำระ</span> หรือ <span class="btn" style="background:var(--r2)">ชำระไม่สำเร็จ</span></td></tr>
+    <tr><td><b>กำลังทำ</b></td><td>ครัวกำลังทำ — ดูอย่างเดียว</td></tr>
+    <tr><td><b>พร้อมรับ</b></td><td>ลูกค้ามารับ → <span class="btn">ส่งมอบให้ลูกค้า</span> · ยังไม่มา → <span class="btn">เรียกซ้ำ</span></td></tr>
+  </table>
+  <div class="grid g3">
+    <div class="card"><small><b>สีผลตรวจสลิป</b>🟩 ตรง · 🟥 ไม่ตรง · ⬜ อ่านไม่ออก</small></div>
+    <div class="card"><small><b>เพดานยืนยัน</b>แคชเชียร์ยืนยันสลิปเองได้ไม่เกิน 500 บาท เกินนั้นเรียกผู้จัดการ</small></div>
+    <div class="card"><small><b>แถบแดง "พิมพ์ไม่ออก"</b>ดูกระดาษ/สาย แล้วกด ดูและพิมพ์ซ้ำ</small></div>
+  </div>
+  <div class="shots2"><figure class="shot"><img src="img/cashier.jpg" alt="หน้าแคชเชียร์ — ตัวเลขบนสุดบอกงานค้าง กดแท็บเพื่อดูแต่ละกลุ่ม"><figcaption>หน้าแคชเชียร์ — ตัวเลขบนสุดบอกงานค้าง กดแท็บเพื่อดูแต่ละกลุ่ม</figcaption></figure><figure class="shot"><img src="img/cashier-cash.jpg" alt="กด "รับเงินสด" — ใส่เงินที่รับหรือกดปุ่มแบงก์ แล้ว "รับชำระ""><figcaption>กด "รับเงินสด" — ใส่เงินที่รับหรือกดปุ่มแบงก์ แล้ว "รับชำระ"</figcaption></figure></div>
+
+</section>
+
+<section class="page">
+  <h2>👨‍🍳 จอครัว</h2>
+  <ol class="steps">
+    <li>เลือกแท็บสถานีของตัวเอง: <b>บาร์เครื่องดื่ม · ครัวอาหาร · เบเกอรี่ · ของหวาน</b></li>
+    <li>แตะรายการที่ทำเสร็จเพื่อติ๊ก · เวลาบนตั๋ว <b style="color:var(--y2)">เหลือง = เกิน 3 นาที</b> · <b style="color:var(--r2)">แดง = เกิน 6 นาที</b></li>
+    <li>ครบแล้วกด <span class="btn">พร้อมเสิร์ฟ</span> · กดผิด กด <span class="btn">ย้อนกลับ</span> ภายใน 5 วินาที</li>
+  </ol>
+  <div class="tip">ออเดอร์ที่มีทั้งเครื่องดื่มและอาหาร จอคิวจะเรียกเมื่อ<b>ทุกสถานีกดพร้อมเสิร์ฟแล้ว</b> · "ต้องทำรวม" = ยอดรวมแต่ละเมนูที่ค้าง</div>
+<figure class="shot w60"><img src="img/kds.jpg" alt="จอครัว — ตั๋วละใบ แตะช่องสี่เหลี่ยมเมื่อทำแล้ว ครบกด "พร้อมเสิร์ฟ""><figcaption>จอครัว — ตั๋วละใบ แตะช่องสี่เหลี่ยมเมื่อทำแล้ว ครบกด "พร้อมเสิร์ฟ"</figcaption></figure>
+
+  <h2>🧾 ประวัติบิล</h2>
+  <p>เลือกวัน ค้นด้วยเลขคิวหรือชื่อเมนู · กดบิลดูรายการ การจ่าย สลิป ทุกขั้นตอน · พิมพ์ใบเสร็จ / บัตรคิว / สลิปครัวซ้ำ</p>
+  <p><b>จัดการพิเศษ</b> (แอดมิน/ผู้จัดการ · ต้องใส่เหตุผลทุกครั้ง):</p>
+  <div class="grid g3">
+    <div class="card"><b>ยกเลิก (ยังไม่ได้รับเงิน)</b><small>ลูกค้าเปลี่ยนใจก่อนจ่าย</small></div>
+    <div class="card"><b>ยกเลิกบิลผิด/ซ้ำ</b><small>กดผิด · ออเดอร์ซ้ำ · ทดสอบ</small></div>
+    <div class="card"><b>ยกเลิก + คืนเงินลูกค้า</b><small>ทำผิด · ไม่ได้คุณภาพ — <b>คืนเงินลูกค้าเองด้วย</b> ระบบแค่บันทึก</small></div>
+  </div>
+<figure class="shot w60"><img src="img/orders.jpg" alt="ประวัติบิล — ซ้าย: รายการบิล · กลาง: รายละเอียด · ขวา: พิมพ์ซ้ำและจัดการพิเศษ"><figcaption>ประวัติบิล — ซ้าย: รายการบิล · กลาง: รายละเอียด · ขวา: พิมพ์ซ้ำและจัดการพิเศษ</figcaption></figure>
+
+</section>
+
+<section class="page">
+  <h2>🔒 ปิดรอบ / ปิดวัน</h2>
+  <div class="flow">
+    <div class="box"><span class="ic">🧹</span><b>1. เคลียร์ออเดอร์</b>ยังไม่จ่าย → ยกเลิกทั้งหมด<br>จ่ายแล้ว → ปิดรายการทั้งหมด</div>
+    <div class="arr">➜</div>
+    <div class="box"><span class="ic">💵</span><b>2. นับเงินในลิ้นชัก</b>ใส่ตัวเลข ระบบบอกขาด/เกิน</div>
+    <div class="arr">➜</div>
+    <div class="box"><span class="ic">✅</span><b>3. ปิดรอบ</b>เปลี่ยนกะ: เปิด "เปิดรอบใหม่ต่อทันที"<br>ปิดร้าน: ไม่ต้องเปิด</div>
+  </div>
+  <div class="warn">มีสลิปรอตรวจค้างอยู่ ปิดรอบไม่ได้ — ไปตรวจที่แท็บเช็กสลิปก่อน</div>
+<figure class="shot w75"><img src="img/closing.jpg" alt="หน้าปิดรอบ — ทำตามขั้น 1 → 2 → 3 จากบนลงล่าง"><figcaption>หน้าปิดรอบ — ทำตามขั้น 1 → 2 → 3 จากบนลงล่าง</figcaption></figure>
+
+  <h2>☕ เมนูและสินค้า</h2>
+  <ul>
+    <li>ปุ่มบน: <b>หมวดหมู่ · กลุ่มตัวเลือก · เพิ่มรายการสินค้า</b> · ปรับราคาหลายรายการพร้อมกัน</li>
+    <li>ในฟอร์มสินค้า: ชื่อ รูป หมวด ราคาแต่ละแบบ (ร้อน/เย็น/ปั่น — แบบไหนไม่ขายเลือก "ไม่ขาย") เวลาขาย สต็อก สถานีที่ทำ ตัวเลือก</li>
+    <li><b>สินค้าหมดวันนี้</b> — กดแล้วคีออสก์ขึ้นว่าหมดทันที</li>
+    <li>เรียงลำดับบนคีออสก์: เลือกหมวดเดียว แล้ว<b>กดค้างที่รายการ ลากขึ้นลง</b></li>
+  </ul>
+  <div class="shots2"><figure class="shot"><img src="img/menu.jpg" alt="เมนูและสินค้า — แถบหมวดด้านบน"><figcaption>เมนูและสินค้า — แถบหมวดด้านบน</figcaption></figure><figure class="shot"><img src="img/menu-product.jpg" alt="ฟอร์มสินค้า — ราคาแต่ละแบบ ตัวเลือก สถานี"><figcaption>ฟอร์มสินค้า — ราคาแต่ละแบบ ตัวเลือก สถานี</figcaption></figure></div>
+
+</section>
+
+<section class="page">
+  <h2>📈 รายงาน <small style="font-size:11pt;color:var(--mute)">(แอดมิน/ผู้จัดการ)</small></h2>
+  <p>เลือกช่วง วันนี้ · เมื่อวาน · 7 วัน · 30 วัน · เดือนนี้ · เลือกวันเอง — ส่งออกเป็นไฟล์ Excel (CSV) ได้</p>
+  <p><small>สรุปยอดขาย · ตามสินค้า · ตามหมวดหมู่ · ตามพนักงาน · ตามวิธีจ่าย · ใบเสร็จรับเงิน · ตามตัวเลือกเพิ่มเติม · ความแม่นการตรวจสลิป</small></p>
+<figure class="shot w60"><img src="img/reports.jpg" alt="รายงาน — เลือกช่วงวันด้านบน เลือกรายงานด้านซ้าย"><figcaption>รายงาน — เลือกช่วงวันด้านบน เลือกรายงานด้านซ้าย</figcaption></figure>
+
+
+  <h2>⚙ ตั้งค่า <small style="font-size:11pt;color:var(--mute)">(แอดมิน/ผู้จัดการ)</small></h2>
+  <table>
+    <tr><td style="width:30%"><b>ข้อมูลร้าน</b></td><td>หัวใบเสร็จ · เวลาเริ่มวันใหม่ (เลขคิว A001) · <b>พร้อมเพย์</b> · ชื่อ/เลขบัญชีไว้ตรวจสลิป</td></tr>
+    <tr><td><b>ผู้ใช้และสิทธิ์</b> 👑</td><td>เพิ่มพนักงาน · ตั้งรหัสใหม่ · ปิดใช้งานคนที่ออก · เพดานยืนยันของแคชเชียร์</td></tr>
+    <tr><td><b>ตั้งค่าเมนู</b> 👑</td><td>ซ่อน/แสดง และเรียงเมนูกับรายงาน</td></tr>
+    <tr><td><b>ตั้งค่าคีออสก์</b></td><td>แนวจอ ขนาดจอ · กินที่ร้าน/กลับบ้าน · เวลารอแต่ละหน้า · เวลานับถอยหลัง QR</td></tr>
+    <tr><td><b>ตั้งค่าจอแสดงคิว</b></td><td>ธีมสว่าง/มืด · เมนูแนะนำ · เสียง · ข้อความวิ่ง</td></tr>
+    <tr><td><b>เครื่องพิมพ์</b></td><td>เพิ่ม/แก้ · พิมพ์ทดสอบ · พิมพ์ใบเสร็จอัตโนมัติ · งานที่พิมพ์ไม่ออก</td></tr>
+    <tr><td><b>อุปกรณ์ในเครือข่าย</b></td><td>สถานะแต่ละจอ · <b>จับคู่</b>คีออสก์/จอคิว</td></tr>
+  </table>
+  <p><small>👑 = แอดมินเท่านั้น</small></p>
+  <div class="shots2"><figure class="shot"><img src="img/set-users.jpg" alt="⚙ › ผู้ใช้และสิทธิ์"><figcaption>⚙ › ผู้ใช้และสิทธิ์</figcaption></figure><figure class="shot"><img src="img/set-kiosk.jpg" alt="⚙ › ตั้งค่าคีออสก์"><figcaption>⚙ › ตั้งค่าคีออสก์</figcaption></figure></div>
+
+</section>
+
+<section class="page">
+  <h2>📱 คีออสก์ (ฝั่งลูกค้า)</h2>
+  <div class="flow">
+    <div class="box"><span class="ic">👆</span><b>แตะจอ</b></div><div class="arr">➜</div>
+    <div class="box"><span class="ic">🍽️</span><b>กินที่ร้าน / กลับบ้าน</b></div><div class="arr">➜</div>
+    <div class="box"><span class="ic">☕</span><b>เลือกเมนู</b>แบบ ตัวเลือก จำนวน</div><div class="arr">➜</div>
+    <div class="box"><span class="ic">🛒</span><b>ตะกร้า</b></div><div class="arr">➜</div>
+    <div class="box"><span class="ic">💳</span><b>เลือกวิธีจ่าย</b></div>
+  </div>
+  <div class="grid g2">
+    <div class="card hl"><div class="ic">📲</div><b>QR พร้อมเพย์</b><small>ยอดเงินอยู่ใน QR แล้ว สแกนจ่ายได้เลย → เปิดสลิปในมือถือ ส่องกล้องที่ตู้ → ได้เลขคิว + บัตรคิว</small></div>
+    <div class="card"><div class="ic">💵</div><b>เงินสด</b><small>ได้เลขคิว → ไปจ่ายที่เคาน์เตอร์</small></div>
+  </div>
+  <p><small>ปุ่มช่วยที่ตู้: แก้รายการ · จ่ายเงินสดแทน · แจ้งพนักงาน · เปลี่ยนภาษา TH/EN</small></p>
+  <div class="shots3"><figure class="shot"><img src="img/kiosk-start.jpg" alt="① แตะเพื่อเริ่มสั่ง"><figcaption>① แตะเพื่อเริ่มสั่ง</figcaption></figure><figure class="shot"><img src="img/kiosk-menu.jpg" alt="② เลือกเมนู"><figcaption>② เลือกเมนู</figcaption></figure><figure class="shot"><img src="img/kiosk-item.jpg" alt="③ เลือกแบบ/ตัวเลือก → เพิ่มลงตะกร้า"><figcaption>③ เลือกแบบ/ตัวเลือก → เพิ่มลงตะกร้า</figcaption></figure></div>
+
+  <h2>📺 จอเรียกคิว</h2>
+  <p>ซ้าย = <b>กำลังเตรียม</b> · ขวา = <b>พร้อมรับ</b> (มีเสียงเตือน) · โชว์แค่เลขคิว ไม่มีชื่อหรือราคา</p>
+<figure class="shot w60"><img src="img/display.jpg" alt="จอเรียกคิว — เลขย้ายจากซ้ายไปช่องสีเขียวเมื่อพร้อมรับ"><figcaption>จอเรียกคิว — เลขย้ายจากซ้ายไปช่องสีเขียวเมื่อพร้อมรับ</figcaption></figure>
+
+</section>
+
+<section class="page">
+  <h2>🆘 มีปัญหา ทำยังไง</h2>
+  <table>
+    <tr><th style="width:42%">อาการ</th><th>ทำอะไร</th></tr>
+    <tr><td>คีออสก์บอก "ร้านยังไม่เปิดรอบ"</td><td>แคชเชียร์กด <b>เปิดรอบ</b></td></tr>
+    <tr><td>QR ไม่ขึ้น / บอกให้จ่ายที่เคาน์เตอร์</td><td>ยังไม่ได้ใส่พร้อมเพย์ที่ ⚙ › ข้อมูลร้าน</td></tr>
+    <tr><td>สลิปขึ้น "ไม่ใช่บัญชีร้าน" ทั้งที่เงินเข้า</td><td>ใส่ชื่อบัญชี + เลขบัญชี 4 ตัวท้ายตามสลิป ที่ ⚙ › ข้อมูลร้าน › ตรวจสลิป</td></tr>
+    <tr><td>สลิปอ่านไม่ออก</td><td>ให้ลูกค้าเปิดสลิปเต็มจอ ถือให้นิ่ง หรือแคชเชียร์ตรวจเองที่แท็บเช็กสลิป</td></tr>
+    <tr><td>พิมพ์ไม่ออก</td><td>ดูกระดาษ สาย ไฟ → แคชเชียร์กด <b>ดูและพิมพ์ซ้ำ</b></td></tr>
+    <tr><td>จอขึ้น "ติดต่อเซิร์ฟเวอร์ของร้านไม่ได้"</td><td>ดูว่าเครื่องหลักเปิดอยู่ Wi-Fi ต่ออยู่ · รอสักครู่ต่อเอง · ไม่หาย: เมนูดูแลระบบ › รีสตาร์ทระบบ</td></tr>
+    <tr><td>คีออสก์ขึ้น "ยังไม่ได้จับคู่"</td><td>⚙ › อุปกรณ์ในเครือข่าย › จับคู่ แล้วใส่รหัสที่จอ</td></tr>
+    <tr><td>เครื่องหลักเสียทั้งเครื่อง</td><td>จดบิลด้วยกระดาษไปก่อน แล้วโทรหาช่าง</td></tr>
+  </table>
+</section>
+
+<!-- ═════════════ บท 3 ลำดับงาน ═════════════ -->
+<section class="page">
+  <div class="chap"><span class="num">3</span><div><h1>งานเดินยังไง</h1><small>ตั้งแต่เปิดร้านจนปิด · ตั้งแต่ลูกค้าสั่งจนรับของ</small></div></div>
+
+  <h2>หนึ่งวันของร้าน</h2>
+  <div class="flow">
+    <div class="box"><span class="ic">🌅</span><b>เช้า</b>เปิดเครื่องหลัก<br>ระบบเปิดเองใน 3 นาที</div><div class="arr">➜</div>
+    <div class="box"><span class="ic">🔓</span><b>เปิดรอบ</b>แคชเชียร์ใส่เงินทอน</div><div class="arr">➜</div>
+    <div class="box"><span class="ic">☕</span><b>ขายทั้งวัน</b></div><div class="arr">➜</div>
+    <div class="box"><span class="ic">🔒</span><b>ปิดรอบ</b>เคลียร์ · นับเงิน · ปิด</div><div class="arr">➜</div>
+    <div class="box"><span class="ic">💾</span><b>สำรองข้อมูล</b>ระบบทำเอง</div>
+  </div>
+  <div class="tip">เปลี่ยนกะกลางวัน = ปิดรอบแล้วเปิด "เปิดรอบใหม่ต่อทันที"</div>
+
+  <h2>ออเดอร์หนึ่งใบ</h2>
+  <div class="vflow">
+    <div class="flow" style="width:60%;margin:0"><div class="box"><span class="ic">📱</span><b>ลูกค้าสั่งที่คีออสก์</b></div></div>
+    <div class="down">⬇</div>
+    <div class="branch">
+      <div>
+        <div class="lbl">จ่าย QR พร้อมเพย์</div>
+        <div class="flow" style="flex-direction:column;margin:2px 0">
+          <div class="box"><b>📲 สแกน QR โอนเงิน</b>ยอดอยู่ใน QR แล้ว</div>
+          <div class="box"><b>📸 ส่องสลิปที่กล้องตู้</b></div>
+          <div class="box"><b>🤖 ระบบตรวจสลิป 3 อย่าง</b>ยอดตรง · เวลาตรง · เข้าบัญชีร้าน</div>
+          <div class="grid g2" style="gap:6px">
+            <div class="box"><b>✅ ผ่านครบ</b>ไปครัวเอง</div>
+            <div class="box y"><b>🤔 ไม่แน่ใจ</b>แคชเชียร์ดูแอปธนาคาร แล้วยืนยัน</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="lbl">จ่ายเงินสด</div>
+        <div class="flow" style="flex-direction:column;margin:2px 0">
+          <div class="box"><b>🎫 ได้เลขคิว</b></div>
+          <div class="box"><b>💵 จ่ายที่เคาน์เตอร์</b>แคชเชียร์กด รับเงินสด</div>
+        </div>
+      </div>
+    </div>
+    <div class="down">⬇</div>
+    <div class="flow" style="width:100%;margin:0">
+      <div class="box"><span class="ic">🧾</span><b>จ่ายแล้ว</b>พิมพ์ใบเสร็จ + สลิปครัว</div><div class="arr">➜</div>
+      <div class="box"><span class="ic">👨‍🍳</span><b>ครัวทำ</b>กด พร้อมเสิร์ฟ</div><div class="arr">➜</div>
+      <div class="box"><span class="ic">📺</span><b>จอเรียกคิว</b>ขึ้นเลข + เสียง</div><div class="arr">➜</div>
+      <div class="box"><span class="ic">🤝</span><b>ลูกค้ารับของ</b>แคชเชียร์กด ส่งมอบ</div>
+    </div>
+  </div>
+  <div class="warn">สลิปใบเดียวใช้ซ้ำกับออเดอร์อื่นไม่ได้ · ระบบไม่ได้ต่อกับธนาคาร — <b>แคชเชียร์ควรเปิดแอปธนาคารร้านดูเงินเข้าเป็นระยะ</b></div>
+</section>
+
+<section class="page">
+  <h2>สถานะของออเดอร์</h2>
+  <table>
+    <tr><th style="width:20%">สถานะ</th><th>แปลว่า</th><th style="width:26%">ใครทำต่อ</th></tr>
+    <tr><td>🟡 <b>รอจ่าย</b></td><td>สั่งแล้ว ยังไม่ได้เงิน</td><td>ลูกค้าโอน / แคชเชียร์รับเงินสด</td></tr>
+    <tr><td>🟠 <b>เช็กสลิป</b></td><td>สลิปรอตรวจ · QR หมดเวลา · ตรวจไม่ผ่าน</td><td>แคชเชียร์</td></tr>
+    <tr><td>🔵 <b>กำลังทำ</b></td><td>ได้เงินแล้ว อยู่ที่ครัว</td><td>ครัว / บาร์</td></tr>
+    <tr><td>🟢 <b>พร้อมรับ</b></td><td>ทำเสร็จ จอเรียกคิวแล้ว</td><td>แคชเชียร์ส่งมอบ</td></tr>
+    <tr><td>✅ <b>เสร็จ</b></td><td>ลูกค้ารับของแล้ว</td><td>—</td></tr>
+    <tr><td>⛔ <b>ยกเลิก</b></td><td>ยกเลิก · บิลผิด/ซ้ำ · คืนเงิน</td><td>—</td></tr>
+  </table>
+
+  <h2>เรื่องไม่ปกติ</h2>
+  <table>
+    <tr><th style="width:36%">เกิดอะไร</th><th>ทางไป</th></tr>
+    <tr><td>⏰ QR หมดเวลา (2 นาทีครึ่ง)</td><td>ตู้ถาม "โอนแล้วหรือยัง?" → สแกนสลิป / ขอ QR ใหม่ / จ่ายเงินสดแทน · ไม่ตอบ 30 วินาที → ไปรอที่แท็บเช็กสลิป</td></tr>
+    <tr><td>💵 ลูกค้าอยากจ่ายเงินสดแทน</td><td>กด <b>จ่ายเงินสดแทน</b> ที่ตู้ → ไปจ่ายที่เคาน์เตอร์</td></tr>
+    <tr><td>🙋 ลูกค้าติดปัญหาที่ตู้</td><td>กด <b>แจ้งพนักงาน</b> → ขึ้นที่แท็บเช็กสลิป</td></tr>
+    <tr><td>❌ ยกเลิกก่อนจ่าย</td><td><b>ยกเลิก (ยังไม่ได้รับเงิน)</b></td></tr>
+    <tr><td>📝 จ่ายแล้วแต่บิลผิด/ซ้ำ</td><td>ผู้จัดการ: <b>ยกเลิกบิลผิด/ซ้ำ</b></td></tr>
+    <tr><td>💸 ลูกค้าขอคืนเงิน</td><td>ผู้จัดการ: <b>ยกเลิก + คืนเงินลูกค้า</b> แล้วคืนเงินเอง</td></tr>
+    <tr><td>🖨️ พิมพ์ไม่ออก</td><td>ระบบลองซ้ำเอง 3 ครั้ง → ลองเครื่องสำรอง → แคชเชียร์เห็นแถบแดง กด <b>ดูและพิมพ์ซ้ำ</b></td></tr>
+    <tr><td>🙈 ลูกค้าไม่มารับ</td><td>แคชเชียร์กด <b>เรียกซ้ำ</b></td></tr>
+  </table>
+
+  <h2>ใบที่พิมพ์ออก</h2>
+  <div class="grid g4">
+    <div class="card"><div class="ic">🎫</div><b>บัตรคิว</b><small>เครื่องพิมพ์ที่ตู้ · ตอนสั่งเสร็จ</small></div>
+    <div class="card"><div class="ic">🧾</div><b>ใบเสร็จ</b><small>เคาน์เตอร์ · ตอนจ่ายแล้ว</small></div>
+    <div class="card"><div class="ic">📋</div><b>สลิปครัว</b><small>เครื่องพิมพ์ของแต่ละสถานี · ตอนจ่ายแล้ว</small></div>
+    <div class="card"><div class="ic">📄</div><b>ใบปิดรอบ</b><small>กดดูที่หน้าปิดรอบ</small></div>
+  </div>
+</section>
+
+<!-- ═════════════ บท 4 บทบาท ═════════════ -->
+<section class="page">
+  <div class="chap"><span class="num">4</span><div><h1>ใครทำอะไร</h1><small>ทุกคนมีบัญชีของตัวเอง ห้ามใช้ร่วมกัน — ระบบจดว่าใครกดอะไร</small></div></div>
+
+  <div class="grid g2">
+    <div class="role">
+      <div class="top"><span class="ic">👑</span><div><h3>แอดมิน</h3><div class="land">เจ้าของร้าน · เข้าระบบแล้วเจอ <b>หน้าภาพรวม</b></div></div></div>
+      <ol>
+        <li>ดู "ต้องจัดการ" ทุกเช้า</li>
+        <li>ดูรายงานยอดขาย</li>
+        <li>เพิ่ม/ปิดบัญชีพนักงาน ตั้งรหัสใหม่</li>
+        <li>แก้เมนู ราคา ตั้งค่าร้าน</li>
+      </ol>
+      <div class="land">ทำได้ทุกอย่าง · มีคนเดียวที่จัดการผู้ใช้และตั้งค่าเมนูได้</div>
+    </div>
+    <div class="role">
+      <div class="top"><span class="ic">🧑‍💼</span><div><h3>ผู้จัดการร้าน</h3><div class="land">ดูแลหน้าร้าน · เข้าระบบแล้วเจอ <b>หน้าภาพรวม</b></div></div></div>
+      <ol>
+        <li>เปิด/ปิดรอบ นับเงิน</li>
+        <li>ยืนยันสลิปยอดเกินเพดานแคชเชียร์</li>
+        <li>ยกเลิกบิลผิด/ซ้ำ · คืนเงินลูกค้า</li>
+        <li>แก้เมนู ราคา ปิดของหมด · ดูรายงาน</li>
+      </ol>
+      <div class="cant">จัดการผู้ใช้ · ตั้งค่าเมนู</div>
+    </div>
+    <div class="role">
+      <div class="top"><span class="ic">💵</span><div><h3>แคชเชียร์</h3><div class="land">ประจำเคาน์เตอร์ · เข้าระบบแล้วเจอ <b>หน้าแคชเชียร์</b></div></div></div>
+      <ol>
+        <li><b>เปิดรอบ</b> ตอนเช้า</li>
+        <li><b>รับเงินสด</b></li>
+        <li><b>ตรวจสลิป</b> — ดูแอปธนาคารก่อนยืนยันทุกครั้ง</li>
+        <li><b>ส่งมอบ</b> ของ / <b>เรียกซ้ำ</b></li>
+        <li><b>ปิดรอบ</b> ตอนเลิกกะ</li>
+      </ol>
+      <div class="cant">ยืนยันสลิปเกิน 500 บาท · ยกเลิกบิลที่จ่ายแล้ว · คืนเงิน · แก้เมนู · ดูรายงาน</div>
+    </div>
+    <div class="role">
+      <div class="top"><span class="ic">👨‍🍳</span><div><h3>ครัว</h3><div class="land">ทำเครื่องดื่ม/อาหาร · เข้าระบบแล้วเจอ <b>จอครัว</b></div></div></div>
+      <ol>
+        <li>เลือกสถานีของตัวเอง</li>
+        <li>ทำตามตั๋ว แตะติ๊กที่ทำแล้ว</li>
+        <li>ครบแล้วกด <b>พร้อมเสิร์ฟ</b></li>
+      </ol>
+      <div class="cant">รับเงิน · แก้เมนู · ปิดรอบ</div>
+    </div>
+  </div>
+
+</section>
+
+<section class="page">
+  <h2>ตารางรวม</h2>
+  <table>
+    <tr><th>ทำอะไร</th><th class="c">👑 แอดมิน</th><th class="c">🧑‍💼 ผู้จัดการ</th><th class="c">💵 แคชเชียร์</th><th class="c">👨‍🍳 ครัว</th></tr>
+    <tr><td>รับเงินสด · ตรวจสลิป</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td></tr>
+    <tr><td>ยืนยันสลิปแทนระบบ</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c">≤ 500 บาท</td><td class="c no">—</td></tr>
+    <tr><td>เปิด / ปิดรอบ</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td></tr>
+    <tr><td>ยกเลิกบิลผิด · คืนเงิน</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td><td class="c no">—</td></tr>
+    <tr><td>จอครัว</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td><td class="c yes">✓</td></tr>
+    <tr><td>ประวัติบิล</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c yes">✓</td></tr>
+    <tr><td>เมนู ราคา ของหมด</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td><td class="c no">—</td></tr>
+    <tr><td>รายงาน</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td><td class="c no">—</td></tr>
+    <tr><td>ตั้งค่าร้าน เครื่องพิมพ์ จับคู่จอ</td><td class="c yes">✓</td><td class="c yes">✓</td><td class="c no">—</td><td class="c no">—</td></tr>
+    <tr><td>ผู้ใช้และสิทธิ์ · ตั้งค่าเมนู</td><td class="c yes">✓</td><td class="c no">—</td><td class="c no">—</td><td class="c no">—</td></tr>
+  </table>
+  <div class="tip"><b>"ยืนยันแทน"</b> = แคชเชียร์กดยืนยันเองว่าเงินเข้าแล้ว ทั้งที่ระบบตรวจสลิปไม่ผ่าน · ต้องเลือกเหตุผลทุกครั้ง · เพดาน 500 บาทแอดมินเปลี่ยนรายคนได้</div>
+</section>
+
+</body>
+</html>
