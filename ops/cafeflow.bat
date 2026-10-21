@@ -80,7 +80,7 @@ if errorlevel 1 (
     powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -ArgumentList 'install' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
     if errorlevel 1 (
         echo.
-        echo  [!] Permission was refused - the installer needs "Yes" to install programs.
+        echo  [x] Permission was refused - the installer needs "Yes" to install programs.
         echo.
         pause
         exit /b 1
@@ -97,7 +97,7 @@ title CafeFlow installer
 
 where winget >nul 2>&1
 if errorlevel 1 (
-    echo  [!] winget not found. Open Microsoft Store, install/update "App Installer",
+    echo  [x] winget not found. Open Microsoft Store, install/update "App Installer",
     echo      then run this file again.
     echo.
     pause
@@ -115,7 +115,7 @@ if exist "%GIT%" (
     echo  [1/5] Git ............ installing
     %WG% --id Git.Git --scope machine
     if not exist "%GIT%" (
-        echo  [!] Git install failed - check the internet connection and run again.
+        echo  [x] Git install failed - check the internet connection and run again.
         pause
         exit /b 1
     )
@@ -129,7 +129,7 @@ if exist "%NODE%" (
     echo  [2/5] Node.js ........ installing
     %WG% --id OpenJS.NodeJS.LTS --scope machine
     if not exist "%NODE%" (
-        echo  [!] Node.js install failed - check the internet connection and run again.
+        echo  [x] Node.js install failed - check the internet connection and run again.
         pause
         exit /b 1
     )
@@ -147,7 +147,7 @@ if "%PYOK%"=="1" (
     echo  [3/5] Python 3.11 .... installing
     %WG% --id Python.Python.3.11 --scope machine
     if not exist "%ProgramFiles%\Python311\python.exe" (
-        echo  [!] Python 3.11 install failed - check the internet connection and run again.
+        echo  [x] Python 3.11 install failed - check the internet connection and run again.
         pause
         exit /b 1
     )
@@ -173,7 +173,7 @@ if "%DOCKER_OK%"=="1" (
     echo  [5/5] Docker Desktop . installing - this takes a while
     %WG% --id Docker.DockerDesktop --scope machine
     if not exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-        echo  [!] Docker Desktop install failed - check the internet connection and run again.
+        echo  [x] Docker Desktop install failed - check the internet connection and run again.
         pause
         exit /b 1
     )
@@ -185,7 +185,7 @@ where wt >nul 2>&1
 if errorlevel 1 (
     echo  [+]   Windows Terminal installing - so the menu can show Thai text
     winget install -e --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --id Microsoft.WindowsTerminal
-    if errorlevel 1 echo  [!] Windows Terminal not installed - the menu still works, Thai may show as boxes.
+    if errorlevel 1 echo  [x] Windows Terminal not installed - the menu still works, Thai may show as boxes.
 ) else (
     echo  [+]   Windows Terminal . already installed
 )
@@ -216,13 +216,13 @@ if exist "%DIR%\.git" (
     echo.
     echo  CafeFlow folder: %DIR% - getting the latest version
     "%GIT%" -C "%DIR%" pull --ff-only
-    if errorlevel 1 echo  [!] Could not update - continuing with the current version.
+    if errorlevel 1 echo  [x] Could not update - continuing with the current version.
 ) else (
     echo.
     echo  Downloading CafeFlow to %DIR%
     "%GIT%" clone https://github.com/AndamanDev/cafeflow.git "%DIR%"
     if not exist "%DIR%\.git" (
-        echo  [!] Download failed - check the internet connection and run again.
+        echo  [x] Download failed - check the internet connection and run again.
         pause
         exit /b 1
     )

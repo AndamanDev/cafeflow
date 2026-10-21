@@ -77,7 +77,6 @@
         session()   { return read(); },
         isLoggedIn(){ return !!read(); },
         getRole()   { const s = read(); return s ? s.role : null; },
-        roleLabel() { return ROLE_LABEL[this.getRole()] || ''; },
 
         /**
          * รูปแบบที่ DSNavbar.loadUser() อ่าน — ต้องเป็น

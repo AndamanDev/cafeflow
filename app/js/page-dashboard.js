@@ -10,8 +10,9 @@ const DashPage = {
        ══════════════════════════════════════════════════════ */
     render() {
         // ลิ้นชักอุปกรณ์เปิดอยู่ → วาดตารางใหม่ (จับคู่ / heartbeat แล้วสถานะต้องเปลี่ยนเอง ไม่ต้องปิดเปิดใหม่)
-        const devRows = document.getElementById('devRows');
-        if (devRows) { devRows.innerHTML = this.deviceRows() + this.unknownWaitRows(); refreshIcons(); }
+        // วาดทั้งตารางแล้ว mount ใหม่ — เขียน tbody ตรง ๆ ใต้ DataTables จะค้างข้อมูลเก่า (CFTable จำหน้า/คำค้นไว้)
+        const devHost = document.getElementById('devHost');
+        if (devHost) { devHost.innerHTML = this.devTableHtml(); refreshIcons(); CFTable.mount('devTable'); }
 
         const day = CFDay.businessDate(Date.now(), CFDay.startHourOf(CFStore.settings()));
         if (this._ydayFor !== day) this.loadYesterday(day);           // ข้ามวันขณะเปิดหน้าค้าง → เทียบวันใหม่
@@ -33,9 +34,9 @@ const DashPage = {
         const shift = CFStore.openShift();
         document.getElementById('dayLine').textContent = 'วันทำการ ' + CFApp.date(day + 'T12:00:00+07:00');
         document.getElementById('shiftLine').innerHTML = shift
-            ? `<span class="cf-pill cf-pill-on">เปิดขายอยู่</span>
+            ? `<span class="status-badge active">เปิดขายอยู่</span>
                <span class="td-sub">รอบตั้งแต่ ${CFApp.esc(CFApp.date(shift.openedAt) + ' ' + CFApp.time(shift.openedAt))}</span>`
-            : '<span class="cf-pill cf-pill-off">ยังไม่เปิดรอบ</span>';
+            : '<span class="status-badge danger">ยังไม่เปิดรอบ</span>';
     },
 
     /** ยอดเมื่อวานไว้เทียบ — รายงานดูได้เฉพาะผู้จัดการ/แอดมิน (คนอื่นไม่โชว์บรรทัดเทียบ) */
@@ -138,7 +139,7 @@ const DashPage = {
             const age = b.lastAt ? (Date.now() - new Date(b.lastAt).getTime()) / 3600000 : Infinity;
             if (age >= 48) {
                 add('warn', 'hard-drive', `ไม่ได้สำรองข้อมูล${b.lastAt ? 'มา ' + Math.floor(age / 24) + ' วัน' : 'เลย'}`,
-                    'ถ้าเครื่องเสีย ยอดขายและเมนูจะหาย · ระบบสำรองเองทุกคืน 23:30 — ตรวจว่า Docker เปิดอยู่ หรือรัน node ops\\backup.js ที่เครื่องเซิร์ฟเวอร์', '');
+                    'ถ้าเครื่องเสีย ยอดขายและเมนูจะหาย · ระบบสำรองเองทุกคืน 23:30 — ถ้ายังขึ้นเตือนอยู่ ให้เปิดไอคอน CafeFlow บนเครื่องเซิร์ฟเวอร์ แล้วเลือก "สำรองข้อมูลตอนนี้" หรือแจ้งผู้ดูแลระบบ', '');
             }
         }
 
@@ -241,12 +242,11 @@ const DashPage = {
             return `<tr>
                 <td>
                     <div class="td-name">${e(d.name)}</div>
-                    <div class="td-sub">${e(d.id)} · ${e(d.ip)}</div>
+                    <div class="td-sub">${e(d.id)} · ${e(d.ip)}${d.lastSeen ? ' · ล่าสุด ' + CFApp.time(d.lastSeen) : ''}</div>
                 </td>
                 <td>${d.assignedStation ? CFApp.stationChip(d.assignedStation) : '<span class="text-muted">—</span>'}</td>
-                <td class="cf-nowrap">${CFApp.time(d.lastSeen)}</td>
                 <td>${pairable ? this.pairStateHtml(d) : `<span class="status-badge ${online ? 'active' : 'danger'}">${online ? 'ออนไลน์' : 'ออฟไลน์'}</span>`}</td>
-                <td class="cf-nowrap">${pairable ? `
+                <td>${pairable ? `<div class="cf-dev-acts">
                     <button class="btn btn-outline btn-sm" onclick="DashPage.pairDevice('${d.id}')">
                         <i data-lucide="link" class="icon-sm"></i> จับคู่
                     </button>
@@ -254,8 +254,8 @@ const DashPage = {
                         onclick="DashPage.openDisplaySettings()"><i data-lucide="settings" class="icon-sm"></i></button>` : ''}
                     <a class="btn btn-outline btn-sm" href="${page}" target="_blank" rel="noopener"
                        title="เปิดหน้า ${page} ในแท็บใหม่">
-                        <i data-lucide="external-link" class="icon-sm"></i> เปิดหน้า
-                    </a>` : '<span class="text-muted">—</span>'}</td>
+                        <i data-lucide="external-link" class="icon-sm"></i>
+                    </a></div>` : '<span class="text-muted">—</span>'}</td>
             </tr>`;
         }).join('');
     },
@@ -266,10 +266,9 @@ const DashPage = {
         return CFStore.all('deviceWaits').filter((w) => !w.deviceId).map((w) => `<tr>
                 <td>
                     <div class="td-name">เครื่องที่ยังไม่รู้จัก</div>
-                    <div class="td-sub">${e(w.ip)} · เปิดหน้า ${e(w.page)}</div>
+                    <div class="td-sub">${e(w.ip)} · เปิดหน้า ${e(w.page)} · ล่าสุด ${CFApp.time(w.at)}</div>
                 </td>
                 <td><span class="text-muted">—</span></td>
-                <td class="cf-nowrap">${CFApp.time(w.at)}</td>
                 <td><span class="status-badge waiting">รอรหัสจับคู่</span>
                     <div class="td-sub">ตั้งแต่ ${CFApp.time(w.since)}</div></td>
                 <td class="td-sub">กด "จับคู่" ที่อุปกรณ์ที่ต้องการให้เครื่องนี้เป็น</td>
@@ -298,23 +297,22 @@ const DashPage = {
     openDevices() {
         Drawer.open({
             title: 'อุปกรณ์ในเครือข่าย',
-            width: '880px',
+            width: CFApp.DRAWER_W,
             contentHtml: `
                 <!-- ที่อยู่เครื่องเซิร์ฟเวอร์ — ตั้งเครื่องใหม่ต้องกรอกในไฟล์เปิดจอ (ops/screen-edge.bat) · 19/10/2569 -->
                 <div class="cf-srv" id="srvAddr"><span class="td-sub">กำลังอ่านที่อยู่เครื่องเซิร์ฟเวอร์…</span></div>
-                <div class="sip-banner sip-banner-info" style="margin-bottom:12px">
-                    <i data-lucide="info" class="icon-sm"></i>
-                    อุปกรณ์ส่งสัญญาณทุก 10–30 วินาที · ไม่ได้ยินเกิน 60 วินาทีถือว่าออฟไลน์
-                </div>
-                <div class="table-responsive">
-                    <table class="data-table compact">
-                        <thead><tr><th>อุปกรณ์</th><th>สถานี</th><th>ล่าสุด</th><th>สถานะ</th><th></th></tr></thead>
-                        <tbody id="devRows">${this.deviceRows()}${this.unknownWaitRows()}</tbody>
-                    </table>
-                </div>`,
+                ${CFApp.card('อุปกรณ์', `<div id="devHost">${this.devTableHtml()}</div>`,
+                    { flush: true, hint: 'ออฟไลน์ = ไม่ได้ติดต่อเกิน 1 นาที (ปิดเครื่อง · หลุด Wi-Fi)' })}`,
             footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
-            onOpen: () => { refreshIcons(); this.loadServerAddress(); },
+            onOpen: () => { refreshIcons(); CFTable.mount('devTable'); this.loadServerAddress(); },
         });
+    },
+
+    devTableHtml() {
+        return `<table class="data-table compact" id="devTable">
+            <thead><tr><th>อุปกรณ์</th><th>สถานี</th><th>สถานะ</th><th class="no-sort"></th></tr></thead>
+            <tbody>${this.deviceRows()}${this.unknownWaitRows()}</tbody>
+        </table>`;
     },
 
     /**
@@ -339,8 +337,8 @@ const DashPage = {
                 </div>
                 <div class="td-sub">IP <b>${e(main.ip)}</b> (${e(main.adapter)})
                     ${list.length > 1 ? ' · อื่น ๆ: ' + list.slice(1).map((x) => e(x.ip) + ' (' + e(x.adapter) + ')').join(', ') : ''}
-                    — กรอก IP นี้ตอนเปิด <code>ops\\screen-edge.bat</code> ครั้งแรกบนเครื่องใหม่ ·
-                    IP เปลี่ยนได้ถ้ายังไม่ได้ล็อกที่เราเตอร์ (เครื่องเดิมจะต่อไม่ติด ต้องกรอกใหม่)</div>`;
+                    — ใช้ที่อยู่นี้ตอนตั้งเครื่องใหม่ (คีออสก์ · ครัว · จอคิว) ครั้งแรก ·
+                    ถ้าเครื่องที่เคยตั้งไว้ต่อไม่ติด อาจเป็นเพราะที่อยู่นี้เปลี่ยน ให้กรอกใหม่</div>`;
             refreshIcons();
         } catch (err) {
             el.innerHTML = '<span class="td-sub">อ่านที่อยู่เครื่องเซิร์ฟเวอร์ไม่ได้ — ' + e(err.message || '') + '</span>';
@@ -361,58 +359,34 @@ const DashPage = {
         this._dd = Object.assign({}, CF_DISPLAY_DEFAULTS, CFStore.settings());
         const d = this._dd;
         const e = CFApp.esc;
-        const tg = (key, label, note) => `
-            <div class="sip-field">
-                <button type="button" class="ds-toggle ${d[key] !== false ? 'is-on' : ''}"
-                        id="dt-${key}" onclick="DashPage.dToggle('${key}')">
-                    <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> ${label}
-                </button>
-                ${note ? `<div class="ds-note" style="margin-top:4px">${note}</div>` : ''}
-            </div>`;
+        // จัดใหม่ 21/10/2569: การ์ด + แถวตั้งค่า + กล่อง เปิด|ปิด แบบเดียวกับตั้งค่าคีออสก์
         Drawer.open({
             title: 'ตั้งค่าจอแสดงคิว',
-            width: '520px',
-            contentHtml: `
-                <div class="ds-section-label">หน้าตา</div>
-                <div class="sip-field">
-                    <label class="sip-label">โทนสีจอ</label>
-                    <div class="ds-segbar" id="dTheme">
-                        <button type="button" class="ds-seg ${d.displayTheme !== 'dark' ? 'active' : ''}"
-                                onclick="DashPage.dTheme('light')">พื้นสว่าง</button>
-                        <button type="button" class="ds-seg ${d.displayTheme === 'dark' ? 'active' : ''}"
-                                onclick="DashPage.dTheme('dark')">พื้นเข้ม</button>
-                    </div>
-                    <div class="ds-note" style="margin-top:6px">
-                        พื้นเข้มอ่านง่ายจากไกลและไม่แสบตาในร้านที่ไฟสลัว · พื้นสว่างเหมาะกับร้านที่สว่างหรือมีแดดส่อง
-                    </div>
-                </div>
-
-                <div class="ds-section-label">เมนูแนะนำ</div>
-                ${tg('displayHighlights', 'แสดงเมนูแนะนำด้านขวาของจอ',
-                     'ปิดแล้วคิวเต็มจอ เลขคิวใหญ่ขึ้น — เหมาะช่วงคนเยอะ')}
-                <div class="sip-field">
-                    <label class="sip-label">สลับเมนูทุก (วินาที)</label>
-                    <input class="sip-input" id="dHiSec" type="number" min="3" max="60" step="1"
-                           value="${Number(d.displayHighlightSec) || 7}">
-                </div>
-
-                <div class="ds-section-label">เสียง</div>
-                ${tg('displaySound', 'เสียงเรียกคิวเมื่อคิวพร้อมรับ',
-                     'ทีวีต้องกดปุ่ม "เปิดเสียงเรียกคิว" บนจอหนึ่งครั้งตอนติดตั้ง (เบราว์เซอร์บังคับ)')}
-
-                <div class="ds-section-label">ข้อความประกาศ</div>
-                <div class="sip-field">
-                    <label class="sip-label">ข้อความด้านล่างจอ</label>
-                    <input class="sip-input" id="dTicker" maxlength="200"
-                           placeholder="เช่น Wi-Fi: cafe1234 · ว่างไว้ = ไม่แสดง"
-                           value="${e(d.displayTicker || '')}">
-                    <div class="ds-note" style="margin-top:6px">ข้อความวิ่งจากขวาไปซ้ายตลอด · ไม่เกิน 200 ตัวอักษร</div>
-                </div>
-
-                <div class="ds-note" style="margin-top:14px">
-                    <i data-lucide="info" class="icon-sm"></i>
-                    ใช้กับจอแสดงคิวทุกจอของร้าน · บันทึกแล้วทีวีเปลี่ยนเองภายในไม่กี่วินาที ไม่ต้องรีเฟรช
-                </div>`,
+            width: CFApp.DRAWER_W,
+            contentHtml: CFApp.card('หน้าตา',
+                    CFApp.row('โทนสีจอ', 'พื้นเข้มอ่านง่ายจากไกล ไม่แสบตาในร้านไฟสลัว · พื้นสว่างเหมาะกับร้านที่สว่าง',
+                        CFApp.boxSel('dTheme', [['light', 'พื้นสว่าง'], ['dark', 'พื้นเข้ม']],
+                            d.displayTheme === 'dark' ? 'dark' : 'light', 'DashPage.dTheme($)')), { flush: true }) +
+                CFApp.card('เมนูแนะนำ',
+                    CFApp.row('แสดงเมนูแนะนำด้านขวาของจอ', 'ปิดแล้วคิวเต็มจอ เลขคิวใหญ่ขึ้น — เหมาะช่วงคนเยอะ',
+                        CFApp.onOff('dt-displayHighlights', d.displayHighlights !== false, "DashPage.dSet('displayHighlights', $)")) +
+                    `<label class="cf-set-row cf-set-num">
+                        <span class="cf-set-title">สลับเมนูทุก</span>
+                        <span class="cf-sec"><input class="sip-input" id="dHiSec" type="number" min="3" max="60" step="1"
+                               value="${Number(d.displayHighlightSec) || 7}"> วิ</span>
+                    </label>`, { flush: true }) +
+                CFApp.card('เสียง',
+                    CFApp.row('เสียงเรียกคิวเมื่อคิวพร้อมรับ', 'ทีวีต้องกด "เปิดเสียงเรียกคิว" บนจอหนึ่งครั้งตอนติดตั้ง (เบราว์เซอร์บังคับ)',
+                        CFApp.onOff('dt-displaySound', d.displaySound !== false, "DashPage.dSet('displaySound', $)")), { flush: true }) +
+                CFApp.card('ข้อความประกาศ', `
+                    <div class="sip-field">
+                        <label class="sip-label">ข้อความวิ่งด้านล่างจอ</label>
+                        <input class="sip-input" id="dTicker" maxlength="200"
+                               placeholder="เช่น Wi-Fi: cafe1234 · ว่างไว้ = ไม่แสดง"
+                               value="${e(d.displayTicker || '')}">
+                        <div class="ds-note">วิ่งจากขวาไปซ้ายตลอด · ไม่เกิน 200 ตัวอักษร</div>
+                    </div>`) +
+                '<div class="ds-note">ใช้กับจอแสดงคิวทุกจอของร้าน · บันทึกแล้วทีวีเปลี่ยนเองภายในไม่กี่วินาที ไม่ต้องรีเฟรช</div>',
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
                 <button class="btn btn-primary" onclick="DashPage.saveDisplaySettings()">
@@ -424,13 +398,12 @@ const DashPage = {
 
     dTheme(v) {
         this._dd.displayTheme = v;
-        document.querySelectorAll('#dTheme .ds-seg').forEach((b, i) => {
-            b.classList.toggle('active', ['light', 'dark'][i] === v);
-        });
+        CFApp.markBox('dTheme', v);
     },
-    dToggle(key) {
-        this._dd[key] = this._dd[key] === false;
-        document.getElementById('dt-' + key).classList.toggle('is-on', this._dd[key] !== false);
+    /** ตั้งค่า (ไม่ใช่สลับ) — กดกล่องที่เลือกอยู่แล้วซ้ำต้องไม่เปลี่ยนค่า */
+    dSet(key, on) {
+        this._dd[key] = on;
+        CFApp.markBox('dt-' + key, on);
     },
 
     saveDisplaySettings() {
@@ -509,11 +482,12 @@ const DashPage = {
     },
 
     /** ตั้งค่าครบพอให้ส่งงานได้ไหม — ตรงกับ targetOf() ใน api/src/print/worker.js */
-    async toggleAutoReceipt() {
-        const on = CFStore.settings().autoPrintReceipt === false;     // ตอนนี้ปิดอยู่ → เปิด
+    /** บันทึกทันทีที่กด — ตั้งเป็นค่าที่กด (กดกล่องที่เลือกอยู่แล้วซ้ำ = ไม่ทำอะไร ไม่ใช่สลับกลับ) */
+    async setAutoReceipt(on) {
+        if ((CFStore.settings().autoPrintReceipt !== false) === on) return;
         try {
             await CFStore.cmd('PATCH', '/api/settings', { autoPrintReceipt: on });
-            document.getElementById('autoReceipt')?.classList.toggle('is-on', on);
+            CFApp.markBox('autoReceipt', on);
             showToast(on ? 'เปิดพิมพ์ใบเสร็จอัตโนมัติแล้ว' : 'ปิดพิมพ์ใบเสร็จอัตโนมัติแล้ว', 'success');
         } catch (err) {
             showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000);
@@ -574,7 +548,7 @@ const DashPage = {
                 ? `<div class="td-name">${e(p.name)}</div><div class="td-sub">${e(this.printerConnText(p))}</div>` +
                   (this.printerReady(p) ? '' : '<span class="status-badge danger">ตั้งค่าไม่ครบ</span>')
                 : `<span class="text-muted">ยังไม่ได้ตั้งเครื่องพิมพ์บัตรคิว</span>
-                   <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="DashPage.editPrinter(null, '${e(k.id)}')">
+                   <button class="btn btn-outline btn-sm cf-ml-8" onclick="DashPage.editPrinter(null, '${e(k.id)}')">
                        <i data-lucide="plus" class="icon-sm"></i> ตั้งเครื่องพิมพ์ให้ตู้นี้</button>`;
             return `<tr>
                 <td><span class="sip-chip sip-chip-muted">ใบรับออเดอร์ · ${e(k.name)}</span></td>
@@ -582,67 +556,58 @@ const DashPage = {
             </tr>`;
         }).join('');
 
-        const list = this.printers().map((p) => `<tr class="${p.active === false ? 'text-muted' : ''}">
+        const list = this.printers().map((p) => `<tr>
                 <td>
-                    <div class="td-name">${e(p.name)}${p.active === false ? ' (ปิดใช้งาน)' : ''}</div>
+                    <div class="td-name">${e(p.name)}</div>
                     <div class="td-sub">${e(this.printerConnText(p))}</div>
                 </td>
                 <td>${p.kioskId ? `<span class="sip-chip sip-chip-muted">${e(this.kioskName(p.kioskId))}</span>`
-                     : p.assignedStation ? CFApp.stationChip(p.assignedStation) : '<span class="text-muted">เคาน์เตอร์</span>'}</td>
+                     : p.assignedStation ? CFApp.stationChip(p.assignedStation) : '<span class="sip-chip sip-chip-muted">เคาน์เตอร์</span>'}</td>
                 <td class="cf-nowrap">${e(p.paperWidth || '80mm')}</td>
-                <td class="cf-nowrap">
-                    <button class="btn btn-outline btn-sm" onclick="DashPage.editPrinter('${e(p.id)}')">
-                        <i data-lucide="pencil" class="icon-sm"></i> แก้ไข
-                    </button>
+                <td>${p.active === false ? '<span class="status-badge inactive">ปิดใช้งาน</span>'
+                     : this.printerReady(p) ? '<span class="status-badge active">ใช้งาน</span>'
+                     : '<span class="status-badge danger">ตั้งค่าไม่ครบ</span>'}</td>
+                <td class="cf-nowrap cf-right">
+                    <button class="ds-icon-btn edit" title="แก้ไข" onclick="DashPage.editPrinter('${e(p.id)}')"><i data-lucide="pencil"></i></button>
                 </td>
-            </tr>`).join('') ||
-            '<tr><td colspan="4"><div class="ds-empty-sm">ยังไม่มีเครื่องพิมพ์</div></td></tr>';
+            </tr>`).join('');
 
+        // จัดใหม่ 21/10/2569: การ์ด 3 ใบ · สวิตช์เป็นกล่อง เปิด|ปิด · ตาราง DataTables
         Drawer.open({
             title: 'เครื่องพิมพ์',
-            width: '640px',
-            contentHtml: `
-                <div class="sip-field">
-                    <button type="button" class="ds-toggle ${CFStore.settings().autoPrintReceipt !== false ? 'is-on' : ''}"
-                            id="autoReceipt" onclick="DashPage.toggleAutoReceipt()">
-                        <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span>
-                        พิมพ์ใบเสร็จอัตโนมัติเมื่อชำระเงินแล้ว
-                    </button>
-                    <div class="ds-note" style="margin-top:4px">
-                        ออกที่เครื่องเคาน์เตอร์ทันทีที่รับเงินสดหรือยืนยันสลิป · เงินสดเปิดลิ้นชักให้ด้วย
-                    </div>
+            width: CFApp.DRAWER_W,
+            contentHtml: CFApp.card('การพิมพ์', `
+                <div class="cf-set-row">
+                    <div class="cf-set-text"><div class="cf-set-title">พิมพ์ใบเสร็จอัตโนมัติเมื่อชำระเงินแล้ว</div>
+                        <div class="cf-set-desc">ออกที่เครื่องเคาน์เตอร์ทันทีที่รับเงินสดหรือยืนยันสลิป · เงินสดเปิดลิ้นชักให้ด้วย</div></div>
+                    <div class="cf-set-ctl">${CFApp.onOff('autoReceipt', CFStore.settings().autoPrintReceipt !== false, 'DashPage.setAutoReceipt($)')}</div>
                 </div>
-
-                <button type="button" class="btn btn-outline btn-sm" style="margin-bottom:12px"
-                        onclick="CFPrint.openFailed()">
-                    <i data-lucide="alert-triangle" class="icon-sm"></i> งานที่พิมพ์ไม่ออก / พิมพ์ซ้ำ
-                </button>
-
-                <div class="ds-section-label">แต่ละส่วนพิมพ์ที่ไหน</div>
-                <div class="table-responsive">
-                    <table class="data-table compact">
-                        <thead><tr><th>ส่วน</th><th>พิมพ์ออกที่</th></tr></thead>
+                <div class="cf-set-row">
+                    <div class="cf-set-text"><div class="cf-set-title">งานที่พิมพ์ไม่ออก</div>
+                        <div class="cf-set-desc">ดูงานที่ค้าง · สั่งพิมพ์ซ้ำ หรือย้ายไปเครื่องอื่น</div></div>
+                    <div class="cf-set-ctl"><button type="button" class="btn btn-outline btn-sm" onclick="CFPrint.openFailed()">
+                        <i data-lucide="alert-triangle" class="icon-sm"></i> เปิดดู</button></div>
+                </div>`, { flush: true }) +
+                CFApp.card('แต่ละส่วนพิมพ์ที่ไหน', `
+                    <table class="data-table compact" id="prnMap">
+                        <thead><tr><th>ส่วน</th><th class="no-sort">พิมพ์ออกที่</th></tr></thead>
                         <tbody>${mapRows}</tbody>
-                    </table>
-                </div>
-                <div class="ds-note" style="margin:6px 0 16px">
-                    ส่วนที่ไม่มีเครื่องของตัวเองจะพิมพ์ออกที่เครื่องเคาน์เตอร์
-                    · เปลี่ยนได้ที่ช่อง "ใช้พิมพ์ของส่วน" ของแต่ละเครื่อง
-                </div>
-
-                <div class="ds-section-label">รายการเครื่องพิมพ์</div>
-                <div class="table-responsive">
-                    <table class="data-table compact">
-                        <thead><tr><th>เครื่อง</th><th>ส่วน</th><th>กระดาษ</th><th></th></tr></thead>
+                    </table>`, { flush: true, hint: 'ส่วนที่ไม่มีเครื่องของตัวเองพิมพ์ออกที่เครื่องเคาน์เตอร์ · เปลี่ยนได้ที่ "ใช้พิมพ์ของส่วน" ของแต่ละเครื่อง' }) +
+                CFApp.card('รายการเครื่องพิมพ์', `
+                    <table class="data-table compact" id="prnList">
+                        <thead><tr><th>เครื่อง</th><th>ส่วน</th><th>กระดาษ</th><th>สถานะ</th><th class="no-sort"></th></tr></thead>
                         <tbody>${list}</tbody>
-                    </table>
-                </div>`,
+                    </table>`, { flush: true }),
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
                 <button class="btn btn-primary" onclick="DashPage.editPrinter()">
                     <i data-lucide="plus" class="icon-sm"></i> เพิ่มเครื่องพิมพ์
                 </button>`,
-            onOpen: () => refreshIcons(),
+            onOpen: () => {
+                refreshIcons();
+                CFTable.mount('prnMap');
+                CFTable.mount('prnList', { language: Object.assign({}, CFTable.TH, { emptyTable: 'ยังไม่มีเครื่องพิมพ์ — กด "เพิ่มเครื่องพิมพ์"' }) });
+            },
         });
     },
 
@@ -667,109 +632,96 @@ const DashPage = {
 
         Drawer.open({
             title: p ? 'แก้ไขเครื่องพิมพ์' : 'เพิ่มเครื่องพิมพ์',
-            width: '560px',
-            contentHtml: `
-                <div class="sip-field">
-                    <label class="sip-label">ชื่อเครื่องพิมพ์</label>
-                    <input class="sip-input" id="pName" placeholder="เช่น เครื่องพิมพ์บาร์"
-                           value="${e(p ? p.name : forKiosk ? 'เครื่องพิมพ์บัตรคิว ' + this.kioskName(forKiosk) : '')}">
-                </div>
-
-                <div class="sip-field">
-                    <label class="sip-label">การเชื่อมต่อ</label>
-                    <div class="ds-segbar" id="pConn">
-                        <button type="button" class="ds-seg" onclick="DashPage.pConn('NETWORK')">LAN / IP</button>
-                        <button type="button" class="ds-seg" onclick="DashPage.pConn('USB')">USB</button>
+            width: CFApp.DRAWER_W,
+            // จัดใหม่ 21/10/2569: การ์ด 4 ใบ · การเชื่อมต่อ/เปิดใช้งานเป็นกล่องเลือก · id ทุกช่องเหมือนเดิม
+            contentHtml: CFApp.card('เครื่อง', `
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">ชื่อเครื่องพิมพ์</label>
+                        <input class="sip-input" id="pName" placeholder="เช่น เครื่องพิมพ์บาร์"
+                               value="${e(p ? p.name : forKiosk ? 'เครื่องพิมพ์บัตรคิว ' + this.kioskName(forKiosk) : '')}">
                     </div>
+                    <div class="sip-field">
+                        <label class="sip-label">ใช้พิมพ์ของส่วน</label>
+                        <select class="sip-select" id="pStation" onchange="DashPage.pConn(DashPage._pd.conn)">
+                            <option value="" ${station || forKiosk ? '' : 'selected'}>ใบเสร็จ / เคาน์เตอร์ (และส่วนที่ไม่มีเครื่องของตัวเอง)</option>
+                            ${Object.keys(CF_STATIONS).map((st) => `<option value="${st}" ${station === st ? 'selected' : ''}>
+                                ${e(CFApp.stationLabel(st))}</option>`).join('')}
+                            ${this.kiosks().length ? `<optgroup label="บัตรคิวของคีออสก์">
+                                ${this.kiosks().map((k) => `<option value="KIOSK:${e(k.id)}" ${(p ? p.kioskId : forKiosk) === k.id ? 'selected' : ''}>
+                                    ${e(k.name)} (${e(k.id)})</option>`).join('')}
+                            </optgroup>` : ''}
+                        </select>
+                    </div>
+                </div>`) +
+                CFApp.card('การเชื่อมต่อ', `
+                <div class="sip-field">
+                    ${CFApp.boxSel('pConn', [['NETWORK', 'LAN / IP'], ['USB', 'USB']], this._pd.conn, 'DashPage.pConn($)')}
                 </div>
-
                 <div id="pNet">
-                    <div class="sip-field">
-                        <label class="sip-label">IP ของเครื่องพิมพ์</label>
-                        <input class="sip-input" id="pHost" inputmode="decimal" placeholder="192.168.1.50"
-                               value="${e(p && p.printerHost ? p.printerHost : '')}">
-                    </div>
-                    <div class="sip-field">
-                        <label class="sip-label">พอร์ต</label>
-                        <input class="sip-input" id="pPort" type="number" min="1" max="65535"
-                               value="${p && p.printerPort ? p.printerPort : 9100}">
-                        <div class="ds-note" style="margin-top:4px">เครื่องพิมพ์ใบเสร็จแทบทุกรุ่นใช้ 9100</div>
+                    <div class="form-row">
+                        <div class="sip-field">
+                            <label class="sip-label">IP ของเครื่องพิมพ์</label>
+                            <input class="sip-input" id="pHost" inputmode="decimal" placeholder="192.168.1.50"
+                                   value="${e(p && p.printerHost ? p.printerHost : '')}">
+                        </div>
+                        <div class="sip-field">
+                            <label class="sip-label">พอร์ต</label>
+                            <input class="sip-input" id="pPort" type="number" min="1" max="65535"
+                                   value="${p && p.printerPort ? p.printerPort : 9100}">
+                            <div class="ds-note">ปกติไม่ต้องแก้</div>
+                        </div>
                     </div>
                 </div>
-
                 <div id="pUsb">
-                    <div class="ds-note" id="pUsbKiosk" style="display:none;margin-bottom:12px">
-                        เสียบเครื่องพิมพ์ที่ <strong>ตัวตู้คีออสก์</strong> แล้วตั้งให้เป็นเครื่องพิมพ์หลัก (Default) ของ Windows ที่ตู้
-                        · เปิดตู้ด้วย <code>screen-edge.bat</code> (มี --kiosk-printing) ตู้จะพิมพ์บัตรคิวเองโดยไม่ถาม
+                    <div class="ds-note" id="pUsbKiosk" hidden>
+                        เสียบเครื่องพิมพ์ที่ <strong>ตัวตู้คีออสก์</strong> แล้วตั้งเป็นเครื่องพิมพ์หลักของเครื่องตู้นั้น
+                        · ตู้จะพิมพ์บัตรคิวเองโดยไม่ต้องกดอะไร
                     </div>
                     <div class="sip-field" id="pUsbServer">
                         <label class="sip-label">เลือกเครื่องพิมพ์ USB</label>
-                        <div class="flex gap-md">
-                            <select class="sip-select" id="pUsbSel" style="flex:1"
-                                    onchange="DashPage._pd.usb = this.value"></select>
+                        <div class="cf-inline">
+                            <select class="sip-select" id="pUsbSel" onchange="DashPage._pd.usb = this.value"></select>
                             <button type="button" class="btn btn-outline" onclick="DashPage.loadUsb()">
                                 <i data-lucide="refresh-cw" class="icon-sm"></i> รีเฟรช
                             </button>
                         </div>
-                        <div class="ds-note" style="margin-top:6px">
-                            ต้องเสียบที่ <strong>เครื่องเซิร์ฟเวอร์ของร้าน</strong> (เครื่องที่รันระบบ) เท่านั้น
-                            และลงไดรเวอร์ให้ Windows เห็นเครื่องพิมพ์ก่อน
+                        <div class="ds-note">
+                            ต้องเสียบที่ <strong>เครื่องเซิร์ฟเวอร์ของร้าน</strong> และลงไดรเวอร์ให้ Windows เห็นก่อน
                             · ถ้าจะพิมพ์ที่จุดอื่นในร้าน ให้ใช้เครื่องพิมพ์แบบ LAN
                         </div>
                     </div>
+                </div>`) +
+                CFApp.card('กระดาษและเครื่องสำรอง', `
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">ขนาดกระดาษ</label>
+                        <select class="sip-select" id="pPaper">
+                            <option value="80mm" ${paper === '80mm' ? 'selected' : ''}>80 มม.</option>
+                            <option value="58mm" ${paper === '58mm' ? 'selected' : ''}>58 มม.</option>
+                        </select>
+                    </div>
+                    <div class="sip-field">
+                        <label class="sip-label">เครื่องสำรองเมื่อเครื่องนี้พิมพ์ไม่ออก</label>
+                        <select class="sip-select" id="pFallback">
+                            <option value="">ไม่มี</option>
+                            ${others.map((x) => `<option value="${e(x.id)}" ${p && p.fallbackId === x.id ? 'selected' : ''}>
+                                ${e(x.name)}</option>`).join('')}
+                        </select>
+                    </div>
                 </div>
-
                 <div class="sip-field">
-                    <label class="sip-label">ใช้พิมพ์ของส่วน</label>
-                    <select class="sip-select" id="pStation" onchange="DashPage.pConn(DashPage._pd.conn)">
-                        <option value="" ${station || forKiosk ? '' : 'selected'}>ใบเสร็จ / เคาน์เตอร์ (และส่วนที่ไม่มีเครื่องของตัวเอง)</option>
-                        ${Object.keys(CF_STATIONS).map((st) => `<option value="${st}" ${station === st ? 'selected' : ''}>
-                            ${e(CFApp.stationLabel(st))}</option>`).join('')}
-                        ${this.kiosks().length ? `<optgroup label="บัตรคิวของคีออสก์">
-                            ${this.kiosks().map((k) => `<option value="KIOSK:${e(k.id)}" ${(p ? p.kioskId : forKiosk) === k.id ? 'selected' : ''}>
-                                ${e(k.name)} (${e(k.id)})</option>`).join('')}
-                        </optgroup>` : ''}
-                    </select>
-                </div>
-
-                <div class="sip-field">
-                    <label class="sip-label">ขนาดกระดาษ</label>
-                    <select class="sip-select" id="pPaper">
-                        <option value="80mm" ${paper === '80mm' ? 'selected' : ''}>80 มม.</option>
-                        <option value="58mm" ${paper === '58mm' ? 'selected' : ''}>58 มม.</option>
-                    </select>
-                </div>
-
-                <div class="sip-field">
-                    <label class="sip-label">ความละเอียดเครื่องพิมพ์</label>
+                    <label class="sip-label">แบบเครื่องพิมพ์</label>
                     <select class="sip-select" id="pDots">
-                        <option value="" ${dots ? '' : 'selected'}>203 dpi — มาตรฐาน (58 มม. = 384 จุด · 80 มม. = 576 จุด)</option>
-                        <option value="180" ${dots === 512 || dots === 360 ? 'selected' : ''}>180 dpi — Epson TM-T88 ทุกรุ่น (58 มม. = 360 จุด · 80 มม. = 512 จุด)</option>
+                        <option value="" ${dots ? '' : 'selected'}>แบบที่ 1 — มาตรฐาน (เครื่องส่วนใหญ่)</option>
+                        <option value="180" ${dots === 512 || dots === 360 ? 'selected' : ''}>แบบที่ 2 — เครื่อง Epson รุ่นใหญ่</option>
                     </select>
-                    <div class="ds-note" style="margin-top:4px">
-                        ถ้าพิมพ์ออกมาแล้วขอบขวาขาด ให้เปลี่ยนเป็น 180 dpi
-                        · ดูได้จากสเปกเครื่องหรือใบทดสอบที่เครื่องพิมพ์ออกเอง (กดปุ่ม Feed ค้างตอนเปิดเครื่อง)
+                    <div class="ds-note">
+                        ถ้าพิมพ์ออกมาแล้วขอบขวาขาด ให้เลือกแบบที่ 2 แล้วกด "พิมพ์ทดสอบ" อีกครั้ง
                     </div>
-                </div>
-
-                <div class="sip-field">
-                    <label class="sip-label">เครื่องสำรองเมื่อเครื่องนี้พิมพ์ไม่ออก</label>
-                    <select class="sip-select" id="pFallback">
-                        <option value="">ไม่มี</option>
-                        ${others.map((x) => `<option value="${e(x.id)}" ${p && p.fallbackId === x.id ? 'selected' : ''}>
-                            ${e(x.name)}</option>`).join('')}
-                    </select>
-                </div>
-
-                ${p ? `<div class="sip-field">
-                    <button type="button" class="ds-toggle ${this._pd.active ? 'is-on' : ''}" id="pActive"
-                            onclick="DashPage.pActive()">
-                        <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> เปิดใช้งาน
-                    </button>
-                    <div class="ds-note" style="margin-top:4px">
-                        ปิดแทนการลบ — ประวัติงานพิมพ์เก่ายังอ้างถึงเครื่องนี้อยู่
-                    </div>
-                </div>` : ''}`,
+                </div>`) +
+                (p ? CFApp.card('สถานะ', CFApp.row('ใช้งานเครื่องนี้', 'ปิดแทนการลบ — ประวัติงานพิมพ์เก่ายังอ้างถึงเครื่องนี้อยู่',
+                    CFApp.onOff('pActive', this._pd.active, 'DashPage.pSetActive($)')), { flush: true }) : ''),
             footerHtml: `
                 <button class="btn btn-outline" onclick="DashPage.openPrinters()">กลับ</button>
                 <button class="btn btn-outline" id="pTestBtn" onclick="DashPage.testPrinter()">
@@ -784,23 +736,21 @@ const DashPage = {
 
     pConn(v) {
         this._pd.conn = v;
-        document.querySelectorAll('#pConn .ds-seg').forEach((b, i) => {
-            b.classList.toggle('active', ['NETWORK', 'USB'][i] === v);
-        });
-        document.getElementById('pNet').style.display = v === 'NETWORK' ? '' : 'none';
-        document.getElementById('pUsb').style.display = v === 'USB' ? '' : 'none';
+        CFApp.markBox('pConn', v);
+        document.getElementById('pNet').hidden = v !== 'NETWORK';
+        document.getElementById('pUsb').hidden = v !== 'USB';
         // USB + คีออสก์ = เสียบที่ตัวตู้ ไม่ต้องเลือกเครื่องจากเซิร์ฟเวอร์
         const atKiosk = /^KIOSK:/.test((document.getElementById('pStation') || {}).value || '');
-        document.getElementById('pUsbKiosk').style.display = atKiosk ? '' : 'none';
-        document.getElementById('pUsbServer').style.display = atKiosk ? 'none' : '';
+        document.getElementById('pUsbKiosk').hidden = !atKiosk;
+        document.getElementById('pUsbServer').hidden = atKiosk;
         if (atKiosk) return;
         if (v === 'USB' && this._pd.usbList === null) this.loadUsb();
         else this.renderUsb();
     },
 
-    pActive() {
-        this._pd.active = !this._pd.active;
-        document.getElementById('pActive').classList.toggle('is-on', this._pd.active);
+    pSetActive(on) {
+        this._pd.active = on;
+        CFApp.markBox('pActive', on);
     },
 
     async loadUsb() {
@@ -898,7 +848,7 @@ const DashPage = {
         this._kd = Object.assign({}, CF_KIOSK_DEFAULTS, CFStore.settings());
         Drawer.open({
             title: 'ตั้งค่าเครื่องคีออสก์',
-            width: '580px',
+            width: CFApp.DRAWER_W,
             contentHtml: this.kioskSettingsHtml(),
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
@@ -909,108 +859,89 @@ const DashPage = {
         });
     },
 
+    /**
+     * จัดใหม่ 21/10/2569 (ผู้ใช้: "หน้าตั้งค่าคีออส ลายตามาก") — การ์ดแบบหน้าตั้งค่ามือถือ
+     * ชื่อ + คำอธิบายสั้นซ้าย · ปุ่ม/ช่องขวา · เวลาเป็นแถวเล็ก 2 คอลัมน์ · id ทุกตัวเหมือนเดิม (save อ่านจาก kn-/kt-)
+     * สวิตช์และปุ่มแคปซูลเป็น "ปุ่มกล่อง" แยกทีละตัว (.cf-boxsel — ผู้ใช้ขอ 21/10/2569) · เปิด/ปิด = กล่อง 2 ใบ
+     */
     kioskSettingsHtml() {
         const d = this._kd;
-        const tg = (key, label, note) => `
-            <div class="sip-field">
-                <button type="button" class="ds-toggle ${d[key] !== false ? 'is-on' : ''}"
-                        id="kt-${key}" onclick="DashPage.kToggle('${key}')">
-                    <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> ${label}
-                </button>
-                ${note ? `<div class="ds-note" style="margin-top:4px">${note}</div>` : ''}
+        const row = (title, desc, ctl, stack) => `
+            <div class="cf-set-row ${stack ? 'is-stack' : ''}">
+                <div class="cf-set-text"><div class="cf-set-title">${title}</div>${desc ? `<div class="cf-set-desc">${desc}</div>` : ''}</div>
+                <div class="cf-set-ctl">${ctl}</div>
             </div>`;
-        const num = (key, label) => `
-            <div class="sip-field">
-                <label class="sip-label">${label}</label>
-                <input class="sip-input" id="kn-${key}" type="number" min="5" step="5" value="${d[key]}">
-            </div>`;
+        const tg = (key, title, desc) => row(title, desc, `
+            <div class="cf-boxsel" id="kt-${key}" role="group" aria-label="${title}">
+                <button type="button" class="ds-seg ${d[key] !== false ? 'active' : ''}" onclick="DashPage.kSet('${key}', true)">เปิด</button>
+                <button type="button" class="ds-seg ${d[key] === false ? 'active' : ''}" onclick="DashPage.kSet('${key}', false)">ปิด</button>
+            </div>`);
+        const num = (key, title) => `
+            <label class="cf-set-row cf-set-num">
+                <span class="cf-set-title">${title}</span>
+                <span class="cf-sec"><input class="sip-input" id="kn-${key}" type="number" min="5" step="5" value="${d[key]}"> วิ</span>
+            </label>`;
+        const seg = (id, items) => `<div class="cf-boxsel" id="${id}">${items.join('')}</div>`;
 
         return `
-            <div class="ds-section-label">การวางจอ</div>
-            <div class="sip-field">
-                <label class="sip-label">แนวการติดตั้ง</label>
-                <div class="ds-segbar" id="kOri">
-                    <button type="button" class="ds-seg ${d.kioskOrientation !== 'LANDSCAPE' ? 'active' : ''}"
-                            onclick="DashPage.kOri('PORTRAIT')">แนวตั้ง 9:16</button>
-                    <button type="button" class="ds-seg ${d.kioskOrientation === 'LANDSCAPE' ? 'active' : ''}"
-                            onclick="DashPage.kOri('LANDSCAPE')">แนวนอน 16:9</button>
-                </div>
-                <div class="ds-note" style="margin-top:6px">
-                    คีออสก์ร้านอาหารส่วนใหญ่ติดตั้งแนวตั้ง — แนวนอนเหมาะกับจอที่วางบนเคาน์เตอร์
-                </div>
-            </div>
-
-            <div class="sip-field">
-                <label class="sip-label">ขนาดจอ (Full HD ทุกขนาด)</label>
-                <div class="ds-segbar" id="kSize">
-                    ${CF_KIOSK_SIZES.map((z) => `<button type="button"
+            <div class="cf-set-card">
+                <div class="cf-set-head">จอ</div>
+                ${row('แนวการติดตั้ง', 'ส่วนใหญ่ติดแนวตั้ง · แนวนอนเหมาะกับจอบนเคาน์เตอร์', seg('kOri', [
+                    `<button type="button" class="ds-seg ${d.kioskOrientation !== 'LANDSCAPE' ? 'active' : ''}"
+                            onclick="DashPage.kOri('PORTRAIT')">แนวตั้ง 9:16</button>`,
+                    `<button type="button" class="ds-seg ${d.kioskOrientation === 'LANDSCAPE' ? 'active' : ''}"
+                            onclick="DashPage.kOri('LANDSCAPE')">แนวนอน 16:9</button>`]))}
+                ${row('ขนาดจอ', 'จอเล็กตัวอักษรใหญ่ขึ้น ให้กดและอ่านสบายจากระยะยืน', seg('kSize',
+                    CF_KIOSK_SIZES.map((z) => `<button type="button"
                         class="ds-seg ${Math.abs((d.kioskScale || 1) - z.scale) < 0.02 ? 'active' : ''}"
-                        onclick="DashPage.kScale(${z.scale})">${z.in}</button>`).join('')}
-                </div>
-                <div class="ds-note" style="margin-top:6px">
-                    ทุกขนาดใช้ความละเอียดเดียวกัน แต่จอเล็กกว่าทำให้พิกเซลเล็กลงในเชิงกายภาพ
-                    จึงต้องขยายตัวอักษรขึ้นให้ยังกดและอ่านได้สบายจากระยะยืน
-                </div>
+                        onclick="DashPage.kScale(${z.scale})">${z.in}</button>`)))}
+                ${tg('kioskFrame', 'กรอบจำลองบนจอคอมพิวเตอร์', 'ปิดเมื่อใช้กับจอคีออสก์จริงที่หมุนแนวตั้งแล้ว')}
             </div>
 
-            ${tg('kioskFrame', 'แสดงกรอบจำลองเมื่อเปิดบนจอคอมพิวเตอร์',
-                 'ปิดเมื่อใช้กับจอคีออสก์จริงที่หมุนเป็นแนวตั้งแล้ว')}
-
-            <div class="ds-section-label">หน้าแรกของลูกค้า</div>
-            <div class="sip-field">
-                <label class="sip-label">รูปแบบการรับสินค้า</label>
-                <div class="ds-segbar" id="kDine">
-                    ${CF_DINING_MODES.map((m) => `<button type="button"
+            <div class="cf-set-card">
+                <div class="cf-set-head">ลูกค้า</div>
+                ${row('รูปแบบการรับสินค้า', 'เลือกแบบเดียว = คีออสก์ข้ามหน้าคำถาม ไปที่เมนูเลย', seg('kDine',
+                    CF_DINING_MODES.map((m) => `<button type="button"
                         class="ds-seg ${CF_DINING_MODE(d) === m.v ? 'active' : ''}"
-                        onclick="DashPage.kDine('${m.v}')">${m.label}</button>`).join('')}
+                        onclick="DashPage.kDine('${m.v}')">${m.label}</button>`)))}
+                ${tg('kioskUpsell', 'แนะนำเมนูเพิ่มก่อนชำระเงิน', 'ขึ้นครั้งเดียวต่อออเดอร์')}
+                ${tg('kioskImages', 'แสดงรูปภาพสินค้า')}
+                ${row('QR รับเงิน', 'พร้อมเพย์ / QR ร้านค้า ตั้งที่ข้อมูลร้าน',
+                    `<button type="button" class="btn btn-outline btn-sm"
+                        onclick="Drawer.close();setTimeout(()=>DashPage.openShop(),200)">ไปที่ข้อมูลร้าน <i data-lucide="chevron-right" class="icon-sm"></i></button>`)}
+            </div>
+
+            <div class="cf-set-card">
+                <div class="cf-set-head">เวลาแต่ละหน้า
+                    <small>ไม่มีใครแตะจอจนหมดเวลา → ถาม "ยังสั่งอยู่ไหม?" แล้วกลับหน้าแรก</small></div>
+                <div class="cf-set-grid">
+                    ${num('kioskSecDining', 'กินที่ร้าน/กลับบ้าน')}
+                    ${num('kioskSecMenu', 'เลือกเมนู')}
+                    ${num('kioskSecItem', 'ตัวเลือกสินค้า')}
+                    ${num('kioskSecCart', 'ตะกร้า')}
+                    ${num('kioskSecUpsell', 'เมนูแนะนำเพิ่ม')}
+                    ${num('kioskSecPay', 'เลือกวิธีชำระ')}
+                    ${num('kioskSecQrExpired', 'หน้า QR หมดเวลา')}
+                    ${num('kioskWarnSec', 'เตือนก่อนหมด')}
                 </div>
-                <div class="ds-note" style="margin-top:6px">
-                    ร้านที่ขายกลับบ้านอย่างเดียวเลือก "กลับบ้านอย่างเดียว" ได้เลย —
-                    คีออสก์จะข้ามหน้าคำถามไปที่เมนูทันที และบันทึกทุกออเดอร์เป็นกลับบ้านให้เอง
+            </div>
+
+            <div class="cf-set-card">
+                <div class="cf-set-head">เวลาตอนจ่ายเงิน
+                    <small>ไม่ถามว่ายังอยู่ไหม — QR หมดเวลาไปหน้า "โอนแล้วหรือยัง?" · สลิปส่งพนักงานตรวจ</small></div>
+                <div class="cf-set-grid">
+                    ${num('qrTimeoutSec', 'สแกน QR จ่ายเงิน')}
+                    ${num('kioskSlipScanSec', 'สแกนสลิป')}
+                    ${num('kioskDoneSec', 'หน้าบัตรคิว')}
                 </div>
             </div>
 
-            <div class="ds-section-label">ประสบการณ์ลูกค้า</div>
-            ${tg('kioskUpsell', 'แนะนำเมนูเพิ่มก่อนชำระเงิน',
-                 'แสดงครั้งเดียวต่อออเดอร์ ไม่เด้งทุกครั้งที่เพิ่มของ')}
-            ${tg('kioskImages', 'แสดงรูปภาพสินค้า')}
-
-            <div class="ds-section-label">การชำระเงิน</div>
-            <div class="ds-note" style="margin-top:0">
-                พร้อมเพย์ · QR ร้านค้าของธนาคาร · เลือกว่าคีออสก์แสดง QR แบบไหน — ย้ายไปอยู่ที่
-                <a href="#" onclick="Drawer.close();setTimeout(()=>DashPage.openShop(),200);return false">ข้อมูลร้าน › การรับเงิน</a>
-            </div>
-
-            <div class="ds-section-label">เวลาแต่ละหน้า (วินาที)</div>
-            <div class="ds-note" style="margin-top:0">ไม่มีใครแตะจอจนครบเวลา → ขึ้นกล่อง "ยังสั่งอยู่ไหม?" แล้วกลับหน้าแรก (ล้างตะกร้า) ·
-                แตะจอเมื่อไหร่เริ่มนับใหม่ · ตัวเลขนับถอยหลังแสดงที่มุมขวาบนของทุกหน้า</div>
-            <div class="cf-num-grid">
-                ${num('kioskSecDining', 'เลือกกินที่ร้าน/กลับบ้าน')}
-                ${num('kioskSecMenu', 'เลือกเมนู')}
-                ${num('kioskSecItem', 'เลือกตัวเลือกสินค้า')}
-                ${num('kioskSecCart', 'ตะกร้า')}
-                ${num('kioskSecUpsell', 'เมนูแนะนำเพิ่ม')}
-                ${num('kioskSecPay', 'เลือกวิธีชำระเงิน')}
-                ${num('kioskSecQrExpired', 'หน้า QR หมดเวลา')}
-                ${num('kioskWarnSec', 'เตือน "ยังสั่งอยู่ไหม?" ก่อนหมด')}
-            </div>
-            <div class="ds-section-label">เวลาที่เกี่ยวกับการจ่ายเงิน (วินาที)</div>
-            <div class="cf-num-grid">
-                ${num('qrTimeoutSec', 'สแกน QR จ่ายเงิน')}
-                ${num('kioskSlipScanSec', 'สแกนสลิป (หมดแล้วส่งพนักงานตรวจ)')}
-                ${num('kioskDoneSec', 'หน้าเสร็จสิ้น (บัตรคิว)')}
-            </div>
-            <div class="ds-note">หน้าที่เกี่ยวกับเงินไม่ถามว่ายังอยู่ไหม — หมดเวลา QR ไปหน้า "โอนแล้วหรือยัง?" · สลิปส่งให้พนักงานดูแทน</div>
-
-            <div class="ds-note" style="margin-top:14px">
-                <i data-lucide="info" class="icon-sm"></i>
-                บันทึกแล้วเครื่องคีออสก์ที่เปิดอยู่จะปรับตามเองภายในไม่กี่วินาที ไม่ต้องรีเฟรช
-            </div>`;
+            <div class="ds-note">บันทึกแล้วคีออสก์ที่เปิดอยู่ปรับตามเองในไม่กี่วินาที ไม่ต้องรีเฟรช</div>`;
     },
 
-    kToggle(key) {
-        this._kd[key] = this._kd[key] === false;
-        document.getElementById('kt-' + key).classList.toggle('is-on', this._kd[key] !== false);
+    kSet(key, on) {
+        this._kd[key] = on;
+        document.querySelectorAll('#kt-' + key + ' .ds-seg').forEach((b, i) => b.classList.toggle('active', (i === 0) === on));
     },
     kOri(v) {
         this._kd.kioskOrientation = v;
@@ -1080,7 +1011,7 @@ const DashPage = {
                 ${opt('promptpay', 'พร้อมเพย์', pp ? e(pp) : 'ยังไม่ได้ใส่เลข', !!pp)}
                 ${opt('shopqr', 'QR ที่อัปโหลดจากธนาคาร', shop ? e(shop.name || (shop.billerId ? 'รหัสร้าน ' + shop.billerId : 'พร้อมเพย์ ' + shop.id)) : 'ยังไม่ได้อัปโหลด', !!shop)}
             </div>
-            ${chosenMissing && (pp || shop) ? `<div class="ds-note" style="margin-top:6px;color:var(--status-warning-strong)">
+            ${chosenMissing && (pp || shop) ? `<div class="ds-warn">
                 แบบที่เลือกยังไม่ได้ตั้งค่า — ตอนนี้คีออสก์จะใช้${src === 'promptpay' ? 'QR ร้านค้า' : 'พร้อมเพย์'}แทน</div>` : ''}`;
     },
     setPaySrc(key) {
@@ -1203,63 +1134,54 @@ const DashPage = {
             ['PAY_OVERRIDE', 'ยืนยันแทน'], ['KITCHEN', 'ครัว'], ['REPORT', 'รายงาน'],
             ['SHIFT_CLOSE', 'ปิดรอบ'], ['USER_MANAGE', 'ผู้ใช้'],
         ];
-        const mark = (v) => v === true ? '<span style="color:var(--status-success)">✓</span>'
+        const mark = (v) => v === true ? '<span class="cf-perm-yes" title="ได้">✓</span>'
                           : v === 'LIMITED' ? '<span class="sip-chip sip-chip-amber">จำกัด</span>'
-                          : '<span class="text-light">—</span>';
+                          : '<span class="cf-perm-no">—</span>';
 
         const weak = new Set((this._weak || []).map((w) => w.id));
         // เพดานยืนยันแทนมีผลเฉพาะแคชเชียร์ (CFPerms.overrideLimitFor) — บทบาทอื่นไม่ต้องโชว์ตัวเลข
         const limitText = (u) => u.role === 'ADMIN' || u.role === 'MANAGER' ? 'ไม่จำกัด'
             : u.role !== 'CASHIER' ? '—'
             : u.overrideLimit == null ? 'ตามค่าร้าน' : CFApp.baht(u.overrideLimit);
-        // ใช้งานอยู่ขึ้นก่อน · ปิดใช้งานแล้วจาง ๆ ไว้ท้าย (ลบจริงไม่ได้ — ประวัติขายยังอ้างอยู่)
+        // ใช้งานอยู่ขึ้นก่อน · ปิดใช้งานไว้ท้าย (ลบจริงไม่ได้ — ประวัติขายยังอ้างอยู่) · จัดใหม่ 21/10/2569: ตาราง DataTables
         const list = CFStore.all('users').slice().sort((a, b) => (b.active - a.active) || a.username.localeCompare(b.username));
-        const users = list.map((u) => `<tr style="${u.active ? '' : 'opacity:.55'}">
+        const users = list.map((u) => `<tr>
                 <td><div class="td-name">${e(u.name)}</div><div class="td-sub">${e(u.username)}</div></td>
-                <td><span class="sip-chip sip-chip-muted">${e(CF_ROLE_LABEL[u.role])}</span>
-                    ${u.active ? '' : '<span class="status-badge inactive">ปิดใช้งาน</span>'}</td>
+                <td><span class="sip-chip sip-chip-muted">${e(CF_ROLE_LABEL[u.role])}</span></td>
                 <td>${limitText(u)}</td>
-                <td class="cf-nowrap">
-                    ${weak.has(u.id) ? '<span class="status-badge danger">รหัสตั้งต้น</span>' : ''}
-                    <button class="btn btn-outline btn-sm" onclick="DashPage.editUser('${e(u.id)}')">แก้ไข</button>
-                    ${u.active ? `<button class="btn btn-outline btn-sm" onclick="DashPage.resetPassword('${e(u.id)}')">
-                        ตั้งรหัสผ่านใหม่</button>` : ''}
+                <td class="cf-center">${!u.active ? '<span class="status-badge inactive">ปิดใช้งาน</span>'
+                    : weak.has(u.id) ? '<span class="status-badge danger" title="ยังใช้รหัสผ่านตั้งต้น — ควรตั้งใหม่">รหัสตั้งต้น</span>'
+                    : '<span class="status-badge active">ใช้งาน</span>'}</td>
+                <td class="cf-nowrap cf-right">
+                    <button class="ds-icon-btn edit" title="แก้ไข" onclick="DashPage.editUser('${e(u.id)}')"><i data-lucide="pencil"></i></button>
+                    ${u.active ? `<button class="ds-icon-btn edit" title="ตั้งรหัสผ่านใหม่" onclick="DashPage.resetPassword('${e(u.id)}')"><i data-lucide="key-round"></i></button>` : ''}
                 </td>
             </tr>`).join('');
 
         const matrix = Object.keys(CF_PERMS).map((role) => `<tr>
-                <td class="l">${e(CF_ROLE_LABEL[role])}</td>
-                ${keys.map(([k]) => `<td class="c">${mark(CF_PERMS[role][k])}</td>`).join('')}
+                <td>${e(CF_ROLE_LABEL[role])}</td>
+                ${keys.map(([k]) => `<td>${mark(CF_PERMS[role][k])}</td>`).join('')}
             </tr>`).join('');
 
         Drawer.open({
             title: 'ผู้ใช้และสิทธิ์',
-            width: '720px',
-            contentHtml: `
-                <div class="ds-section-label">บัญชีผู้ใช้</div>
-                <div class="table-responsive">
-                    <table class="data-table compact">
-                        <thead><tr><th>ชื่อ</th><th>บทบาท</th><th>เพดานยืนยันแทน</th><th></th></tr></thead>
+            width: CFApp.DRAWER_W,
+            contentHtml: CFApp.card('บัญชีผู้ใช้', `
+                    <table class="data-table compact" id="usersTable">
+                        <thead><tr><th>ชื่อ</th><th>บทบาท</th><th>เพดานยืนยันแทน</th><th class="cf-center">สถานะ</th><th class="no-sort"></th></tr></thead>
                         <tbody>${users}</tbody>
-                    </table>
-                </div>
-
-                <div class="ds-section-label" style="margin-top:18px">ตารางสิทธิ์ตามบทบาท</div>
-                <div class="table-responsive">
-                    <table class="ds-table-grid">
-                        <tr><th class="l">บทบาท</th>${keys.map(([, l]) => `<th>${l}</th>`).join('')}</tr>
-                        ${matrix}
-                    </table>
-                </div>
-                <div class="ds-warn">
-                    <i data-lucide="shield-alert" class="icon-sm"></i>
-                    ตารางนี้บังคับใช้ที่หน้าจอเท่านั้น — ระบบจริงต้องตรวจสิทธิ์ซ้ำที่เซิร์ฟเวอร์
-                </div>`,
+                    </table>`, { flush: true, hint: 'ลบบัญชีไม่ได้ (ประวัติขายอ้างอยู่) — ปิดใช้งานแทน' }) +
+                CFApp.card('สิทธิ์ตามบทบาท', `
+                    <div class="table-responsive"><table class="cf-perm">
+                        <thead><tr><th>บทบาท</th>${keys.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead>
+                        <tbody>${matrix}</tbody>
+                    </table></div>`, { flush: true }),
+            // เดิมมีคำเตือน "บังคับใช้ที่หน้าจอเท่านั้น" — ไม่จริง เซิร์ฟเวอร์ตรวจสิทธิ์ทุกคำขอ (requirePerm) · ลบ 21/10/2569
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
                 <button class="btn btn-primary" onclick="DashPage.editUser(null)">
                     <i data-lucide="user-plus" class="icon-sm"></i> เพิ่มผู้ใช้</button>`,
-            onOpen: () => refreshIcons(),
+            onOpen: () => { CFTable.mount('usersTable'); refreshIcons(); },
         });
     },
 
@@ -1267,6 +1189,7 @@ const DashPage = {
      * เพิ่ม / แก้ไขผู้ใช้ (แอดมิน) — id = null คือเพิ่มใหม่
      * ชื่อผู้ใช้ตั้งแล้วแก้ไม่ได้ (ใช้ล็อกอิน + อยู่ในประวัติ) · ลบไม่ได้ ปิดใช้งานแทน
      * กันพลาดที่เซิร์ฟเวอร์: แอดมินคนสุดท้าย · ลดสิทธิ์/ปิดบัญชีตัวเอง
+     * สถานะเก็บใน _ud (เดิมอ่านช่องติ๊กจาก DOM) — กล่อง เปิด|ปิด แบบเดียวกับทุกฟอร์ม
      */
     editUser(id) {
         const e = CFApp.esc;
@@ -1275,65 +1198,77 @@ const DashPage = {
         const me = CFAuth.session() && CFAuth.session().userId;
         const self = u && u.id === me;
         const role = u ? u.role : 'CASHIER';
+        this._ud = { active: u ? !!u.active : true, self: !!self };
         const roleOpts = Object.keys(CF_PERMS).map((r) =>
             `<option value="${r}" ${r === role ? 'selected' : ''}>${e(CF_ROLE_LABEL[r])}</option>`).join('');
         Drawer.open({
             title: u ? 'แก้ไขผู้ใช้ — ' + e(u.name) : 'เพิ่มผู้ใช้',
-            width: '480px',
-            contentHtml: `
-                <div class="sip-field">
-                    <label class="sip-label">ชื่อผู้ใช้ (ใช้ล็อกอิน)</label>
-                    ${u ? `<input class="sip-input" value="${e(u.username)}" disabled>
-                           <div class="ds-hint">ตั้งแล้วเปลี่ยนไม่ได้</div>`
-                        : `<input class="sip-input" id="ufUser" autocomplete="off" placeholder="เช่น somchai"
-                                  oninput="this.value=this.value.toLowerCase()">
-                           <div class="ds-hint">3–30 ตัว · a-z 0-9 . _ -</div>`}
-                </div>
-                <div class="sip-field">
-                    <label class="sip-label">ชื่อที่แสดง</label>
-                    <input class="sip-input" id="ufName" value="${u ? e(u.name) : ''}" placeholder="เช่น สมชาย ใจดี">
-                </div>
-                <div class="sip-field">
-                    <label class="sip-label">บทบาท</label>
-                    <select class="sip-select" id="ufRole" ${self ? 'disabled' : ''}
-                            onchange="document.getElementById('ufLimitBox').hidden = this.value !== 'CASHIER'">${roleOpts}</select>
-                    ${self ? '<div class="ds-hint">เปลี่ยนบทบาทของตัวเองไม่ได้ — ให้แอดมินอีกคนทำ</div>' : ''}
-                </div>
-                <div class="sip-field" id="ufLimitBox" ${role === 'CASHIER' ? '' : 'hidden'}>
-                    <label class="sip-label">เพดานยืนยันแทน (บาท)</label>
-                    <input class="sip-input" id="ufLimit" type="number" min="0" step="1"
-                           value="${u && u.overrideLimit != null ? e(u.overrideLimit) : ''}" placeholder="ว่าง = ใช้ค่าตั้งของร้าน">
-                    <div class="ds-hint">ยอดสูงสุดที่แคชเชียร์คนนี้กดยืนยันการชำระแทนระบบได้</div>
-                </div>
-                ${u ? `
-                <label class="flex gap-sm" style="align-items:center;margin-top:8px;${self ? 'opacity:.6' : ''}">
-                    <input type="checkbox" id="ufActive" ${u.active ? 'checked' : ''} ${self ? 'disabled' : ''}>
-                    <span>ใช้งานอยู่ <span class="ds-hint">— เอาออก = ปิดบัญชี เข้าระบบไม่ได้ทันที (ประวัติยังอยู่ครบ)</span></span>
-                </label>` : `
-                <div class="sip-field">
-                    <label class="sip-label">รหัสผ่านเริ่มต้น (อย่างน้อย 6 ตัว)</label>
-                    <input class="sip-input" id="ufPw" type="password" autocomplete="new-password">
-                </div>
-                <div class="sip-field">
-                    <label class="sip-label">พิมพ์อีกครั้ง</label>
-                    <input class="sip-input" id="ufPw2" type="password" autocomplete="new-password">
-                </div>`}
-                <div class="ds-note" style="margin-top:12px">
-                    เปลี่ยนบทบาทหรือปิดใช้งาน → คนนั้นถูกออกจากระบบทุกเครื่องทันที · ดูสิทธิ์แต่ละบทบาทได้ที่ตารางหน้าก่อน
-                </div>`,
+            width: CFApp.DRAWER_W,
+            contentHtml: CFApp.card('บัญชี', `
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">ชื่อผู้ใช้ (ใช้ล็อกอิน)</label>
+                        ${u ? `<input class="sip-input" value="${e(u.username)}" disabled>
+                               <div class="ds-note">ตั้งแล้วเปลี่ยนไม่ได้</div>`
+                            : `<input class="sip-input" id="ufUser" autocomplete="off" placeholder="เช่น somchai"
+                                      oninput="this.value=this.value.toLowerCase()">
+                               <div class="ds-note">3–30 ตัว · a-z 0-9 . _ -</div>`}
+                    </div>
+                    <div class="sip-field">
+                        <label class="sip-label">ชื่อที่แสดง</label>
+                        <input class="sip-input" id="ufName" value="${u ? e(u.name) : ''}" placeholder="เช่น สมชาย ใจดี">
+                    </div>
+                </div>`) +
+                CFApp.card('บทบาท', `
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">บทบาท</label>
+                        <select class="sip-select" id="ufRole" ${self ? 'disabled' : ''}
+                                onchange="document.getElementById('ufLimitBox').hidden = this.value !== 'CASHIER'">${roleOpts}</select>
+                        ${self ? '<div class="ds-note">เปลี่ยนบทบาทของตัวเองไม่ได้ — ให้แอดมินอีกคนทำ</div>' : ''}
+                    </div>
+                    <div class="sip-field" id="ufLimitBox" ${role === 'CASHIER' ? '' : 'hidden'}>
+                        <label class="sip-label">เพดานยืนยันแทน (บาท)</label>
+                        <input class="sip-input" id="ufLimit" type="number" min="0" step="1"
+                               value="${u && u.overrideLimit != null ? e(u.overrideLimit) : ''}" placeholder="ว่าง = ใช้ค่าตั้งของร้าน">
+                        <div class="ds-note">ยอดสูงสุดที่แคชเชียร์คนนี้กดยืนยันการชำระแทนระบบได้</div>
+                    </div>
+                </div>`, { hint: 'แต่ละบทบาททำอะไรได้ ดูที่ "สิทธิ์ตามบทบาท" หน้าก่อน' }) +
+                (u ? CFApp.card('สถานะบัญชี', `
+                <div class="cf-set-row">
+                    <div class="cf-set-text"><div class="cf-set-title">ใช้งานบัญชีนี้</div>
+                        <div class="cf-set-desc">${self ? 'ปิดบัญชีของตัวเองไม่ได้' : 'ปิด = เข้าระบบไม่ได้ทันที ประวัติยังอยู่ครบ'}</div></div>
+                    <div class="cf-set-ctl">${CFApp.onOff('ufActive', this._ud.active, "DashPage.uSet('active', $)", { disabled: self })}</div>
+                </div>`, { flush: true }) : CFApp.card('รหัสผ่านเริ่มต้น', `
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
+                        <input class="sip-input" id="ufPw" type="password" autocomplete="new-password">
+                    </div>
+                    <div class="sip-field">
+                        <label class="sip-label">พิมพ์อีกครั้ง</label>
+                        <input class="sip-input" id="ufPw2" type="password" autocomplete="new-password">
+                    </div>
+                </div>`)) +
+                '<div class="ds-note">เปลี่ยนบทบาทหรือปิดใช้งาน → คนนั้นถูกออกจากระบบทุกเครื่องทันที</div>',
             footerHtml: `
                 <button class="btn btn-outline" onclick="DashPage.openUsers()">กลับ</button>
-                <button class="btn btn-primary" id="ufSave" onclick="DashPage.saveUser(${u ? `'${e(u.id)}'` : 'null'})">บันทึก</button>`,
-            onOpen: () => setTimeout(() => document.getElementById(u ? 'ufName' : 'ufUser')?.focus(), 50),
+                <button class="btn btn-primary" id="ufSave" onclick="DashPage.saveUser(${u ? `'${e(u.id)}'` : 'null'})">
+                    <i data-lucide="save" class="icon-sm"></i> บันทึก</button>`,
+            onOpen: () => { refreshIcons(); setTimeout(() => document.getElementById(u ? 'ufName' : 'ufUser')?.focus(), 50); },
         });
+    },
+    uSet(k, v) {
+        if (this._ud.self && k === 'active') return;
+        this._ud[k] = v;
+        CFApp.markBox('uf' + k[0].toUpperCase() + k.slice(1), v);
     },
 
     async saveUser(id) {
         const v = (x) => { const el = document.getElementById(x); return el ? el.value : undefined; };
         const body = { name: v('ufName'), role: v('ufRole'), overrideLimit: v('ufLimit') };
         if (id) {
-            const a = document.getElementById('ufActive');
-            if (a && !a.disabled) body.active = a.checked;
+            if (!this._ud.self) body.active = this._ud.active;
         } else {
             body.username = v('ufUser');
             body.password = v('ufPw');
@@ -1377,23 +1312,23 @@ const DashPage = {
         const e = CFApp.esc;
         Drawer.open({
             title: 'ตั้งรหัสผ่านใหม่ — ' + e(u.name),
-            width: '440px',
-            contentHtml: `
-                <div class="ds-note" style="margin-bottom:12px">
-                    บัญชี <strong>${e(u.username)}</strong> จะถูกออกจากระบบทุกเครื่อง แล้วต้องเข้าใหม่ด้วยรหัสนี้
-                </div>
-                <div class="sip-field">
-                    <label class="sip-label">รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
-                    <input class="sip-input" id="rpNew" type="password" autocomplete="new-password">
-                </div>
-                <div class="sip-field">
-                    <label class="sip-label">พิมพ์อีกครั้ง</label>
-                    <input class="sip-input" id="rpNew2" type="password" autocomplete="new-password">
-                </div>`,
+            width: CFApp.DRAWER_W,
+            contentHtml: CFApp.card('รหัสผ่านใหม่', `
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
+                        <input class="sip-input" id="rpNew" type="password" autocomplete="new-password">
+                    </div>
+                    <div class="sip-field">
+                        <label class="sip-label">พิมพ์อีกครั้ง</label>
+                        <input class="sip-input" id="rpNew2" type="password" autocomplete="new-password">
+                    </div>
+                </div>`, { hint: `บัญชี ${e(u.username)} จะถูกออกจากระบบทุกเครื่อง แล้วต้องเข้าใหม่ด้วยรหัสนี้` }),
             footerHtml: `
                 <button class="btn btn-outline" onclick="DashPage.openUsers()">กลับ</button>
-                <button class="btn btn-primary" onclick="DashPage.saveResetPassword('${e(id)}')">บันทึก</button>`,
-            onOpen: () => setTimeout(() => document.getElementById('rpNew')?.focus(), 50),
+                <button class="btn btn-primary" onclick="DashPage.saveResetPassword('${e(id)}')">
+                    <i data-lucide="save" class="icon-sm"></i> บันทึก</button>`,
+            onOpen: () => { refreshIcons(); setTimeout(() => document.getElementById('rpNew')?.focus(), 50); },
         });
     },
 
@@ -1411,51 +1346,71 @@ const DashPage = {
     },
 
     /* ══════════════════════════════════════════════════════
-       ความแม่นของการตรวจสลิป — ระบบเดา vs แคชเชียร์ตัดสินจริง
+       ตั้งค่าเมนู — แสดง/ซ่อน · จัดลำดับ (แอดมินคนเดียว · ผู้ใช้ขอ 21/10/2569)
+       ความแม่นการตรวจสลิปย้ายไปหน้ารายงานแล้ว (reports.html#slips) — ลิงก์เก่า ?slip=1 ส่งไปที่นั่น
        ══════════════════════════════════════════════════════ */
-    async openSlipAccuracy(days) {
-        days = days || 7;
-        let r;
-        try { r = await CFApi.get('/api/reports/slip-accuracy?days=' + days); }
-        catch (err) { showToast(err.message || 'ดึงรายงานไม่สำเร็จ', 'error', 4000); return; }
-        const e = CFApp.esc;
-        const pct = (n, d) => (d ? Math.round((n / d) * 100) + '%' : '—');
-        const o = r.outcome;
-        const row = (label, n, note, cls) => `<tr><th class="l">${label}</th>
-            <td class="r ${cls || ''}"><strong>${n}</strong></td><td class="l text-muted">${note}</td></tr>`;
-        Drawer.open({
-            title: 'ความแม่นของการตรวจสลิป',
-            width: '600px',
-            contentHtml: `
-                <div class="ds-segbar" style="margin-bottom:12px">
-                    ${[7, 30, 90].map((d) => `<button type="button" class="ds-seg ${d === r.days ? 'active' : ''}"
-                        onclick="DashPage.openSlipAccuracy(${d})">${d} วัน</button>`).join('')}
-                </div>
-                <div class="ds-section-label">อ่านข้อมูลจากภาพได้ (${r.read} จาก ${r.scanned} ใบที่สแกน)</div>
-                <table class="ds-table-grid">
-                    ${row('ยอดเงิน', pct(r.fields.amount, r.read), r.fields.amount + ' ใบ')}
-                    ${row('วันที่', pct(r.fields.date, r.read), r.fields.date + ' ใบ · รวมที่ได้จากเลขอ้างอิง')}
-                    ${row('ผู้รับเงิน', pct(r.fields.receiver, r.read), r.fields.receiver + ' ใบ · นับเฉพาะเมื่อตั้งบัญชีร้านไว้')}
-                </table>
-                <div class="ds-section-label" style="margin-top:14px">เทียบกับที่แคชเชียร์ตัดสิน (${r.judged} ใบ)</div>
-                <table class="ds-table-grid">
-                    ${row('ผ่าน และแคชเชียร์ยืนยัน', o.truePass, 'ระบบถูก')}
-                    ${row('ไม่ผ่าน และแคชเชียร์ปฏิเสธ', o.trueCatch, 'ระบบจับได้ถูก')}
-                    ${row('เตือนแดง แต่แคชเชียร์ยืนยัน', o.falseAlarm, 'เตือนผิด — ถ้าเยอะ คนจะเลิกเชื่อคำเตือน', o.falseAlarm ? 'text-danger' : '')}
-                    ${row('ผ่าน แต่แคชเชียร์ปฏิเสธ', o.missed, 'ระบบปล่อยหลุด', o.missed ? 'text-danger' : '')}
-                    ${row('อ่านไม่ครบ (เทา)', o.unsureConfirmed + o.unsureRejected, 'ยืนยัน ' + o.unsureConfirmed + ' · ปฏิเสธ ' + o.unsureRejected)}
-                </table>
-                ${r.disagree.length ? `<div class="ds-note" style="margin-top:10px">
-                    ใบที่ระบบกับแคชเชียร์เห็นต่างกัน (ใช้ปรับกฎ): ${r.disagree.map((x) => e(x.orderNo)).join(', ')}
-                </div>` : ''}
-                <div class="ds-section-label" style="margin-top:14px">แยกตามธนาคารคนโอน</div>
-                <table class="ds-table-grid">
-                    ${Object.entries(r.byBank).map(([b, x]) => row(e(b), x.n + ' ใบ', 'อ่านยอดได้ ' + pct(x.amount, x.n))).join('') ||
-                      '<tr><td class="l text-muted">ยังไม่มีข้อมูล</td></tr>'}
-                </table>`,
-            footerHtml: '<button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>',
-            onOpen: () => refreshIcons(),
+    openMenuSettings() {
+        if (CFAuth.getRole() !== 'ADMIN') { showToast('ตั้งค่าเมนูได้เฉพาะผู้ดูแลระบบ', 'error'); return; }
+        // draft แยกจากค่าที่บันทึก — กดยกเลิกแล้วไม่มีอะไรเปลี่ยน
+        this._md = {};
+        Object.keys(CFMenuLayout.LISTS).forEach((l) => {
+            this._md[l] = CFMenuLayout.resolve(l).map(({ key, hidden }) => ({ key, hidden }));
         });
+        Drawer.open({
+            title: 'ตั้งค่าเมนู',
+            width: CFApp.DRAWER_W,
+            contentHtml: '<div id="mdHost"></div>',
+            footerHtml: `
+                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="DashPage.saveMenuSettings()">
+                    <i data-lucide="save" class="icon-sm"></i> บันทึก</button>`,
+            onOpen: () => this.renderMenuSettings(),
+        });
+    },
+
+    renderMenuSettings() {
+        const host = document.getElementById('mdHost');
+        if (!host) return;
+        const e = CFApp.esc;
+        const list = (l) => {
+            const rows = CFMenuLayout.resolve(l, this._md[l]);
+            return `<div class="cf-mlist">${rows.map((o) => `
+                <div class="cf-mrow ${o.hidden ? 'is-off' : ''}" data-sort-id="${e(o.key)}"
+                     onpointerdown="CFApp.dragSort(event, (ids) => DashPage.mdOrder('${l}', ids))">
+                    <span class="cf-grip" title="กดค้างแล้วลากเพื่อเรียงลำดับ"><i data-lucide="grip-vertical"></i></span>
+                    <div class="cf-mrow-main"><div class="cf-mrow-title">${e(o.label)}</div></div>
+                    ${CFApp.onOff('md-' + l + '-' + o.key, !o.hidden, `DashPage.mdShow('${l}', '${e(o.key)}', $)`, { labels: ['แสดง', 'ซ่อน'] })}
+                </div>`).join('')}
+            </div>`;
+        };
+        host.innerHTML =
+            CFApp.card('แถบเมนูบน', list('nav'), { hint: 'กดค้างแล้วลากเพื่อเรียงลำดับ · เมนู ⚙ และชื่อบัญชีอยู่ขวาเสมอ ซ่อนไม่ได้' }) +
+            CFApp.card('เมนูในกลุ่ม "หน้าร้าน"', list('ops')) +
+            CFApp.card('รายงาน', list('reports'), { hint: 'ลำดับและรายงานที่แสดงในแถบซ้ายของหน้ารายงาน' }) +
+            '<div class="ds-note">ซ่อนแค่ในเมนู — คนที่มีสิทธิ์ยังเปิดหน้าตรงได้ · มีผลกับทุกเครื่องทันทีที่บันทึก</div>';
+        refreshIcons();
+    },
+    mdShow(l, key, on) {
+        const o = this._md[l].find((x) => x.key === key);
+        if (o) o.hidden = !on;
+        this.renderMenuSettings();
+    },
+    mdOrder(l, ids) {
+        const byKey = Object.fromEntries(this._md[l].map((o) => [o.key, o]));
+        this._md[l] = ids.map((k) => byKey[k]).filter(Boolean);
+        this.renderMenuSettings();
+    },
+    async saveMenuSettings() {
+        // หน้าภาพรวมต้องเปิดได้เสมอ — ซ่อนทุกอย่างแล้วแอดมินจะหาทางกลับไม่เจอ
+        if (!this._md.nav.some((o) => !o.hidden)) { showToast('ต้องแสดงเมนูบนอย่างน้อย 1 รายการ', 'error'); return; }
+        if (!this._md.reports.some((o) => !o.hidden)) { showToast('ต้องแสดงรายงานอย่างน้อย 1 รายการ', 'error'); return; }
+        try {
+            await CFStore.cmd('patch', '/api/settings', { menuLayout: this._md });
+            Drawer.close();
+            showToast('บันทึกการตั้งค่าเมนูแล้ว', 'success');
+        } catch (err) {
+            showToast(err.message || 'บันทึกไม่สำเร็จ', 'error', 4000);
+        }
     },
 
     /* ══════════════════════════════════════════════════════
@@ -1473,44 +1428,48 @@ const DashPage = {
             </div>`;
         Drawer.open({
             title: 'ข้อมูลร้าน',
-            width: '520px',
+            width: CFApp.DRAWER_W,
             onOpen: () => refreshIcons(),
-            contentHtml: `
+            // จัดใหม่ 21/10/2569: การ์ดแบบเดียวกับทุกฟอร์ม · ช่องสั้นจับคู่กัน · คำอธิบายเป็น .ds-note ใต้ช่อง
+            contentHtml: CFApp.card('ร้านและใบเสร็จ', `
                 ${field('shName', 'ชื่อร้าน', s.shopName)}
-                <div class="sip-field">
-                    <label class="sip-label">ที่อยู่</label>
-                    <textarea class="sip-textarea" id="shAddr" rows="3">${e(s.address || '')}</textarea>
+                <div class="form-row">
+                    ${field('shPhone', 'เบอร์โทรร้าน', s.shopPhone, 'inputmode="tel" placeholder="076-123-456 (ไม่มีเว้นว่าง)"')}
+                    ${field('shTax', 'เลขผู้เสียภาษี (13 หลัก)', s.taxId, 'inputmode="numeric" placeholder="ไม่มีเว้นว่าง"')}
                 </div>
-                ${field('shPhone', 'เบอร์โทรร้าน (พิมพ์บนใบเสร็จ · ไม่มีเว้นว่างได้)', s.shopPhone, 'inputmode="tel" placeholder="076-123-456"')}
-                ${field('shTax', 'เลขประจำตัวผู้เสียภาษี (13 หลัก · ไม่มีเว้นว่างได้)', s.taxId, 'inputmode="numeric"')}
-                <div class="sip-field">
-                    <label class="sip-label">ข้อความท้ายใบเสร็จ (ไม่เกิน 4 บรรทัด — เช่น รหัส Wi-Fi, LINE, IG)</label>
-                    <textarea class="sip-textarea" id="shFooter" rows="3" maxlength="200"
-                              placeholder="Wi-Fi: CafeFlow รหัส 12345678&#10;LINE @cafeflow">${e(s.receiptFooter || '')}</textarea>
-                </div>
+                <div class="form-row">
+                    <div class="sip-field">
+                        <label class="sip-label">ที่อยู่</label>
+                        <textarea class="sip-textarea" id="shAddr" rows="3">${e(s.address || '')}</textarea>
+                    </div>
+                    <div class="sip-field">
+                        <label class="sip-label">ข้อความท้ายใบเสร็จ (≤ 4 บรรทัด)</label>
+                        <textarea class="sip-textarea" id="shFooter" rows="3" maxlength="200"
+                                  placeholder="Wi-Fi: CafeFlow รหัส 12345678&#10;LINE @cafeflow">${e(s.receiptFooter || '')}</textarea>
+                    </div>
+                </div>`, { hint: 'ชื่อร้าน เบอร์โทร ที่อยู่ และเลขผู้เสียภาษีพิมพ์บนหัวใบเสร็จ' }) +
+                CFApp.card('วันทำการ', `
                 <div class="sip-field">
                     <label class="sip-label">เริ่มนับเลขออเดอร์ใหม่ (A001) ทุกวัน เวลา</label>
-                    <select class="sip-select" id="shDayStart">
+                    <select class="sip-select cf-w-260" id="shDayStart">
                         ${Array.from({ length: 13 }, (_, h) => `<option value="${h}" ${CFDay.startHourOf(s) === h ? 'selected' : ''}>
                             ${String(h).padStart(2, '0')}:00 น.${h === CF_DAY_START_DEFAULT ? ' (ค่าเริ่มต้น)' : ''}</option>`).join('')}
                     </select>
-                    <div class="ds-note" style="margin-top:4px">
-                        ออเดอร์ก่อนเวลานี้นับเป็นยอดของเมื่อวาน (ร้านปิดหลังเที่ยงคืนได้) · หน้าจัดการออเดอร์แสดงตามวันทำการนี้
-                        · มีผลตั้งแต่ออเดอร์ถัดไป — ถ้าเปลี่ยนระหว่างวัน เลขออเดอร์อาจนับต่อจากวันก่อน
-                    </div>
-                </div>
-                <div class="ds-section-label" style="margin-top:8px">การรับเงิน — QR ที่คีออสก์ให้ลูกค้าสแกนจ่าย</div>
-                <!-- ร้านเลือกเองว่าคีออสก์แสดง QR แบบไหน (16/10/2569) · ตัวเลือกจริงอยู่ที่ issueQr (payQrSource) -->
+                    <div class="ds-note">ออเดอร์ก่อนเวลานี้นับเป็นยอดของเมื่อวาน (ร้านปิดหลังเที่ยงคืนได้) · มีผลตั้งแต่ออเดอร์ถัดไป</div>
+                </div>`) +
+                // ร้านเลือกเองว่าคีออสก์แสดง QR แบบไหน (16/10/2569) · ตัวเลือกจริงอยู่ที่ issueQr (payQrSource)
+                // แสดงเฉพาะส่วนของแบบที่เลือก (ผู้ใช้ขอ 16/10/2569) — สลับด้วย repaintPaySrc()
+                CFApp.card('การรับเงิน', `
                 <div class="sip-field">
-                    <label class="sip-label">QR ที่แสดงที่คีออสก์ตอนลูกค้าจ่ายเงิน</label>
+                    <label class="sip-label">แบบ QR</label>
                     <div id="kPaySrc">${this.paySrcHtml()}</div>
                 </div>
-                <!-- แสดงเฉพาะส่วนของแบบที่เลือก (ผู้ใช้ขอ 16/10/2569) — สลับด้วย repaintPaySrc() -->
                 <div class="sip-field" id="paySecPp" ${this._kd.payQrSource === 'shopqr' ? 'hidden' : ''}>
-                    <label class="sip-label">พร้อมเพย์ของร้าน (เบอร์โทร 10 หลัก · เลข 13 หลัก · e-wallet 15 หลัก)</label>
+                    <label class="sip-label">พร้อมเพย์ของร้าน</label>
                     <input class="sip-input" id="kPromptpay" inputmode="numeric" oninput="DashPage.repaintPaySrc()"
                            placeholder="เช่น 0812345678" value="${e(s.promptpayId || '')}">
-                    <!-- ไม่รู้เลข → อ่านจากภาพ QR "รับเงิน" ในแอปธนาคาร (ตัวอ่านเดียวกับ QR ร้านค้า) -->
+                    <div class="ds-note">เบอร์โทร 10 หลัก · เลขบัตร 13 หลัก · e-wallet 15 หลัก —
+                        <b>ตรวจให้ดี ผิดหนึ่งตัวเงินลูกค้าเข้าบัญชีคนอื่น</b></div>
                     <button type="button" class="cf-linkbtn" onclick="document.getElementById('kQrFile').click()">
                         ไม่รู้เลข? อ่านจากภาพ QR "รับเงิน" ในแอปธนาคาร</button>
                 </div>
@@ -1518,26 +1477,21 @@ const DashPage = {
                     <label class="sip-label">ภาพ QR รับเงินจากแอปธนาคาร (ธนาคารไหนก็ได้)</label>
                     <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('kQrFile').click()">
                         <i data-lucide="upload" class="icon-sm"></i> เลือกภาพ QR</button>
-                    <div class="ds-note" style="margin-top:6px">
-                        QR ร้านค้า (K SHOP · แม่มณี · ถุงเงิน ฯลฯ) หรือ QR "รับเงิน" พร้อมเพย์ — ระบบอ่านในเครื่อง
-                        แล้วใส่ยอดของแต่ละบิลให้เอง ลูกค้าไม่ต้องพิมพ์ยอด
+                    <div class="ds-note">
+                        QR ร้านค้า (K SHOP · แม่มณี · ถุงเงิน ฯลฯ) หรือ QR "รับเงิน" พร้อมเพย์ — ระบบใส่ยอดของแต่ละบิลให้เอง
                     </div>
                 </div>
                 <input type="file" id="kQrFile" accept="image/*" hidden onchange="DashPage.readShopQr(this.files[0]); this.value=''">
-                <div id="kQrResult" style="margin:-6px 0 14px">${this.shopQrHtml()}</div>
-                <div class="ds-section-label" style="margin-top:8px">ตรวจสลิป — ชื่อ/เลขบัญชีที่ต้องขึ้นเป็นผู้รับเงิน</div>
-                ${field('shAccName', 'ชื่อบัญชีผู้รับเงิน (ตามที่ขึ้นบนสลิป เช่น ชื่อร้าน หรือชื่อเจ้าของบัญชี)', s.shopAccountName)}
-                ${field('shAccNos', 'เลขบัญชีธนาคารอื่นที่รับเงิน (ถ้ามี คั่นด้วยจุลภาค)', s.shopAccountNos, 'inputmode="numeric"')}
-                <div class="ds-note" style="margin-bottom:10px">
-                    พร้อมเพย์ด้านบนนับเป็นบัญชีร้านอยู่แล้ว · สลิปที่ผู้รับไม่ตรงชื่อหรือเลขเหล่านี้จะขึ้นแดง "ไม่ใช่บัญชีร้าน"
-                </div>
-                <div class="ds-note">
-                    ชื่อร้าน ที่อยู่ และเลขผู้เสียภาษีพิมพ์บนใบเสร็จ · พร้อมเพย์ใช้สร้าง QR ที่คีออสก์
-                    — ตรวจเลขพร้อมเพย์ให้ดี ผิดหนึ่งตัวเงินลูกค้าจะเข้าบัญชีคนอื่น
-                </div>`,
+                <div id="kQrResult" class="cf-qr-result">${this.shopQrHtml()}</div>`, { hint: 'QR ที่คีออสก์ให้ลูกค้าสแกนจ่าย' }) +
+                CFApp.card('ตรวจสลิป', `
+                <div class="form-row">
+                    ${field('shAccName', 'ชื่อบัญชีผู้รับเงิน (ตามสลิป)', s.shopAccountName, 'placeholder="ชื่อร้าน หรือชื่อเจ้าของบัญชี"')}
+                    ${field('shAccNos', 'เลขบัญชีอื่นที่รับเงิน (ถ้ามี)', s.shopAccountNos, 'inputmode="numeric" placeholder="คั่นด้วยจุลภาค"')}
+                </div>`, { hint: 'พร้อมเพย์ด้านบนนับเป็นบัญชีร้านอยู่แล้ว · สลิปที่ผู้รับไม่ตรงจะขึ้นแดง "ไม่ใช่บัญชีร้าน"' }),
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
-                <button class="btn btn-primary" onclick="DashPage.saveShop()">บันทึก</button>`,
+                <button class="btn btn-primary" onclick="DashPage.saveShop()">
+                    <i data-lucide="save" class="icon-sm"></i> บันทึก</button>`,
         });
     },
 
@@ -1582,7 +1536,8 @@ const DashPage = {
         if (q.get('kiosk') === '1')   setTimeout(() => this.openKioskSettings(), 250);
         if (q.get('display') === '1') setTimeout(() => this.openDisplaySettings(), 250);
         if (q.get('shop') === '1')    setTimeout(() => this.openShop(), 250);
-        if (q.get('slip') === '1')    setTimeout(() => this.openSlipAccuracy(), 250);
+        if (q.get('menus') === '1')   setTimeout(() => this.openMenuSettings(), 250);
+        if (q.get('slip') === '1')    location.replace('reports.html#slips');       // ลิงก์เก่า — ย้ายไปหน้ารายงานแล้ว
     },
 };
 

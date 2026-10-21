@@ -18,6 +18,8 @@
     <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
     <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
     <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <!-- ตาราง DataTables (เก็บในเครื่อง · 21/10/2569) — ก่อน cf-app.css ให้ธีมทับได้ -->
+    <link rel="stylesheet" href="vendor/datatables/dataTables-2.1.8.min.css">
     <link rel="stylesheet" href="css/cf-app.css">
 
     <script src="../shared/cf-consts.js"></script>
@@ -70,10 +72,8 @@
                 <i data-lucide="list" class="mi"></i> รายการสินค้า
                 <span class="ds-pane-count" id="rowCount">0</span>
             </div>
-            <!-- ค้นหา + ตัวกรองแถวเดียว (เดิมตัวกรองตกลงไปใต้ช่องค้นหา) -->
+            <!-- ตัวกรองชุดข้อมูล · ช่องค้นหา/แบ่งหน้าเป็นของ DataTables ในตาราง (21/10/2569) -->
             <div class="section-actions cf-menu-tools">
-                <input class="sip-input" id="searchBox"
-                       placeholder="ค้นหาชื่อสินค้า" oninput="MenuPage.setQuery(this.value)">
                 <button class="ds-chip-toggle" id="fOnSale" onclick="MenuPage.toggleFilter('onSale')">เฉพาะที่เปิดขาย</button>
                 <button class="ds-chip-toggle" id="fSoldOut" onclick="MenuPage.toggleFilter('soldOut')">เฉพาะสินค้าหมด</button>
                 <button class="btn btn-outline btn-sm" data-role-gate="ADMIN MANAGER" onclick="MenuPage.openBulkPrice()"
@@ -81,24 +81,8 @@
                     <i data-lucide="tags" class="icon-sm"></i> ปรับราคาหลายรายการ</button>
             </div>
         </div>
-        <div class="table-responsive">
-            <table class="data-table compact">
-                <thead>
-                    <tr>
-                        <th>ชื่อสินค้า</th>
-                        <th>หมวด</th>
-                        <th>แบบเสิร์ฟ</th>
-                        <th>สถานี</th>
-                        <th class="cf-right cf-nowrap" data-role-gate="ADMIN MANAGER">ราคา ร้อน / เย็น / ปั่น</th>
-                        <th>สถานะ</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="rows"></tbody>
-            </table>
-        </div>
-        <!-- แบ่งหน้า — MenuPage.renderPager() -->
-        <div class="cf-pager" id="pager"></div>
+        <!-- ตารางสินค้า — MenuPage.render() วาด <table id="prodTable"> แล้ว CFTable.mount (DataTables) -->
+        <div class="table-responsive" id="prodHost"></div>
     </div>
 
 </div>
@@ -116,6 +100,9 @@
 <script src="js/cf-orders.js"></script>
 <script src="js/cf-nav.js"></script>
 <script src="js/cf-app.js"></script>
+<script src="vendor/datatables/jquery-3.7.1.min.js"></script>
+<script src="vendor/datatables/dataTables-2.1.8.min.js"></script>
+<script src="js/cf-table.js"></script>
 <script src="js/cf-alerts.js"></script>
 <script src="js/cf-kiosk-art.js"></script>
 <script src="js/page-menu.js"></script>

@@ -36,15 +36,12 @@
             MENU_EDIT: false, PRICE_EDIT: false, PAY_RECEIVE: false, PAY_OVERRIDE: false,
             KITCHEN: true, REPORT: false, SHIFT_CLOSE: false, USER_MANAGE: false,
         },
-        VIEWER: {
-            MENU_EDIT: false, PRICE_EDIT: false, PAY_RECEIVE: false, PAY_OVERRIDE: false,
-            KITCHEN: false, REPORT: 'LIMITED', SHIFT_CLOSE: false, USER_MANAGE: false,
-        },
+        // VIEWER "ผู้ชมข้อมูล" เลิกใช้ 21/10/2569 — เปิดหน้ารายงานไม่ได้จริง (migration 017)
     };
 
     const CF_ROLE_LABEL = {
         ADMIN: 'ผู้ดูแลระบบ', MANAGER: 'ผู้จัดการร้าน',
-        CASHIER: 'แคชเชียร์', KITCHEN: 'ครัว', VIEWER: 'ผู้ชมข้อมูล',
+        CASHIER: 'แคชเชียร์', KITCHEN: 'ครัว',
     };
 
     /** สิทธิ์ดิบ: true | 'LIMITED' | false */

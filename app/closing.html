@@ -17,6 +17,8 @@
     <link rel="stylesheet" href="../design-system-2/css/ds-overlays.css">
     <link rel="stylesheet" href="../design-system-2/css/ds-print.css">
     <link rel="stylesheet" href="css/ds-cafeflow-theme.css">
+    <!-- ตาราง DataTables (เก็บในเครื่อง · 21/10/2569) — ก่อน cf-app.css ให้ธีมทับได้ -->
+    <link rel="stylesheet" href="vendor/datatables/dataTables-2.1.8.min.css">
     <link rel="stylesheet" href="css/cf-app.css">
 
     <script src="../shared/cf-consts.js"></script>
@@ -113,12 +115,15 @@
                     <div class="cf-cl-step-title">ปิดรอบ</div>
                 </div>
                 <div class="cf-cl-step-body">
-                    <button type="button" class="ds-toggle" id="reopenToggle" onclick="ClosingPage.toggleReopen()">
-                        <span class="ds-toggle-track"><span class="ds-toggle-knob"></span></span> เปิดรอบใหม่ต่อทันที (เปลี่ยนกะ)
-                    </button>
-                    <div class="ds-note" style="margin:6px 0 14px">
-                        ปิดร้าน: ไม่ต้องเปิด — พรุ่งนี้เช้าค่อยกด "เปิดรอบ" แล้วกรอกเงินทอน ·
-                        เปลี่ยนกะกลางวัน: เปิดไว้ รอบใหม่ใช้เงินที่นับได้เป็นเงินตั้งต้น
+                    <!-- กล่อง เปิด|ปิด แบบเดียวกับทุกฟอร์ม (21/10/2569) — ปุ่มเป็น .ds-seg มี data-v ให้ CFApp.markBox -->
+                    <div class="cf-set-row cf-cl-reopen">
+                        <div class="cf-set-text"><div class="cf-set-title">เปิดรอบใหม่ต่อทันที (เปลี่ยนกะ)</div>
+                            <div class="cf-set-desc">ปิดร้าน: ไม่ต้องเปิด — พรุ่งนี้เช้าค่อยกด "เปิดรอบ" แล้วกรอกเงินทอน ·
+                                เปลี่ยนกะกลางวัน: เปิดไว้ รอบใหม่ใช้เงินที่นับได้เป็นเงินตั้งต้น</div></div>
+                        <div class="cf-set-ctl"><div class="cf-boxsel" id="reopenToggle" role="group">
+                            <button type="button" class="ds-seg" data-v="true" onclick="ClosingPage.setReopen(true)">เปิด</button>
+                            <button type="button" class="ds-seg active" data-v="false" onclick="ClosingPage.setReopen(false)">ไม่เปิด</button>
+                        </div></div>
                     </div>
                     <div class="cf-cl-ready" id="readyHint"></div>
                     <button class="btn btn-primary cf-close-step" id="closeBtn" onclick="ClosingPage.closeShift()">
@@ -139,7 +144,7 @@
                 <div id="topList"></div>
             </div>
             <div class="clinical-card">
-                <div class="card-title">ส่งออก (Excel)</div>
+                <div class="card-title">ส่งออกไฟล์ (เปิดด้วย Excel)</div>
                 <button class="btn btn-outline btn-sm" style="width:100%" onclick="CFExport.all()">
                     <i data-lucide="download" class="icon-sm"></i> ส่งออกทั้งหมด (4 ไฟล์)
                 </button>
@@ -167,6 +172,9 @@
 <script src="js/cf-export.js"></script>
 <script src="js/cf-nav.js"></script>
 <script src="js/cf-app.js"></script>
+<script src="vendor/datatables/jquery-3.7.1.min.js"></script>
+<script src="vendor/datatables/dataTables-2.1.8.min.js"></script>
+<script src="js/cf-table.js"></script>
 <script src="js/cf-alerts.js"></script>
 <script>window.CF_DEVICE_ID = 'CASHIER-01';</script>
 <script src="js/page-closing.js"></script>

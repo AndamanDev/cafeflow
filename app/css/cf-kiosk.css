@@ -60,11 +60,6 @@ body.cfk-frame.cfk-portrait #cfkStage {
     outline: 8px solid #23282D;
 }
 
-/* ══════════════════════════════════════════════════════════
-   ชิ้นส่วนร่วม
-   ══════════════════════════════════════════════════════════ */
-.cfk-screen { display: grid; min-height: 0; overflow: hidden; }
-
 /* แถบหัว — ปุ่มย้อนกลับตำแหน่งตายตัวทุกหน้า */
 .cfk-top {
     display: flex; align-items: center; gap: var(--gap);
@@ -88,8 +83,6 @@ body.cfk-frame.cfk-portrait #cfkStage {
 .cfk-back:active { background: var(--brand-bg); }
 .cfk-back .cfk-ic { width: calc(var(--u) * 2.4); height: calc(var(--u) * 2.4); }
 
-
-
 /* ปุ่มเปลี่ยนภาษา — ทุกหน้า (มุมขวาแถบหัว) และลอยมุมขวาบนของหน้าแรก */
 .cfk-lang {
     flex-shrink: 0; display: inline-flex; align-items: center;
@@ -111,7 +104,6 @@ body.cfk-frame.cfk-portrait #cfkStage {
 }
 .cfk-attract-langs button.active { border-color: var(--primary); background: var(--primary-bg); color: var(--primary-dark); }
 .cfk-lang:active { background: var(--brand-bg); }
-.cfk-lang-float { position: absolute; top: calc(var(--u) * 2); right: calc(var(--u) * 2); z-index: 3; }
 
 /* ปุ่ม */
 .cfk-btn {
@@ -330,8 +322,7 @@ body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); 
     font-size: calc(var(--u) * 2.3); font-weight: 700; color: #111; line-height: 1.3;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.cfk-card-en { font-size: calc(var(--u) * 1.7); color: var(--text-light);
-               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .cfk-card-foot {
     margin-top: auto; padding-top: calc(var(--u) * .9);
     display: flex; align-items: center; justify-content: space-between;
@@ -396,7 +387,7 @@ body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); 
     background: #fff; color: var(--primary-dark); font-style: normal;
     font-size: calc(var(--u) * 1.4); font-weight: 800;
 }
-.cfk-cartbtn-label { flex: 1; font-size: calc(var(--u) * 2.1); font-weight: 700; }
+
 /* แถบตะกร้าแบบตู้ฟาสต์ฟู้ด — ซ้ายจำนวน + ยอดรวม (แตะดูตะกร้า) · ขวาปุ่มชำระเงิน */
 .cfk-cartsum {
     flex: 1; display: flex; align-items: center; gap: calc(var(--u) * 1.6); min-width: 0;
@@ -407,7 +398,6 @@ body.cfk-noart .cfk-card-body { border-top: 0; min-height: calc(var(--u) * 13); 
 .cfk-cartsum-txt small { display: block; font-size: calc(var(--u) * 1.8); color: var(--text-muted); }
 .cfk-cartsum-txt b { font-size: calc(var(--u) * 3.2); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .cfk-cartgo { flex: 0 0 46%; min-height: calc(var(--u) * 7.6); font-size: calc(var(--u) * 2.6); }
-.cfk-cartbtn-amt   { font-size: calc(var(--u) * 2.6); font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* แผงตะกร้าขวา (แนวนอน) */
 .cfk-cartpanel {
@@ -573,8 +563,6 @@ body.cfk-landscape .cfk-item-banner { display: none; }
 .cfk-item-name { font-size: calc(var(--u) * 2.4); font-weight: 700; color: #111; line-height: 1.2; }
 .cfk-item-en   { font-size: calc(var(--u) * 1.8); color: var(--text-light);
                  margin-bottom: calc(var(--u) * .4); }
-.cfk-item-eyebrow { font-size: calc(var(--u) * 1.7); font-weight: 700; letter-spacing: .06em;
-                    text-transform: uppercase; color: var(--text-muted); }
 
 .cfk-optgroup { margin-top: calc(var(--u) * 1.5); }
 .cfk-optgroup-head {
@@ -595,7 +583,7 @@ body.cfk-landscape .cfk-item-banner { display: none; }
     background: var(--surface-1); color: var(--text-muted);
     border: 0.8px solid var(--brand-border);
 }
-.cfk-tag-req { background: var(--brand-amber-50); color: #8A6400; border-color: #FDE68A; }
+
 .cfk-tag-miss { background: #FDECEA; color: var(--status-danger); border-color: #FFC9CE; }
 .cfk-optgroup-hint { font-size: calc(var(--u) * 1.7); color: var(--text-muted); }
 
@@ -808,12 +796,6 @@ body.cfk-landscape .cfk-pay-foot { border-top: 0; border-left: 0.8px solid var(-
 .cfk-slipdlg-why { font-size: calc(var(--u) * 2.05); font-weight: 600; color: #111; }
 .cfk-slipdlg-body p { margin: 0; font-size: calc(var(--u) * 1.7); color: var(--text-muted); }
 
-.cfk-cam-label {
-    position: absolute; left: 0; right: 0; bottom: 2%; text-align: center;
-    font-size: calc(var(--u) * 1.7); font-weight: 700; color: #fff;
-    text-shadow: 0 1px 3px rgba(0,0,0,.7);
-}
-
 .cfk-qr.has-qr {
     width: auto; aspect-ratio: auto; border: 0; background: transparent;
     gap: calc(var(--u) * 1.2); color: var(--text-secondary);
@@ -994,15 +976,7 @@ body.cfk-landscape .cfk-pay-foot { border-top: 0; border-left: 0.8px solid var(-
     padding: calc(var(--u) * .4) calc(var(--u) * 1); border-radius: 999px;
     background: rgba(255,255,255,.14); font-size: calc(var(--u) * 1.7); white-space: nowrap;
 }
-.cfk-pay2-arrow {
-    display: flex; flex-direction: column; align-items: center;
-    margin-top: calc(var(--u) * 1.4); color: var(--primary);
-}
-.cfk-pay2-arrow span {
-    padding: calc(var(--u) * .6) calc(var(--u) * 2); border-radius: 999px;
-    background: var(--primary); color: #fff; font-size: calc(var(--u) * 2.05); font-weight: 800;
-}
-.cfk-pay2-arrow svg { width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6); }
+
 /* กล้องกินพื้นที่ที่เหลือทั้งหมด — ข้อความแนะนำ/สลิปไม่ผ่านอยู่ใต้ภาพ */
 .cfk-pay2-cam {
     display: grid; grid-template-rows: 1fr auto; gap: calc(var(--u) * 1);

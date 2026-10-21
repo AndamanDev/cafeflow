@@ -23,7 +23,6 @@ function seedData() {
         { id: 'U-2', username: 'manager', password: 'demo', name: 'ธนกฤต ว.',   role: 'MANAGER', active: true, overrideLimit: null },
         { id: 'U-3', username: 'cashier', password: 'demo', name: 'ปิยะดา ส.',  role: 'CASHIER', active: true, overrideLimit: 500 },
         { id: 'U-4', username: 'kitchen', password: 'demo', name: 'อนุชา พ.',   role: 'KITCHEN', active: true, overrideLimit: 0 },
-        { id: 'U-5', username: 'viewer',  password: 'demo', name: 'ผู้ชมข้อมูล', role: 'VIEWER',  active: true, overrideLimit: 0 },
     ];
 
     /* ── อุปกรณ์ (§30) ───────────────────────────────────────
@@ -259,7 +258,6 @@ function seedData() {
         taxId: '0835566001234',
         vatPercent: 7,
         qrTimeoutSec: 150,
-        cashMode: 'A',
         kdsWarnMin: 3,
         kdsDangerMin: 6,
         receiptWidth: '80mm',

@@ -9,7 +9,8 @@ rem    screen-edge.bat kds             kitchen screen        (also: kiosk, cashi
 rem    screen-edge.bat ip              change the server address
 rem    screen-edge.bat display autostart   also open this screen every time Windows starts
 rem
-rem  Server address: asked the first time, then remembered on THIS machine
+rem  Server address: on the server PC itself -> localhost, never asked.
+rem  Other machines: asked the first time, then remembered on THIS machine
 rem  (%LOCALAPPDATA%\CafeFlowScreen\server.txt). Find it on the server PC:
 rem  Dashboard > gear menu > "Devices on the network" (top box).
 rem  If the server's IP changes (router gave it a new one), run "screen-edge.bat ip".
@@ -29,7 +30,7 @@ rem ================================================================
 chcp 65001 >nul
 set "EDGE=C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 if not exist "%EDGE%" set "EDGE=C:\Program Files\Microsoft\Edge\Application\msedge.exe"
-if not exist "%EDGE%" ( echo  !! Microsoft Edge not found & pause & exit /b 1 )
+if not exist "%EDGE%" ( echo  [x] Microsoft Edge not found & pause & exit /b 1 )
 
 set "CFG_DIR=%LOCALAPPDATA%\CafeFlowScreen"
 set "CFG=%CFG_DIR%\server.txt"
@@ -38,9 +39,13 @@ if not exist "%CFG_DIR%" mkdir "%CFG_DIR%"
 set "ROLE=%~1"
 if /i "%ROLE%"=="ip" ( call :ask_ip & exit /b 0 )
 
-rem ---- server address (remembered) -------------------------------
+rem ---- server address -----------------------------------------------
+rem  This machine IS the server (API answers on localhost) -> use it, nothing to ask.
+rem  Otherwise the remembered address, or ask.
 set "SERVER="
-if exist "%CFG%" set /p SERVER=<"%CFG%"
+curl -s -f -m 2 -o nul http://localhost:8080/api/health >nul 2>&1
+if not errorlevel 1 set "SERVER=http://localhost:8080"
+if "%SERVER%"=="" if exist "%CFG%" set /p SERVER=<"%CFG%"
 if "%SERVER%"=="" call :ask_ip
 if "%SERVER%"=="" exit /b 1
 
@@ -65,13 +70,13 @@ if /i "%ROLE%"=="kiosk"   set "PAGE=kiosk.html"
 if /i "%ROLE%"=="cashier" set "PAGE=cashier.html"
 if /i "%ROLE%"=="kds"     set "PAGE=kds.html"
 if /i "%ROLE%"=="display" set "PAGE=display.html"
-if "%PAGE%"=="" ( echo  !! Unknown screen "%ROLE%" - use kiosk, cashier, kds or display & pause & exit /b 1 )
+if "%PAGE%"=="" ( echo  [x] Unknown screen "%ROLE%" - use kiosk, cashier, kds or display & pause & exit /b 1 )
 
 rem ---- can we reach the server? (warn, still open - it may be booting) ----
 curl -s -m 4 -o nul "%SERVER%/api/health" >nul 2>&1
 if errorlevel 1 (
   echo.
-  echo  !! Cannot reach %SERVER%
+  echo  [x] Cannot reach %SERVER%
   echo     Is the server PC on, and is this machine on the shop Wi-Fi?
   echo     If the server's IP changed: run "screen-edge.bat ip"
   echo     ^(see Dashboard ^> gear ^> Devices on the network on the server PC^)

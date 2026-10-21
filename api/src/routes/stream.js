@@ -54,17 +54,7 @@ function registerStream(app, getBranchId) {
             if (set) set.delete(reply.raw);
         });
     });
-
-    /** ให้ client ที่ SSE ตายไล่เก็บย้อนหลังได้ */
-    app.get('/api/changes', async (req) => {
-        const since = parseInt(req.query.since || '0', 10);
-        const branchId = getBranchId();
-        return {
-            lastId: seq,
-            changes: history.filter((e) => e.id > since && e.branchId === branchId)
-                .map(({ id, entity, op, entityId }) => ({ id, entity, op, id_: entityId })),
-        };
-    });
+    // GET /api/changes (ไล่เก็บย้อนหลังแบบ poll) ลบ 21/10/2569 — ไม่มี client เรียก · SSE Last-Event-ID ส่งย้อนหลังให้อยู่แล้ว
 }
 
 function writeEvent(raw, e) {

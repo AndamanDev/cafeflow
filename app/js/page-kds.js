@@ -31,7 +31,7 @@ const KdsPage = {
         this.renderAllDay(queue, itemsOf);
 
         if (!queue.length) {
-            board.innerHTML = `<div class="ds-empty-state" style="grid-column:1/-1">
+            board.innerHTML = `<div class="ds-empty-state cf-span-all">
                 <div class="ds-empty-state-icon"><i data-lucide="coffee"></i></div>
                 <div class="ds-empty-state-title">ไม่มีตั๋วค้างที่สถานีนี้</div>
                 <div class="ds-empty-state-desc">ตั๋วใหม่จะขึ้นเองเมื่อแคชเชียร์รับชำระเงิน</div>

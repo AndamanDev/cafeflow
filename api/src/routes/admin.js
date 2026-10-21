@@ -178,6 +178,15 @@ async function saveSettings(c, branchId, body, ctx) {
         if (key === 'displayTicker' && (typeof value !== 'string' || value.trim().length > 200)) {
             throw new ApiError(400, 'ข้อความประกาศยาวได้ไม่เกิน 200 ตัวอักษร');
         }
+        // ตั้งค่าเมนู (แสดง/ซ่อน · ลำดับ) — แอดมินคนเดียว (ผู้ใช้กำหนด 21/10/2569) · รูปแบบ { nav:[{key,hidden}], reports:[…] }
+        if (key === 'menuLayout') {
+            if (!ctx.user || ctx.user.role !== 'ADMIN') throw new ApiError(403, 'ตั้งค่าเมนูได้เฉพาะผู้ดูแลระบบ');
+            const okList = (l) => Array.isArray(l) && l.length <= 40 && l.every((x) => x && typeof x.key === 'string'
+                && x.key.length <= 60 && (x.hidden === undefined || typeof x.hidden === 'boolean'));
+            if (!value || typeof value !== 'object' || !['nav', 'reports'].every((k) => value[k] === undefined || okList(value[k]))) {
+                throw new ApiError(400, 'รูปแบบการตั้งค่าเมนูไม่ถูกต้อง');
+            }
+        }
         if (key === 'payQrSource' && !['promptpay', 'shopqr'].includes(value)) {
             throw new ApiError(400, 'ช่องทาง QR ที่แสดงที่คีออสก์ต้องเป็น promptpay หรือ shopqr');
         }

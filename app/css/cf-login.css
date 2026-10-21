@@ -1,0 +1,74 @@
+/* ══════════════════════════════════════════════════════════
+   CafeFlow — หน้าเข้าสู่ระบบ (การ์ดกลางจอ)
+   ย้ายมาจาก design-system-2/css/ds-landing.css ส่วน "LOGIN OVERLAY" (21/10/2569)
+   ส่วนอื่นของไฟล์นั้น (hero · module card · workflow ของระบบโรงพยาบาลต้นแบบ) ไม่ได้ใช้ จึงลบทั้งไฟล์
+   สีโทนเขียวของร้านทับอยู่ใน css/ds-cafeflow-theme.css
+   ══════════════════════════════════════════════════════════ */
+.login-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: linear-gradient(135deg, var(--brand-navy) 0%, #1e1b4b 50%, var(--brand-navy) 100%);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.login-overlay::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+        radial-gradient(ellipse 60% 60% at 30% 40%, rgba(124,58,237,.2), transparent),
+        radial-gradient(ellipse 50% 50% at 80% 70%, rgba(37,99,235,.15), transparent);
+}
+.login-card {
+    position: relative; z-index: 1;
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 24px;
+    padding: 44px 48px;
+    width: 100%; max-width: 420px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 24px 64px rgba(0,0,0,.5);
+}
+.login-logo-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+.login-logo-mark {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--purple), var(--purple-l));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; flex-shrink: 0;
+    box-shadow: 0 8px 24px rgba(124,58,237,.4);
+}
+.login-logo-text h1 { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -.3px; }
+.login-logo-text p  { font-size: 12px; color: rgba(255,255,255,.45); margin-top: 2px; }
+.login-divider { height: 1px; background: rgba(255,255,255,.08); margin-bottom: 28px; }
+.login-label {
+    display: block; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.5);
+    letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px;
+}
+.login-input {
+    width: 100%; padding: 12px 16px;
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px; color: #fff; font-size: 14px; font-family: inherit;
+    transition: .2s; outline: none; margin-bottom: 16px;
+}
+.login-input::placeholder { color: rgba(255,255,255,.25); }
+.login-input:focus {
+    border-color: rgba(124,58,237,.6); background: rgba(255,255,255,.1);
+    box-shadow: 0 0 0 3px rgba(124,58,237,.15);
+}
+.login-btn {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--purple), var(--purple-l));
+    border: none; border-radius: 10px; color: #fff;
+    font-size: 15px; font-weight: 700; font-family: inherit;
+    cursor: pointer; transition: .2s; margin-top: 4px;
+    box-shadow: 0 4px 16px rgba(124,58,237,.4);
+}
+.login-btn:hover  { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(124,58,237,.5); }
+.login-btn:active { transform: translateY(0); }
+.login-btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.login-error {
+    background: rgba(220,38,38,.15); border: 1px solid rgba(220,38,38,.3);
+    border-radius: 8px; padding: 10px 14px;
+    color: #fca5a5; font-size: 13px; margin-bottom: 14px; display: none;
+}
+.login-footer { text-align: center; margin-top: 24px; color: rgba(255,255,255,.2); font-size: 11px; }
+@media (max-width: 768px) {
+    .login-card { padding: 32px 24px; }
+}

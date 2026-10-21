@@ -374,7 +374,7 @@ const OrdersPage = {
         document.getElementById('tabItems').innerHTML = `
             ${rollup ? `<div class="ds-chips" style="margin-bottom:12px">${rollup}</div>` : ''}
             <div class="table-responsive">
-                <table class="data-table compact">
+                <table class="data-table compact" id="odItems">
                     <thead><tr>
                         <th>สินค้า</th><th>ตัวเลือก</th><th>จำนวน</th>
                         <th class="cf-right">ราคา/หน่วย</th><th>สถานี</th><th class="cf-right">รวม</th>
@@ -388,13 +388,15 @@ const OrdersPage = {
                             <td>${CFApp.stationChip(i.station)}</td>
                             <td class="cf-right cf-money">${CFApp.money(i.unitPrice * i.qty)}</td>
                         </tr>`).join('')}
-                        <tr>
-                            <td colspan="5" class="cf-right td-name">ยอดสุทธิ</td>
-                            <td class="cf-right td-name cf-money">${CFApp.money(o.total)}</td>
-                        </tr>
                     </tbody>
+                    <!-- ยอดสุทธิอยู่ใน tfoot — ถ้าอยู่ใน tbody DataTables จะเรียง/ค้นหามันเป็นสินค้าตัวหนึ่ง (21/10/2569) -->
+                    <tfoot><tr>
+                        <td colspan="5" class="cf-right td-name">ยอดสุทธิ</td>
+                        <td class="cf-right td-name cf-money">${CFApp.money(o.total)}</td>
+                    </tr></tfoot>
                 </table>
             </div>`;
+        CFTable.mount('odItems');
     },
 
     /**
@@ -512,7 +514,7 @@ const OrdersPage = {
             <div class="ds-actions cf-stack">
                 <button class="btn btn-primary" onclick="OrdersPage.toCashier('${o.id}')">
                     <i data-lucide="${payAct[0]}" class="icon-sm"></i> ${payAct[1]}</button>
-                <div class="cf-hint">${o.status === 'WAITING_CASH'
+                <div class="ds-note">${o.status === 'WAITING_CASH'
                     ? 'กรอกเงินที่รับ ระบบคิดเงินทอนให้'
                     : 'สแกนสลิปจากมือถือลูกค้า แล้วยืนยัน'}</div>
             </div>` : ''}
@@ -551,7 +553,7 @@ const OrdersPage = {
                         <button class="btn btn-danger" onclick="OrdersPage.openReason('${s}')">
                             ${e(CF_ACTION_LABEL[s] || s)}</button>`).join('')}
                 </div>
-                <div class="cf-hint" style="margin:0 16px">ต้องระบุเหตุผล · บันทึกในประวัติ</div>
+                <div class="ds-note cf-mx-16">ต้องระบุเหตุผล · บันทึกในประวัติ</div>
             </div>` : ''}`;
 
         CFApp.applyRoleGate(document.getElementById('actionPane'));
@@ -602,22 +604,17 @@ const OrdersPage = {
 
         Drawer.open({
             title: (CF_ACTION_LABEL[status] || status) + ' — ' + e(o.orderNo),
-            width: '480px',
+            width: CFApp.DRAWER_W,
+            // จัดใหม่ 21/10/2569: การ์ดแบบเดียวกับทุก drawer · เหตุผลสำเร็จรูปเป็นกล่องเลือก (ตัวที่เลือกมีกรอบเขียว)
             contentHtml: `
-                <div class="sip-banner sip-banner-warning" style="margin-bottom:12px">
-                    <i data-lucide="alert-triangle" class="icon-sm"></i>
-                    การกระทำนี้ย้อนกลับไม่ได้ และจะถูกบันทึกพร้อมชื่อผู้ทำรายการ
-                </div>
-                <div class="ds-section-label">เหตุผล (บังคับ)</div>
-                <textarea class="sip-textarea" id="rsText" rows="3"
-                          placeholder="ระบุเหตุผล" oninput="OrdersPage.onReasonInput(this.value)"></textarea>
-                <div class="ds-chips">
-                    ${presets.map((r) => `<button type="button" class="ds-chip-suggest"
-                        onclick="OrdersPage.pickReason('${e(r)}')">${e(r)}</button>`).join('')}
-                </div>
-                <div class="ds-note" style="margin-top:12px">
-                    ออเดอร์ ${e(o.orderNo)} · ${CFApp.baht(o.total)} · ${e(o.kioskId)}
-                </div>`,
+                <div class="ds-warn"><i data-lucide="alert-triangle" class="icon-sm"></i>
+                    การกระทำนี้ย้อนกลับไม่ได้ และจะถูกบันทึกพร้อมชื่อผู้ทำรายการ</div>` +
+                CFApp.card('เหตุผล (บังคับ)', `
+                ${presets.length ? CFApp.boxSel('rsPresets', presets.map((r) => [r, e(r)]), null, 'OrdersPage.pickReason($)') : ''}
+                <div class="sip-field cf-mt-10">
+                    <textarea class="sip-textarea" id="rsText" rows="3"
+                              placeholder="เลือกด้านบน หรือพิมพ์เหตุผลเอง" oninput="OrdersPage.onReasonInput(this.value)"></textarea>
+                </div>`, { hint: `ออเดอร์ ${e(o.orderNo)} · ${CFApp.baht(o.total)} · ${e(o.kioskId)}` }),
             footerHtml: `
                 <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
                 <button class="btn btn-danger" id="btnReason" disabled onclick="OrdersPage.commitReason()">
@@ -635,6 +632,7 @@ const OrdersPage = {
 
     pickReason(r) {
         document.getElementById('rsText').value = r;
+        CFApp.markBox('rsPresets', r);
         this.onReasonInput(r);
     },
 

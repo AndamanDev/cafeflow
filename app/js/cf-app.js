@@ -7,6 +7,13 @@
 const CFApp = {
 
     /**
+     * ความกว้าง drawer ของหน้าตั้งค่า (⚙) และหน้าเมนู — ใช้ค่าเดียวกันทุกตัว
+     * เดิมแต่ละตัวกว้างไม่เท่ากัน (440–880) กดจากรายการเข้าไปแก้ไขแล้วแผงหด/ขยายกระตุก (ผู้ใช้ขอ 21/10/2569)
+     * จอแคบกว่านี้ drawer เต็มจอเอง (max-width: 100vw ใน ds-overlays.css)
+     */
+    DRAWER_W: '720px',
+
+    /**
      * เรียกที่ต้นของ <page>.boot()
      * guard() ถูกเรียกไปแล้วใน <head> — ตรงนี้คือส่วนที่ต้องรอ DOM
      */
@@ -126,38 +133,78 @@ const CFApp = {
     /**
      * เปลี่ยนรหัสผ่านของตัวเอง — จากเมนูบัญชีเท่านั้น
      * ★ ไม่เด้งเตือน/บังคับเปลี่ยนเมื่อใช้รหัสตั้งต้น (ผู้ใช้เลือก 16/10/2569: อยากเปลี่ยนจะไปเปลี่ยนเอง)
+     * 2 ขั้น (ผู้ใช้ขอ 21/10/2569): กรอกรหัสเดิม → เซิร์ฟเวอร์ตรวจ (/api/auth/password/check) → ผ่านแล้วจึงขึ้นช่องรหัสใหม่
+     * รหัสเดิมที่ผ่านแล้วเก็บไว้ใน _pwCur ระหว่าง drawer เปิด (ตอนบันทึกเซิร์ฟเวอร์ตรวจซ้ำอีกรอบ) · ปิดแล้วล้างทิ้ง
      */
     changePassword() {
+        this._pwCur = null;
         Drawer.open({
             title: 'เปลี่ยนรหัสผ่าน',
-            width: '440px',
-            contentHtml: `
-                <div class="sip-field">
-                    <label class="sip-label">รหัสผ่านเดิม</label>
-                    <input class="sip-input" id="pwCur" type="password" autocomplete="current-password">
-                </div>
+            width: this.DRAWER_W,
+            contentHtml: this.pwStep1Html(),
+            footerHtml: `
+                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+                <button class="btn btn-primary" id="pwNext" onclick="CFApp.checkOldPassword()">
+                    ถัดไป <i data-lucide="arrow-right" class="icon-sm"></i></button>`,
+            onOpen: () => { if (window.refreshIcons) refreshIcons(); setTimeout(() => document.getElementById('pwCur')?.focus(), 50); },
+            onClose: () => { this._pwCur = null; },
+        });
+    },
+
+    pwStep1Html(err) {
+        return this.card('ขั้นที่ 1 · ยืนยันรหัสผ่านเดิม', `
+            <div class="sip-field">
+                <label class="sip-label">รหัสผ่านที่ใช้อยู่ตอนนี้</label>
+                <input class="sip-input" id="pwCur" type="password" autocomplete="current-password"
+                       onkeydown="if(event.key==='Enter')CFApp.checkOldPassword()">
+                ${err ? `<div class="ds-block">${this.esc(err)}</div>` : ''}
+            </div>`, { hint: 'รหัสเดิมถูกต้องแล้วจึงตั้งรหัสใหม่ได้' });
+    },
+
+    async checkOldPassword() {
+        const cur = (document.getElementById('pwCur') || {}).value || '';
+        if (!cur) { Drawer.setContent(this.pwStep1Html('กรอกรหัสผ่านเดิมก่อน')); document.getElementById('pwCur').focus(); return; }
+        const btn = document.getElementById('pwNext');
+        if (btn) btn.disabled = true;
+        try {
+            await CFApi.post('/api/auth/password/check', { current: cur });
+        } catch (err) {
+            Drawer.setContent(this.pwStep1Html(err.message || 'รหัสผ่านเดิมไม่ถูกต้อง'));
+            document.getElementById('pwCur').focus();
+            if (btn) btn.disabled = false;
+            return;
+        }
+        this._pwCur = cur;
+        Drawer.setContent(this.card('ขั้นที่ 1 · ยืนยันรหัสผ่านเดิม',
+                this.row('รหัสผ่านเดิมถูกต้อง', '', '<span class="status-badge active">✓ ผ่าน</span>'), { flush: true }) +
+            this.card('ขั้นที่ 2 · ตั้งรหัสผ่านใหม่', `
+            <div class="form-row">
                 <div class="sip-field">
                     <label class="sip-label">รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
                     <input class="sip-input" id="pwNew" type="password" autocomplete="new-password">
                 </div>
                 <div class="sip-field">
-                    <label class="sip-label">พิมพ์รหัสผ่านใหม่อีกครั้ง</label>
+                    <label class="sip-label">พิมพ์อีกครั้ง</label>
                     <input class="sip-input" id="pwNew2" type="password" autocomplete="new-password"
                            onkeydown="if(event.key==='Enter')CFApp.savePassword()">
-                </div>`,
-            footerHtml: `
-                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
-                <button class="btn btn-primary" onclick="CFApp.savePassword()">บันทึก</button>`,
-            onOpen: () => setTimeout(() => document.getElementById('pwCur')?.focus(), 50),
-        });
+                </div>
+            </div>`, { hint: 'ห้ามซ้ำกับรหัสเดิม · บันทึกแล้วเครื่องอื่นที่ล็อกอินบัญชีนี้ค้างไว้จะต้องเข้าใหม่' }));
+        Drawer.setFooter(`
+            <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
+            <button class="btn btn-primary" onclick="CFApp.savePassword()">
+                <i data-lucide="save" class="icon-sm"></i> บันทึก</button>`);
+        if (window.refreshIcons) refreshIcons();
+        setTimeout(() => document.getElementById('pwNew')?.focus(), 50);
     },
 
     async savePassword() {
         const v = (id) => (document.getElementById(id) || {}).value || '';
+        if (!this._pwCur) { this.changePassword(); return; }
         const next = v('pwNew');
         if (next !== v('pwNew2')) { showToast('รหัสผ่านใหม่สองช่องไม่ตรงกัน', 'error'); return; }
         try {
-            await CFApi.post('/api/auth/password', { current: v('pwCur'), next });
+            await CFApi.post('/api/auth/password', { current: this._pwCur, next });
+            this._pwCur = null;
             Drawer.close();
             showToast('เปลี่ยนรหัสผ่านแล้ว', 'success');
         } catch (err) {
@@ -191,7 +238,6 @@ const CFApp = {
     time(iso)    { return iso ? new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; },
     timeSec(iso) { return iso ? new Date(iso).toLocaleTimeString('th-TH', { hour12: false }) : '—'; },
     date(iso)    { return iso ? new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'; },
-    dateFull(iso){ return iso ? new Date(iso).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'; },
     dateTime(iso){ return iso ? this.date(iso) + ' ' + this.time(iso) : '—'; },
 
     /** ระยะเวลาแบบ mm:ss (ใช้กับตัวจับเวลา KDS) */
@@ -344,18 +390,7 @@ const CFApp = {
         return `<span class="sip-chip ${cls}">${this.stationLabel(st)}</span>`;
     },
 
-    /**
-     * ป้ายรูปแบบการรับสินค้า
-     * ครัวต้องเห็นตั้งแต่แรกว่าจะใส่แก้วหรือใส่ถุง — เห็นตอนทำเสร็จแล้วสายเกินไป
-     * ใช้สีเหลืองกับ "กลับบ้าน" เพราะเป็นกรณีที่ต้องทำอะไรเพิ่ม ส่วนกินที่ร้านเป็นค่าปกติ
-     */
-    diningChip(v) {
-        const d = (typeof CF_DINING !== 'undefined' && CF_DINING[v]) || null;
-        if (!d) return '';
-        const cls = v === 'TAKE_AWAY' ? 'sip-chip-amber' : 'sip-chip-muted';
-        return `<span class="sip-chip ${cls}">${d.label}</span>`;
-    },
-
+    /** ชื่อรูปแบบการรับสินค้า (กินที่ร้าน / กลับบ้าน) */
     diningLabel(v) {
         const d = (typeof CF_DINING !== 'undefined' && CF_DINING[v]) || null;
         return d ? d.label : '';
@@ -518,6 +553,192 @@ const CFApp = {
 
     /** ถูกแทนที่ด้วยตัวจริงใน startTickers() — no-op จนกว่าจะเริ่มเดิน */
     tickNow() {},
+
+    /* ── ชิ้นส่วนฟอร์มมาตรฐาน (21/10/2569 — ผู้ใช้: "หน้าตาต้องเหมือนกัน ไม่งั้นจะดูงง") ──
+       ทุก drawer/ฟอร์มของพนักงานใช้ชุดนี้ · ปุ่มเป็น .ds-seg มี data-v บอกค่า (handler ไม่ต้องพึ่งตำแหน่ง)
+       tpl = โค้ด onclick ที่มี $ แทนค่า เช่น "DashPage.uSet('active', $)" */
+
+    /** การ์ดแบ่งหัวข้อในฟอร์ม · flush = เนื้อหาชิดขอบ (ตาราง · แถว cf-set-row) */
+    card(title, body, opts) {
+        opts = opts || {};
+        return `<div class="cf-set-card" ${opts.id ? `id="${opts.id}"` : ''}>
+            ${title ? `<div class="cf-set-head">${title}${opts.hint ? `<small>${opts.hint}</small>` : ''}${opts.action || ''}</div>` : ''}
+            <div class="${opts.flush ? '' : 'cf-set-body'}">${body}</div></div>`;
+    },
+
+    /** แถวตั้งค่าในการ์ด: ชื่อ + คำอธิบายสั้นซ้าย · ปุ่ม/ช่องขวา (stack = ปุ่มลงไปใต้ชื่อ สำหรับตัวเลือกยาว) */
+    row(title, desc, ctl, stack) {
+        return `<div class="cf-set-row ${stack ? 'is-stack' : ''}">
+            <div class="cf-set-text"><div class="cf-set-title">${title}</div>${desc ? `<div class="cf-set-desc">${desc}</div>` : ''}</div>
+            <div class="cf-set-ctl">${ctl}</div></div>`;
+    },
+
+    /** กล่องเลือก 1 อย่าง — items = [[ค่า, ป้าย], …] */
+    boxSel(id, items, cur, tpl, opts) {
+        opts = opts || {};
+        return `<div class="cf-boxsel" id="${id}" role="group">${items.map(([v, label]) => `
+            <button type="button" class="ds-seg ${v === cur ? 'active' : ''}" data-v="${this.esc(String(v))}"
+                    ${opts.disabled ? 'disabled' : ''} onclick="${tpl.replace('$', this.esc(JSON.stringify(v)).replace(/"/g, '&quot;'))}">${label}</button>`).join('')}
+        </div>`;
+    },
+
+    /** กล่อง เปิด | ปิด (แทนสวิตช์) — tpl ได้ true/false */
+    onOff(id, on, tpl, opts) {
+        opts = opts || {};
+        const [yes, no] = opts.labels || ['เปิด', 'ปิด'];
+        return this.boxSel(id, [[true, yes], [false, no]], !!on, tpl, opts);
+    },
+
+    /** กล่องเลือกหลายอย่าง — กดสลับทีละตัว · tpl ได้ (ค่า) แล้ว handler ตัดสินเองว่าเพิ่ม/เอาออก */
+    multiSel(id, items, selected, tpl) {
+        const on = new Set(selected || []);
+        return `<div class="cf-boxsel is-multi" id="${id}" role="group">${items.map(([v, label]) => `
+            <button type="button" class="ds-seg ${on.has(v) ? 'active' : ''}" data-v="${this.esc(String(v))}" aria-pressed="${on.has(v)}"
+                    onclick="${tpl.replace('$', this.esc(JSON.stringify(v)).replace(/"/g, '&quot;'))}">${label}</button>`).join('')}
+        </div>`;
+    },
+
+    /**
+     * ป้ายชนิดเดียวกันในคอลัมน์/รายการเดียวกัน กว้างเท่าป้ายที่ยาวที่สุด (ผู้ใช้ขอ 21/10/2569)
+     * - ตาราง: ป้ายที่เป็นลูกตรงของ td จัดกลุ่มตามคอลัมน์ (สถานะอุปกรณ์ที่มีบรรทัดรอง ฯลฯ)
+     * - รายการ .cf-mlist: ของใน .cf-mrow-meta จัดกลุ่มตามชนิด (ประเภทกลุ่ม · จำนวน · ราคา · สถานะ)
+     * เรียกเองหลังทุกการวาด (observer ท้ายไฟล์) — ไม่ต้องเรียกจากแต่ละหน้า · ใบพิมพ์/ตารางสิทธิ์ไม่โดน
+     */
+    equalizeBadges(root) {
+        root = root || document;
+        const KINDS = ['status-badge', 'sip-chip', 'cf-pill', 'cf-mrow-num', 'cf-mrow-price'];
+        const kind = (el) => KINDS.find((k) => el.classList.contains(k));
+        const groups = new Map();
+        const add = (owner, key, el) => {
+            let byKey = groups.get(owner);
+            if (!byKey) groups.set(owner, (byKey = new Map()));
+            if (!byKey.has(key)) byKey.set(key, []);
+            byKey.get(key).push(el);
+        };
+        root.querySelectorAll('table:not(.cf-perm)').forEach((t) => {
+            if (t.closest('#dsPrintStage, .cf-paper')) return;
+            t.querySelectorAll('tbody td > .status-badge, tbody td > .sip-chip, tbody td > .cf-pill').forEach((el) =>
+                add(t, el.parentElement.cellIndex + '|' + kind(el), el));
+        });
+        root.querySelectorAll('.cf-mlist').forEach((l) =>
+            l.querySelectorAll('.cf-mrow-meta > *').forEach((el) => { const k = kind(el); if (k) add(l, k, el); }));
+        groups.forEach((byKey) => byKey.forEach((list) => {
+            if (list.length < 2) { list[0].style.minWidth = ''; return; }
+            list.forEach((el) => { el.style.minWidth = ''; });
+            const w = Math.max(...list.map((el) => el.getBoundingClientRect().width));
+            if (w > 0) list.forEach((el) => { el.style.minWidth = Math.ceil(w) + 'px'; el.classList.add('cf-eqw'); });
+        }));
+    },
+
+    /** ย้ายกรอบเขียวไปตัวที่ค่า = v (เลือก 1) · หรือส่ง Set/Array สำหรับเลือกหลายอย่าง */
+    markBox(id, v) {
+        const many = v instanceof Set ? v : Array.isArray(v) ? new Set(v.map(String)) : null;
+        document.querySelectorAll('#' + id + ' > .ds-seg').forEach((b) => {
+            const on = many ? many.has(b.dataset.v) : b.dataset.v === String(v);
+            b.classList.toggle('active', on);
+            if (many) b.setAttribute('aria-pressed', on);
+        });
+    },
+
+    /**
+     * กดค้างแล้วลากเพื่อเรียงลำดับ (แทนปุ่มลูกศรขึ้น/ลง · ผู้ใช้ขอ 21/10/2569)
+     * ใช้: แถวมี data-sort-id และ onpointerdown="CFApp.dragSort(event, (ids) => …)"
+     *   - กดค้าง 350 ms → แถวขึ้นขอบสี (.is-dragging) แล้วลากขึ้นลงได้ · ปล่อย → onDrop(ลำดับ id ใหม่ของพี่น้องทั้งหมด)
+     *   - ขยับก่อนครบเวลา = เลื่อนหน้าจอตามปกติ (จอสัมผัส) · กดสั้น = คลิกปกติ (เปิดแก้ไข)
+     *   - Esc ระหว่างลาก = ยกเลิก กลับลำดับเดิม
+     * ผูกแบบ inline ไม่ใช่ addEventListener — drawer ย้อนหน้าด้วย innerHTML ทำให้ listener หาย (ดู page-menu.js)
+     */
+    dragSort(ev, onDrop) {
+        const item = ev.target.closest('[data-sort-id]');
+        if (!item || ev.button > 0 || ev.target.closest('button, a, input, select, textarea')) return;
+        if (item.closest('.cf-dt-sorted')) return;   // ตาราง DataTables กำลังเรียงตามคอลัมน์/ค้นหาอยู่ — ลำดับบนจอไม่ใช่ลำดับคีออสก์
+        const box = item.parentElement;
+        const ids = () => [...box.children].filter((el) => el.dataset.sortId).map((el) => el.dataset.sortId);
+        const before = ids();
+        const x0 = ev.clientX, y0 = ev.clientY;
+        let lastY = y0, active = false, raf = 0;
+
+        const scroller = (() => {                  // กล่องที่เลื่อนได้ใกล้สุด (ตัว drawer หรือหน้า)
+            for (let el = box; el && el !== document.body; el = el.parentElement) {
+                const oy = getComputedStyle(el).overflowY;
+                if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+            }
+            return document.scrollingElement;
+        })();
+        const place = () => {
+            // สลับกับพี่น้องเมื่อเลยครึ่งแถวไปแล้ว — แถวที่ลากอยู่ในตำแหน่งจริงตลอด ไม่ต้องมีเงาลอย
+            const prev = item.previousElementSibling, next = item.nextElementSibling;
+            if (prev && prev.dataset.sortId) {
+                const r = prev.getBoundingClientRect();
+                if (lastY < r.top + r.height / 2) { box.insertBefore(item, prev); return; }
+            }
+            if (next && next.dataset.sortId) {
+                const r = next.getBoundingClientRect();
+                if (lastY > r.top + r.height / 2) box.insertBefore(next, item);
+            }
+        };
+        const autoScroll = () => {                 // ลากชิดขอบบน/ล่าง → เลื่อนรายการตาม
+            if (!active) return;
+            const r = scroller === document.scrollingElement
+                ? { top: 0, bottom: window.innerHeight } : scroller.getBoundingClientRect();
+            const edge = 48;
+            const d = lastY < r.top + edge ? -8 : lastY > r.bottom - edge ? 8 : 0;
+            if (d) { scroller.scrollTop += d; place(); }
+            raf = requestAnimationFrame(autoScroll);
+        };
+        const noTouchScroll = (e) => { if (active) e.preventDefault(); };
+        const start = () => {
+            active = true;
+            item.classList.add('is-dragging');
+            document.body.classList.add('cf-dragging');
+            try { item.setPointerCapture(ev.pointerId); } catch (e) { /* ปล่อยไปแล้ว */ }
+            if (navigator.vibrate) navigator.vibrate(15);
+            raf = requestAnimationFrame(autoScroll);
+        };
+        const timer = setTimeout(start, 350);
+
+        const move = (e) => {
+            lastY = e.clientY;
+            if (!active) {
+                if (Math.abs(e.clientX - x0) > 8 || Math.abs(e.clientY - y0) > 8) end(false);   // ตั้งใจเลื่อนจอ
+                return;
+            }
+            e.preventDefault();
+            place();
+        };
+        const key = (e) => {
+            if (e.key !== 'Escape' || !active) return;
+            e.stopPropagation();
+            before.forEach((id) => box.appendChild(box.querySelector(`[data-sort-id="${CSS.escape(id)}"]`)));
+            end(false);
+        };
+        const end = (commit) => {
+            clearTimeout(timer);
+            cancelAnimationFrame(raf);
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', up);
+            document.removeEventListener('pointercancel', cancel);
+            document.removeEventListener('touchmove', noTouchScroll);
+            document.removeEventListener('keydown', key, true);
+            if (!active) return;
+            active = false;
+            item.classList.remove('is-dragging');
+            document.body.classList.remove('cf-dragging');
+            // คลิกที่ตามหลังการปล่อย ไม่ใช่การกดเปิดแก้ไข
+            const eat = (e) => { e.stopPropagation(); e.preventDefault(); };
+            item.addEventListener('click', eat, { capture: true, once: true });
+            setTimeout(() => item.removeEventListener('click', eat, { capture: true }), 0);
+            const after = ids();
+            if (commit && after.join() !== before.join()) onDrop(after);
+        };
+        const up = () => end(true);
+        const cancel = () => end(true);
+        document.addEventListener('pointermove', move, { passive: false });
+        document.addEventListener('pointerup', up);
+        document.addEventListener('pointercancel', cancel);
+        document.addEventListener('touchmove', noTouchScroll, { passive: false });
+        document.addEventListener('keydown', key, true);
+    },
 };
 
 /**
@@ -544,3 +765,14 @@ const CFRules = (function () {
 
 window.CFRules = CFRules;
 window.CFApp = CFApp;
+
+// ป้ายกว้างเท่ากันทุกครั้งที่มีการวาดใหม่ (ตาราง · รายการใน drawer · DataTables เปลี่ยนหน้า)
+// ดูแค่ childList — การตั้ง min-width เป็น style ไม่ปลุก observer ซ้ำ · รวบเป็นครั้งเดียวต่อเฟรม
+(() => {
+    let queued = false;
+    const run = () => { queued = false; CFApp.equalizeBadges(document); };
+    const start = () => new MutationObserver(() => {
+        if (!queued) { queued = true; requestAnimationFrame(run); }
+    }).observe(document.body, { childList: true, subtree: true });
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();

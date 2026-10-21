@@ -168,8 +168,6 @@
             return request('GET', '/api/bootstrap' + (hours ? '?hours=' + hours : ''));
         },
 
-        health() { return request('GET', '/api/health'); },
-
         /**
          * เครื่องนี้จับคู่อยู่ไหม — page บอกเซิร์ฟเวอร์ว่าเป็นหน้าอะไร (kiosk / display)
          * ถ้ายังไม่จับคู่ เซิร์ฟเวอร์จดไว้ว่าเครื่องนี้ค้างหน้าขอรหัส หน้าภาพรวมจะเตือนผู้จัดการ

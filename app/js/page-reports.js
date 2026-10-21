@@ -7,17 +7,8 @@
  * รายงาน 9 แบบตามที่ผู้ใช้กำหนด 16/10/2569 — ทุกแบบประกอบจาก table() ตัวเดียว
  * ตารางเดียวกันใช้ทั้งวาดหน้าจอและส่งออก CSV จึงไม่มีนิยามคอลัมน์สองที่
  */
-const RP_LIST = [
-    ['summary',   'chart-column',       'สรุปยอดขาย'],
-    ['items',     'package',            'ยอดขายตามสินค้า'],
-    ['categories','layers',             'ยอดขายตามหมวดหมู่'],
-    ['staff',     'users',              'ยอดขายตามพนักงาน'],
-    ['payments',  'credit-card',        'ยอดขายตามประเภทการชำระเงิน'],
-    ['receipts',  'receipt',            'ใบเสร็จรับเงิน'],
-    ['modifiers', 'sliders-horizontal', 'ยอดขายตามตัวเลือกเพิ่มเติม'],
-    ['discounts', 'percent',            'ส่วนลด'],
-    ['tax',       'landmark',           'ภาษี'],
-];
+// รายชื่อรายงานทั้งหมดอยู่ใน cf-nav.js (CF_REPORTS) — หน้าตั้งค่าเมนูใช้ร่วม · ลำดับ/ซ่อนตาม CFMenuLayout (21/10/2569)
+const RP_LIST = CF_REPORTS;
 
 const PAY_LABEL = { CASH: 'เงินสด', QR: 'QR พร้อมเพย์' };
 
@@ -87,7 +78,7 @@ const ReportsPage = {
 
     /** เลือกรายงาน — จำไว้ใน #hash เปิดลิงก์/รีเฟรชแล้วกลับมาที่เดิม */
     open(key) {
-        if (!RP_LIST.some((r) => r[0] === key)) key = 'summary';
+        if (!this.list().some((r) => r[0] === key)) key = this.list()[0][0];
         this.state.report = key;
         if (location.hash !== '#' + key) history.pushState(null, '', '#' + key);    // ย้อนกลับได้ทีละรายงาน
         this.render();
@@ -100,7 +91,7 @@ const ReportsPage = {
     },
 
     renderNav() {
-        document.getElementById('rpNav').innerHTML = RP_LIST.map(([k, icon, label]) =>
+        document.getElementById('rpNav').innerHTML = this.list().map(([k, icon, label]) =>
             `<button type="button" class="cf-rp-link ${k === this.state.report ? 'active' : ''}"
                      onclick="ReportsPage.open('${k}')"><i data-lucide="${icon}" class="icon-sm"></i>${label}</button>`).join('');
     },
@@ -115,6 +106,7 @@ const ReportsPage = {
 
         const body = document.getElementById('rpBody');
         const meta = RP_LIST.find((r) => r[0] === this.state.report);
+        if (this.state.report === 'slips') { this.renderSlips(body, meta[2]); return; }
         const d = this.state.data;
         if (!d) {
             body.innerHTML = this.head(meta[2], false) +
@@ -126,9 +118,116 @@ const ReportsPage = {
         body.innerHTML = this.head(meta[2], this.state.report !== 'receipts' || !!this.state.rcpt) +
             this['r_' + this.state.report](d);
         refreshIcons();
+        // ตารางรายงานเป็น DataTables (21/10/2569) — ใบเสร็จแบ่งหน้าจากเซิร์ฟเวอร์อยู่แล้ว ไม่แบ่งซ้ำ ·
+        // ตัวเลือกสินค้าโชว์ชื่อกลุ่มแค่แถวแรกของกลุ่ม กดเรียงแล้วกลุ่มจะกระจาย จึงปิดการเรียง
+        Object.keys(this._tables).forEach((key) => {
+            const t = this._tables[key];
+            if (!t.rows.length) return;
+            CFTable.mount('rpt-' + key, Object.assign(
+                key === 'receipts' ? { paging: false, info: false } : key === 'modifiers' ? { ordering: false } : {},
+                { language: Object.assign({}, CFTable.TH, { emptyTable: t.opts.empty || 'ไม่มีข้อมูลในช่วงนี้' }) }));
+        });
+    },
+
+    /* ══════════════════════════════════════════════════════════
+       ความแม่นของการตรวจสลิป — ระบบเดา vs แคชเชียร์ตัดสินจริง
+       ย้ายมาจากเมนู ⚙ ของหน้าภาพรวม (ผู้ใช้: "เป็นข้อมูลไว้ปรับระบบ ไม่ใช่การตั้งค่า" · 21/10/2569)
+       ข้อมูลมาจาก /api/reports/slip-accuracy?days=N (N วันล่าสุดถึงวันนี้) — ไม่ใช่ /api/reports/days
+       ช่วงที่เลือก → N = วันแรกของช่วงถึงวันนี้ (สูงสุด 90 วัน ตามที่เซิร์ฟเวอร์รับ)
+       ══════════════════════════════════════════════════════════ */
+    slipDays() {
+        const n = Math.round((new Date(this.today()) - new Date(this.state.from)) / 86400000) + 1;
+        return Math.min(Math.max(n, 1), 90);
+    },
+
+    async renderSlips(body, title) {
+        const days = this.slipDays();
+        const key = days;
+        if (!this._slip || this._slip.key !== key) {
+            body.innerHTML = this.head(title, false) + '<div class="clinical-card"><div class="ds-empty-sm">กำลังโหลด…</div></div>';
+            try {
+                this._slip = { key, data: await CFApi.get('/api/reports/slip-accuracy?days=' + days) };
+            } catch (err) {
+                body.innerHTML = this.head(title, false) +
+                    `<div class="clinical-card"><div class="ds-empty-sm">${CFApp.esc(err.message || 'ดึงรายงานไม่สำเร็จ')}</div></div>`;
+                return;
+            }
+            if (this.state.report !== 'slips') return;           // เปลี่ยนรายงานไประหว่างรอ
+        }
+        body.innerHTML = this.head(title, false) + this.slipsHtml(this._slip.data);
+        refreshIcons();
+    },
+
+    /** ตัวเลขสรุป 4 ช่อง → แถบ % ที่อ่านได้ → ตาราง 2×2 ระบบ vs แคชเชียร์ → แถบตามธนาคาร · ไม่มีสลิป = ข้อความเดียว */
+    slipsHtml(r) {
+        const e = CFApp.esc;
+        const pctN = (n, d) => (d ? Math.round((n / d) * 100) : null);
+        const o = r.outcome;
+        const right = o.truePass + o.trueCatch;
+        const decided = right + o.falseAlarm + o.missed;
+        const unsure = o.unsureConfirmed + o.unsureRejected;
+
+        const tile = (label, value, sub, tone) => `<div class="cf-sa-kpi ${tone || ''}">
+            <div class="cf-sa-kpi-v">${value}</div><div class="cf-sa-kpi-l">${label}</div>
+            ${sub ? `<div class="cf-sa-kpi-s">${sub}</div>` : ''}</div>`;
+        const bar = (label, n, d, note) => {
+            const p = pctN(n, d);
+            return `<div class="cf-sa-bar">
+                <div class="cf-sa-bar-head"><span>${label}</span><b>${p == null ? '—' : p + '%'}</b></div>
+                <div class="cf-sa-track"><span style="width:${p || 0}%" class="${p == null ? '' : p >= 90 ? 'ok' : p >= 70 ? 'mid' : 'low'}"></span></div>
+                <div class="cf-sa-bar-note">${note}</div></div>`;
+        };
+        const cell = (n, label, tone) => `<div class="cf-sa-cell ${tone}"><b>${n}</b><span>${label}</span></div>`;
+        const card = (title, inner, hint) => `<div class="clinical-card cf-sa-card"><div class="card-title">${title}</div>
+            ${hint ? `<div class="ds-note">${hint}</div>` : ''}${inner}</div>`;
+
+        if (!r.scanned) {
+            return `<div class="clinical-card"><div class="ds-empty-state">
+                <div class="ds-empty-state-icon"><i data-lucide="scan-text"></i></div>
+                <div class="ds-empty-state-title">ยังไม่มีสลิปที่ลูกค้าสแกนใน ${r.days} วันล่าสุด</div>
+                <div class="ds-empty-state-desc">ตัวเลขจะขึ้นเมื่อลูกค้าจ่ายด้วย QR แล้วสแกนสลิปที่คีออสก์${r.days < 90 ? ' · ลองเลือกช่วงที่ยาวขึ้น' : ''}</div>
+            </div></div>`;
+        }
+        return `<div class="ds-note">สแกน ${r.scanned} ใบ · แคชเชียร์ตัดสินแล้ว ${r.judged} ใบ · ${r.days} วันล่าสุด</div>
+            <div class="cf-sa-kpis">
+                ${tile('อ่านยอดเงินได้', pctN(r.fields.amount, r.read) == null ? '—' : pctN(r.fields.amount, r.read) + '%', `${r.fields.amount} จาก ${r.read} ใบ`)}
+                ${tile('ระบบตัดสินตรงกับแคชเชียร์', pctN(right, decided) == null ? '—' : pctN(right, decided) + '%', `${right} จาก ${decided} ใบ`, 'ok')}
+                ${tile('เตือนผิด', o.falseAlarm, 'ระบบเตือนแดง แต่เงินเข้าจริง', o.falseAlarm ? 'warn' : '')}
+                ${tile('ปล่อยหลุด', o.missed, 'ระบบบอกผ่าน แต่ไม่มีเงินเข้า', o.missed ? 'bad' : '')}
+            </div>` +
+            card('อ่านข้อมูลจากภาพสลิปได้', `
+                ${bar('ยอดเงิน', r.fields.amount, r.read, r.fields.amount + ' ใบ')}
+                ${bar('วันที่', r.fields.date, r.read, r.fields.date + ' ใบ · รวมที่ได้จากเลขอ้างอิง')}
+                ${bar('ผู้รับเงิน', r.fields.receiver, r.read, r.fields.receiver + ' ใบ · นับเฉพาะเมื่อตั้งบัญชีร้านไว้ที่ "ข้อมูลร้าน"')}`,
+                `${r.read} จาก ${r.scanned} ใบที่สแกนอ่านได้`) +
+            card('ระบบเทียบกับที่แคชเชียร์ตัดสิน', r.judged ? `
+                <div class="cf-sa-matrix">
+                    <span></span><span class="cf-sa-mh">แคชเชียร์ยืนยัน</span><span class="cf-sa-mh">แคชเชียร์ปฏิเสธ</span>
+                    <span class="cf-sa-mh cf-sa-mr">ระบบบอกผ่าน</span>
+                    ${cell(o.truePass, 'ถูก', 'ok')}${cell(o.missed, 'ปล่อยหลุด', o.missed ? 'bad' : 'zero')}
+                    <span class="cf-sa-mh cf-sa-mr">ระบบเตือนแดง</span>
+                    ${cell(o.falseAlarm, 'เตือนผิด', o.falseAlarm ? 'warn' : 'zero')}${cell(o.trueCatch, 'จับได้ถูก', 'ok')}
+                </div>
+                ${unsure ? `<div class="ds-note">อ่านไม่ครบ (สีเทา) ${unsure} ใบ — แคชเชียร์ยืนยัน ${o.unsureConfirmed} · ปฏิเสธ ${o.unsureRejected}</div>` : ''}
+                ${r.disagree.length ? `<div class="ds-note">ใบที่ระบบกับแคชเชียร์เห็นต่างกัน:
+                    ${r.disagree.map((x) => `<span class="sip-chip sip-chip-muted">${e(x.orderNo)}</span>`).join(' ')}</div>` : ''}`
+                : '<div class="ds-empty-sm">แคชเชียร์ยังไม่ได้ตัดสินสลิปใบไหนในช่วงนี้</div>',
+                'เตือนผิดเยอะ = คนจะเลิกเชื่อคำเตือน · ปล่อยหลุด = เสียเงินจริง') +
+            (Object.keys(r.byBank).length ? card('แยกตามธนาคารคนโอน',
+                Object.entries(r.byBank).sort((a, b) => b[1].n - a[1].n)
+                    .map(([b, x]) => bar(e(b), x.amount, x.n, `${x.n} ใบ · อ่านยอดได้ ${x.amount} ใบ`)).join(''),
+                'แถบ = อ่านยอดเงินได้กี่ % ของสลิปธนาคารนั้น') : '');
+    },
+
+    /** รายงานที่แสดงในแถบซ้าย — ลำดับและการซ่อนตาม "ตั้งค่าเมนู" (แอดมิน) */
+    list() {
+        const vis = CFMenuLayout.visible('reports');
+        const out = vis.map((k) => RP_LIST.find((r) => r[0] === k)).filter(Boolean);
+        return out.length ? out : [RP_LIST[0]];
     },
 
     head(title, canExport) {
+
         return `<div class="cf-rp-head"><div class="cf-rp-title">${CFApp.esc(title)}</div>
             ${canExport ? `<button class="btn btn-outline btn-sm" onclick="ReportsPage.exportCsv()">
                 <i data-lucide="download" class="icon-sm"></i> ส่งออก CSV</button>` : ''}</div>`;
@@ -166,10 +265,12 @@ const ReportsPage = {
             return c.f ? c.f(v, row) : (v == null ? '—' : typeof v === 'number' ? CFApp.int(v) : e(v));
         };
         const sums = cols.some((c) => c.sum) && rows.length > 1;
-        return `<div class="table-responsive"><table class="data-table compact cf-rp-table">
+        // data-order = ค่าดิบ — DataTables เรียงตัวเลขถูก แม้หน้าจอแสดงเป็น ฿1,234.00 / 12%
+        const ord = (c, row) => { const v = c.v(row); return v == null ? '' : ` data-order="${e(v)}"`; };
+        return `<div class="table-responsive"><table class="data-table compact cf-rp-table" id="rpt-${key}">
             <thead><tr>${cols.map((c) => `<th class="${c.r ? 'r' : ''}">${c.label}</th>`).join('')}</tr></thead>
             <tbody>${rows.map((row) => `<tr${opts.click ? ` class="click" onclick="${opts.click(row)}"` : ''}>
-                ${cols.map((c) => `<td class="${c.r ? 'r' : ''}">${cell(c, row)}</td>`).join('')}</tr>`).join('')}</tbody>
+                ${cols.map((c) => `<td class="${c.r ? 'r' : ''}"${ord(c, row)}>${cell(c, row)}</td>`).join('')}</tr>`).join('')}</tbody>
             ${sums ? `<tfoot><tr>${cols.map((c, i) => {
                 if (!c.sum) return `<td>${i === 0 ? 'รวม' : ''}</td>`;
                 const vals = rows.map((r) => c.v(r));
@@ -467,7 +568,12 @@ const ReportsPage = {
     boot() {
         CFApp.boot({ page: 'reports' });
         this.state.report = (location.hash || '').slice(1) || 'summary';
-        if (!RP_LIST.some((r) => r[0] === this.state.report)) this.state.report = 'summary';
+        if (!this.list().some((r) => r[0] === this.state.report)) this.state.report = this.list()[0][0];
+        // แอดมินเปลี่ยน "ตั้งค่าเมนู" จากอีกเครื่อง → แถบรายงานซ้ายเปลี่ยนตาม · รายงานที่เปิดอยู่ถูกซ่อน → ไปรายงานแรกที่ยังแสดง
+        CFStore.subscribe(() => {
+            if (!this.list().some((r) => r[0] === this.state.report)) this.open(this.list()[0][0]);
+            else this.renderNav();
+        });
         // ปุ่มย้อนกลับ / แก้ #hash เอง — เปลี่ยนรายงานโดยไม่โหลดหน้าใหม่
         window.addEventListener('hashchange', () => {
             const k = location.hash.slice(1);

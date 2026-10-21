@@ -104,9 +104,9 @@ const CashierPage = {
         const area = document.getElementById('orderArea');
 
         if (!orders.length) {
-            area.innerHTML = `<div class="ds-empty">
-                <i data-lucide="inbox" class="icon-lg"></i>
-                <div style="margin-top:8px">ไม่มีรายการในแท็บนี้</div>
+            area.innerHTML = `<div class="ds-empty-state cf-span-all">
+                <div class="ds-empty-state-icon"><i data-lucide="inbox"></i></div>
+                <div class="ds-empty-state-title">ไม่มีรายการในแท็บนี้</div>
             </div>`;
             return;
         }
@@ -314,7 +314,7 @@ const CashierPage = {
 
         Drawer.open({
             title: 'รับชำระเงินสด — ' + CFApp.esc(o.orderNo),
-            width: '520px',
+            width: CFApp.DRAWER_W,
             contentHtml: `
                 <div class="ds-section-label">รายการ</div>
                 ${this._itemsHtml(orderId)}
@@ -342,7 +342,7 @@ const CashierPage = {
                 <div id="cashWarn"></div>`,
             footerHtml: `
                 ${this._manageBtn(o)}
-                <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
+                <button class="btn btn-outline" onclick="Drawer.close()">ยกเลิก</button>
                 <button class="btn btn-primary" id="btnTakeCash" onclick="CashierPage.takeCash()" disabled>
                     <i data-lucide="check" class="icon-sm"></i> รับชำระ
                 </button>`,
@@ -491,7 +491,7 @@ const CashierPage = {
         // เรียงตามที่พนักงานคิดจริง: ยอดเท่าไร → มีหลักฐานไหม → ตัดสินใจ → รายละเอียด (พับไว้)
         Drawer.open({
             title: 'ตรวจสอบการชำระ — ' + e(o.orderNo),
-            width: '560px',
+            width: CFApp.DRAWER_W,
             contentHtml: `
                 <div id="slipInfoBox">${this._slipInfoHtml(o, slip)}</div>
 
@@ -823,7 +823,7 @@ const CashierPage = {
 
         Drawer.open({
             title: 'ออเดอร์ ' + e(o.orderNo),
-            width: '480px',
+            width: CFApp.DRAWER_W,
             contentHtml: `
                 <div class="flex flex-between gap-md" style="margin-bottom:12px">
                     ${CFApp.statusChip(o.status)}
@@ -833,6 +833,7 @@ const CashierPage = {
                 ${this._itemsHtml(orderId)}`,
             footerHtml: `
                 ${this._manageBtn(o)}
+                <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
                 ${CFDocs.canReceipt(o) ? `<button class="btn btn-outline" onclick="CFDocs.previewReceipt('${o.id}')">
                     <i data-lucide="printer" class="icon-sm"></i> ใบเสร็จ
                 </button>` : ''}

@@ -1,16 +1,18 @@
 # CafeFlow — หน้าเว็บ
 
-หน้าจอ 9 หน้า (พนักงาน 7 + คีออสก์ลูกค้า 1 + จอแสดงคิว 1) ที่ทำงานเชื่อมกันจริง สร้างบน `design-system-2/`
+หน้าจอ 10 หน้า (พนักงาน 8 รวมหน้าเข้าสู่ระบบ + คีออสก์ลูกค้า 1 + จอแสดงคิว 1) ที่ทำงานเชื่อมกันจริง สร้างบน `design-system-2/`
 ตามสเปก [`CafeFlow_System_Design_AndamanTech.md`](../CafeFlow_System_Design_AndamanTech.md)
 เมนูถอดจากป้ายหน้าร้านจริง
 
 > **หน้าชุดนี้ทำงานกับเซิร์ฟเวอร์ในร้านเท่านั้น** — ข้อมูลจริงอยู่ที่ PostgreSQL
 > หน้าเว็บเสิร์ฟโดย `cafeflow-api` (`api/`) จาก origin เดียวกับ API
-> ดูวิธีติดตั้งและดูแลที่ [`../ops/README.md`](../ops/README.md)
+> ดูวิธีติดตั้งที่ [`../INSTALL.md`](../INSTALL.md) · ดูแลระบบที่ [`../ops/README.md`](../ops/README.md)
 
-> **`design-system-2/` ไม่ถูกแก้แม้แต่ไบต์เดียว** — หน้าตาแบบ ServiceFlow มาจาก
-> `app/css/ds-cafeflow-theme.css` ที่ทับโทเคนทีหลัง ถอดไฟล์นี้ออกแล้วกลับเป็น MediCore ทันที
-> (ยืนยันได้ด้วย `git diff --stat -- design-system-2` ต้องเงียบ)
+> **`design-system-2/` แก้ให้น้อยที่สุด** — หน้าตาแบบ ServiceFlow มาจาก `app/css/ds-cafeflow-theme.css`
+> ที่ทับโทเคนทีหลัง (ถอดไฟล์นี้ออกแล้วกลับเป็นหน้าตาต้นแบบ MediCore)
+> 21/10/2569 ผู้ใช้ให้ล้างของที่ติดมาจากระบบโรงพยาบาลต้นแบบ: ลบ `showcase.html` · `templates/` · `ds-landing.css`
+> (ส่วน login ย้ายไป `app/css/cf-login.css`) · Lucide สำเนาซ้ำ · เมนู/ไอคอน/บทบาทตัวอย่างของโรงพยาบาลใน `ds-navbar.js`
+> นอกจากนั้นยังเป็นของเดิม — เพิ่ม/แก้หน้าตาให้ทำใน `app/css/` ไม่ใช่ใน `design-system-2/`
 
 ## หน้าตา
 
@@ -23,7 +25,7 @@
 
 ## เปิดใช้งาน
 
-เปิดเซิร์ฟเวอร์ตาม [`../ops/README.md`](../ops/README.md) (`cd api && npm start`) แล้วเปิด
+ติดตั้งเซิร์ฟเวอร์ตาม [`../INSTALL.md`](../INSTALL.md) (เครื่องนักพัฒนา: `cd api && npm start`) แล้วเปิด
 <http://<เครื่องเซิร์ฟเวอร์>:8080/app/login.html> — บนเครื่องเซิร์ฟเวอร์เองคือ <http://localhost:8080/app/login.html>
 
 เปิดไฟล์ตรง ๆ (`file://`) หรือผ่าน static server อื่นไม่ได้ — หน้าเว็บต้องมาจาก origin เดียวกับ API
@@ -49,7 +51,7 @@
 
 | ไฟล์ | สเปก | โครง |
 |---|---|---|
-| `login.html` | — | `.login-overlay` จาก `ds-landing.css` |
+| `login.html` | — | `.login-overlay` จาก `app/css/cf-login.css` |
 | `dashboard.html` | §25 §26 §29 §30 | `.page-container` |
 | `orders.html` | §7 §8 §19 (ประวัติบิล) | `.ds-shell.cols-3` |
 | `reports.html` | §25 §26 (รายงาน · ผู้จัดการ+แอดมิน) | `.page-container` |
@@ -121,7 +123,7 @@ app/
 ### ลำดับการโหลดที่ห้ามสลับ
 
 CSS — ธีมต้องอยู่**หลังทุกไฟล์ของ design system** ไม่ใช่แค่หลัง `ds-tokens.css`
-เพราะนอกจาก remap โทเคนแล้ว มันยังต้องทับสีที่ hard-code ไว้ใน `ds-navbar.css` / `ds-landing.css`
+เพราะนอกจาก remap โทเคนแล้ว มันยังต้องทับสีที่ hard-code ไว้ใน `ds-navbar.css` / `cf-login.css`
 ซึ่งชนะได้ด้วย source order เท่านั้น
 
 JS — `cf-nav.js` ต้องอยู่**หลัง** `ds-navbar.js` และเรียก `DSNavbar.configure()` ที่ top level

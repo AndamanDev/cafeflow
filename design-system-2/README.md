@@ -1,10 +1,11 @@
-# MediCore Design System — Starter Kit
+# CafeFlow Design System (ต้นแบบจาก MediCore) — Starter Kit
 
 ชุดไฟล์หน้าตามาตรฐาน สกัดจากระบบ MediCore IPD ของจริง
 **ก๊อปโฟลเดอร์นี้ทั้งก้อนไปวางในโปรเจคใหม่แล้วใช้ได้เลย** — ไม่ต้อง build ไม่มี dependency
 (พึ่งแค่ Google Fonts กับ Lucide CDN)
 
-> เปิด **`showcase.html`** ด้วยเบราว์เซอร์ได้ทันที (ดับเบิลคลิกไฟล์ก็ได้) เพื่อดูของจริงทุกชิ้น
+> **ใน CafeFlow (21/10/2569):** ลบ `showcase.html` · `templates/` · `ds-landing.css` · `vendor/lucide.min.js` และเมนู/ไอคอน/บทบาทตัวอย่างของโรงพยาบาลแล้ว
+> หัวข้อด้านล่างที่อ้างถึงไฟล์เหล่านั้นเป็นคู่มือเดิมของต้นแบบ — ของจริงที่ CafeFlow ใช้ดู `app/README.md`
 
 ---
 

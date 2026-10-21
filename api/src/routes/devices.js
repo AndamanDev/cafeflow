@@ -409,20 +409,8 @@ function registerDevices(app, deps) {
         }
         return { ok: true, dots: doc.width };
     }));
-
-    /** เลิกจับคู่ — เครื่องหาย ถูกขโมย หรือย้ายไปใช้ที่อื่น */
-    app.post('/api/devices/:id/unpair', handle(async (req) => {
-        const ctx = await context(req);
-        requirePerm(ctx, 'MENU_EDIT');
-        const r = await query(
-            `UPDATE device SET pairing_token_hash = NULL, paired_at = NULL,
-                    pair_code_hash = NULL, pair_code_expires_at = NULL
-              WHERE id = $1 AND branch_id = $2 RETURNING id`,
-            [req.params.id, branchId()]);
-        if (!r.rows.length) throw new ApiError(404, 'ไม่พบอุปกรณ์');
-        await checkDevices(query, branchId(), req.params.id);
-        return { ok: true };
-    }));
+    // POST /api/devices/:id/unpair ลบ 21/10/2569 — ไม่มีปุ่มเรียก · เครื่องหาย/ถูกขโมย: กด "จับคู่" ใหม่ให้เครื่องอื่น
+    // สิทธิ์ของเครื่องเดิมถูกแทนที่ทันที (pairing token ใหม่ทับของเก่า)
 }
 
 module.exports = { registerDevices, currentDevice, COOKIE, sha, waitingList, checkDevices, startDeviceWatch };

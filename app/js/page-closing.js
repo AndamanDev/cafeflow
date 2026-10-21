@@ -63,7 +63,7 @@ const ClosingPage = {
                     : '<a class="btn btn-outline btn-sm" href="cashier.html">ตรวจที่แคชเชียร์</a>';
             return `<tr>
                 <td class="td-name">${e(o.orderNo)}</td>
-                <td class="cf-nowrap td-sub">${CFApp.dateTime(o.createdAt)}</td>
+                <td class="cf-nowrap td-sub" data-order="${e(o.createdAt)}">${CFApp.dateTime(o.createdAt)}</td>
                 <td>${CFApp.statusChip(o.status)}</td>
                 <td class="cf-right cf-money">${CFApp.money(o.total)}</td>
                 <td class="cf-right cf-nowrap">${act}</td>
@@ -79,11 +79,13 @@ const ClosingPage = {
                 '<a class="btn btn-outline btn-sm" href="cashier.html">ไปตรวจ <i data-lucide="arrow-right" class="icon-sm"></i></a>') +
             `<details class="cf-cl-details" ${this.state.listOpen ? 'open' : ''} ontoggle="ClosingPage.state.listOpen = this.open">
                 <summary>ดูรายการทีละใบ (${list.length})</summary>
-                <div class="table-responsive"><table class="data-table compact">
-                    <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th></th></tr></thead>
+                <div class="table-responsive"><table class="data-table compact" id="clPending">
+                    <thead><tr><th>ออเดอร์</th><th>สั่งเมื่อ</th><th>สถานะ</th><th class="cf-right">ยอด</th><th class="no-sort"></th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table></div>
             </details>`;
+        // DataTables (21/10/2569) — วาดใหม่ทุกครั้งที่ store เปลี่ยน CFTable จำหน้า/คำค้นไว้ให้
+        CFTable.mount('clPending');
     },
 
     async cancelOne(id) {
@@ -257,9 +259,9 @@ const ClosingPage = {
         CFDocs.previewClosing(shift.id);
     },
 
-    toggleReopen() {
-        this.state.reopen = !this.state.reopen;
-        document.getElementById('reopenToggle').classList.toggle('is-on', this.state.reopen);
+    setReopen(on) {
+        this.state.reopen = on;
+        CFApp.markBox('reopenToggle', on);
     },
 
     /** เปิดรอบ — ทุกเช้าก่อนขาย (ปิดรอบแบบปิดร้านแล้วระบบไม่เปิดรอบใหม่ให้) */
@@ -356,7 +358,7 @@ const ClosingPage = {
             if (el2) el2.value = '';
             document.getElementById('closeNote').value = '';
             this.state.reopen = false;
-            document.getElementById('reopenToggle').classList.remove('is-on');
+            CFApp.markBox('reopenToggle', false);
             showToast(res.nextShift
                 ? 'ปิดรอบเรียบร้อย — เปิดรอบ ' + res.nextShift + ' ให้แล้ว'
                 : 'ปิดรอบเรียบร้อย — คีออสก์หยุดรับออเดอร์ · พรุ่งนี้กด "เปิดรอบ" ก่อนขาย', 'success', 5000);

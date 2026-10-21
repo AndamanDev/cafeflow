@@ -133,34 +133,8 @@ function registerMedia(app, deps) {
             bytes: out.data.length, originalBytes: buf.length,
         };
     }));
-
-    /**
-     * ลบรูปที่ไม่มีสินค้าใดใช้แล้ว — เรียกเองเมื่อต้องการคืนพื้นที่
-     * ไม่ลบอัตโนมัติตอนแก้สินค้า เพราะรูปเดียวกันอาจถูกใช้หลายสินค้า
-     * (ชื่อไฟล์เป็น hash ของเนื้อ รูปเดิมซ้ำจึงเป็นไฟล์เดียวกัน)
-     */
-    app.post('/api/media/gc', handle(async (req) => {
-        const ctx = await context(req);
-        requirePerm(ctx, 'MENU_EDIT');
-
-        const used = new Set((await deps.query(
-            `SELECT image_url FROM product
-              WHERE branch_id = $1 AND image_url LIKE '/media/products/%'`,
-            [branchId()])).rows.map((r) => path.basename(r.image_url)));
-
-        const dir = mediaDir(root);
-        let removed = 0, kept = 0, freed = 0;
-        for (const f of fs.readdirSync(dir)) {
-            if (used.has(f)) { kept++; continue; }
-            const st = fs.statSync(path.join(dir, f));
-            // เว้นไฟล์ที่เพิ่งอัปไว้ — อาจกำลังกรอกฟอร์มค้างอยู่ยังไม่ได้กดบันทึก
-            if (Date.now() - st.mtimeMs < 3600 * 1000) { kept++; continue; }
-            freed += st.size;
-            fs.unlinkSync(path.join(dir, f));
-            removed++;
-        }
-        return { removed, kept, freedKB: Math.round(freed / 1024) };
-    }));
+    // POST /api/media/gc (ลบรูปที่ไม่มีสินค้าใช้) ลบ 21/10/2569 — ไม่มีปุ่มหรือสคริปต์ใดเรียก
+    // รูปเก็บเป็น hash ของเนื้อ รูปซ้ำเป็นไฟล์เดียวกัน พื้นที่โตช้ามาก
 }
 
 module.exports = { registerMedia, shrink, sniff, mediaDir, MAX_BYTES, MAX_EDGE };

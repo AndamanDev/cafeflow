@@ -1,5 +1,5 @@
 /**
- * MediCore Design System — NAVBAR
+ * CafeFlow Design System (ต้นแบบจาก MediCore) — NAVBAR
  * ------------------------------------------------------------
  * แถบเมนูบนใช้ร่วมทุกหน้า — หน้าต้องมี <nav id="appNavbar"></nav>
  * (ถ้าไม่มี จะ prepend เข้า <body> ให้เอง)
@@ -9,8 +9,7 @@
  *
  * ผูกผู้ใช้/สิทธิ์:
  *   DSNavbar.configure({ getUser, getRole, onLogout, brand })
- *   ถ้าไม่ configure จะอ่าน window.Auth ถ้ามี — ไม่มีก็ใช้ demo user
- *   (ทำให้ showcase.html เปิดด้วย file:// ได้โดยไม่ต้องมี backend)
+ *   ถ้าไม่ configure จะอ่าน window.Auth ถ้ามี — ไม่มีก็ไม่แสดงผู้ใช้
  *
  * ไอคอนเป็น inline SVG (ไม่พึ่ง Lucide CDN) — navbar จึงไม่พังถ้า CDN ล่ม
  */
@@ -25,22 +24,13 @@ const DS_ICONS = {
     users:       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
     search:      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
     calendar:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-    stethoscope: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 105 2H4a2 2 0 00-2 2v5a6 6 0 0012 0V4a2 2 0 00-2-2h-1a.2.2 0 10.3.3"/><path d="M8 15v1a6 6 0 006 6 6 6 0 006-6v-4"/><circle cx="20" cy="10" r="2"/></svg>',
-    heartPulse:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.572l-7.5 7.428-7.5-7.428A5 5 0 1112 6.006a5 5 0 017.5 6.572"/><path d="M12 6v4l2 2h4"/></svg>',
-    bed:         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 012 2v10"/><path d="M2 17h20"/><path d="M6 8v-2a2 2 0 012-2h0a2 2 0 012 2v2"/></svg>',
-    hospital:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v4"/><path d="M14 8h-4"/><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M4 22h16"/><path d="M9 22v-4h6v4"/></svg>',
-    heart:       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0016.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 002 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>',
     edit:        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
     zap:         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-    syringe:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2l4 4"/><path d="M17 7l3-3"/><path d="M19 9l-8.7 8.7c-.4.4-1 .4-1.4 0L5.3 14.1a1 1 0 010-1.4L14 4"/><path d="M5 14l-2 2"/><path d="M7 17l-3 3"/><path d="M11 10l2 2"/></svg>',
     checkSquare: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
     refresh:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 017 3.18"/><path d="M21 3v6h-6"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-7-3.18"/><path d="M3 21v-6h6"/></svg>',
     fileText:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
-    ambulance:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 10H6"/><path d="M14 18V6a2 2 0 00-2-2H4a2 2 0 00-2 2v11a1 1 0 001 1h2"/><path d="M19 18h2a1 1 0 001-1v-3.28a1 1 0 00-.684-.948l-1.923-.641a1 1 0 01-.578-.502l-1.539-3.076A1 1 0 0016.382 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>',
     alertCircle: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
     alertTri:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-    pill:        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 1.5l-8 8a5.657 5.657 0 008 8l8-8a5.657 5.657 0 00-8-8z"/><path d="M6.5 13.5l5-5"/></svg>',
-    droplet:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>',
     clock:       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
     listChecks:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/></svg>',
     settings:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
@@ -70,50 +60,11 @@ const DS_ICONS = {
    roles: เว้นว่าง = ทุกคนเห็น · คั่นด้วยช่องว่าง/จุลภาค
    ⚠️ role gate นี้เป็นแค่ UX — ด่านจริงต้องอยู่ที่ server
    ══════════════════════════════════════════════════════════ */
-const DS_MENU = [
-    { link: 'index.html', label: 'หน้าแรก', icon: 'home' },
+// เมนูตัวอย่างของระบบโรงพยาบาลต้นแบบลบแล้ว (21/10/2569) — CafeFlow ส่งเมนูจริงผ่าน DSNavbar.configure({ menu }) (app/js/cf-nav.js)
+const DS_MENU = [];
 
-    {
-        group: 'records', label: 'ข้อมูลหลัก', icon: 'clipboard',
-        items: [
-            { section: 'ข้อมูล' },
-            { href: 'records.html',        label: 'ภาพรวม',        icon: 'clipboard' },
-            { href: 'records-search.html', label: 'ค้นหา',          icon: 'search' },
-            { href: 'records-new.html',    label: 'เพิ่มรายการใหม่', icon: 'userPlus', roles: 'ADMIN' },
-            { sep: true },
-            { section: 'รายงาน' },
-            { href: 'reports.html', label: 'รายงานสรุป', icon: 'chart', badge: { text: 'New', type: 'new' } },
-        ],
-    },
-
-    {
-        group: 'work', label: 'งานประจำวัน', icon: 'listChecks',
-        items: [
-            { href: 'tasks.html',    label: 'ตารางงาน',   icon: 'checkSquare', badge: { text: 'Live', type: 'live' } },
-            { href: 'calendar.html', label: 'ปฏิทินนัด',  icon: 'calendar' },
-            { sep: 'strong' },
-            { href: 'inbox.html',    label: 'กล่องข้อความ', icon: 'bell' },
-        ],
-    },
-
-    {
-        group: 'settings', label: '', icon: 'settings', alignRight: true,
-        title: 'ตั้งค่าระบบ', roles: 'ADMIN',
-        items: [
-            { section: 'ตั้งค่าระบบ' },
-            { href: 'settings-general.html', label: 'ตั้งค่าทั่วไป',  icon: 'settings' },
-            { href: 'settings-users.html',   label: 'ผู้ใช้และสิทธิ์', icon: 'users' },
-        ],
-    },
-];
-
-/* ป้ายตำแหน่งภาษาไทย — แก้ให้ตรงกับ role ของโปรเจคใหม่ */
-const DS_ROLE_LABEL = {
-    ADMIN:      'ผู้ดูแลระบบ',
-    DOCTOR:     'แพทย์',
-    NURSE:      'พยาบาล',
-    PHARMACIST: 'เภสัชกร',
-};
+// ป้ายบทบาทมาจาก getUser().role_label ของแอปเสมอ (CFAuth) — ไม่มีตารางสำรองแบบโรงพยาบาลแล้ว
+const DS_ROLE_LABEL = {};
 
 
 /* ══════════════════════════════════════════════════════════
@@ -123,8 +74,8 @@ const DSNavbar = {
 
     /* ── ปรับแต่งได้จากหน้า (เรียกก่อน DOMContentLoaded) ── */
     opts: {
-        brand:    'MediCore',
-        brandSub: 'Design System',
+        brand:    'CafeFlow',
+        brandSub: '',
         homeHref: 'index.html',
         menu:     null,          // null = ใช้ DS_MENU
         getUser:  null,          // () => ({ full_name, active_role, role_label })
@@ -150,7 +101,7 @@ const DSNavbar = {
     _user() {
         if (typeof this.opts.getUser === 'function') return this.opts.getUser();
         if (window.Auth && typeof Auth.getUser === 'function') return Auth.getUser();
-        return { full_name: 'ผู้ใช้ตัวอย่าง', active_role: 'ADMIN' };
+        return null;                                  // ยังไม่มีผู้ใช้ — ไม่แสดงชื่อ (เดิมเป็นผู้ใช้ตัวอย่าง)
     },
     _role() {
         if (typeof this.opts.getRole === 'function') return (this.opts.getRole() || '').toUpperCase();

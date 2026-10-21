@@ -135,6 +135,5 @@
         },
 
         refresh,
-        isOnline() { return _online; },
     };
 })();

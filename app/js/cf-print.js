@@ -75,7 +75,7 @@ const CFPrint = {
         return `
             ${c.sizes && c.sizes.length > 1 ? `
             <div class="ds-toolbar" style="justify-content:space-between">
-                <span class="ds-hint">ความกว้างกระดาษ</span>
+                <span class="ds-note">ความกว้างกระดาษ</span>
                 <div class="ds-segbar">
                     ${c.sizes.map((s) => `<button class="ds-seg ${s === c.size ? 'active' : ''}"
                         onclick="CFPrint.setSize('${s}')">${CF_PAPER[s].label}</button>`).join('')}
@@ -91,7 +91,7 @@ const CFPrint = {
         const hint = CF_PAPER[c.size].roll
             ? 'เครื่องพิมพ์ความร้อน ' + CF_PAPER[c.size].label
             : 'กระดาษ A4 แนวตั้ง';
-        return `<span class="ds-hint" style="flex:1">${hint}</span>
+        return `<span class="ds-note cf-grow">${hint}</span>
                 <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
                 <button class="btn btn-primary" onclick="CFPrint.run()">
                     <i data-lucide="printer" class="icon-sm"></i> พิมพ์
@@ -199,7 +199,7 @@ const CFPrint = {
                                 background:#fff;box-shadow:0 0 0 0.8px #DFDFDF">
                 </div>`);
             Drawer.setFooter(`
-                <span class="ds-hint" style="flex:1">${ready
+                <span class="ds-note cf-grow">${ready
                     ? 'พิมพ์ที่ <strong>' + CFApp.esc(p.name) + '</strong> · ' + (p.conn === 'USB' ? 'USB' : 'LAN')
                     : '<span style="color:var(--danger,#D92D20)">ยังไม่ได้ตั้งเครื่องพิมพ์ของส่วนนี้</span>'}</span>
                 <button class="btn btn-outline" onclick="Drawer.close()">ปิด</button>
@@ -298,7 +298,7 @@ const CFPrint = {
         const jobs = await this.failedJobs();
         Drawer.open({
             title: 'งานที่พิมพ์ไม่ออก (' + jobs.length + ')',
-            width: '560px',
+            width: CFApp.DRAWER_W,
             contentHtml: `
                 <div class="ds-note" style="margin-bottom:12px">
                     เช็กเครื่องพิมพ์ก่อน: กระดาษหมด · ฝาเปิด · สายหลุด · ไฟไม่เข้า แล้วกด "พิมพ์ซ้ำ"

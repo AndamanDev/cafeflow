@@ -6,6 +6,7 @@
  *   POST /api/auth/login   { username, password }  → ตั้ง cookie + คืนข้อมูลผู้ใช้
  *   POST /api/auth/logout
  *   GET  /api/auth/me
+ *   POST /api/auth/password/check    { current }        ตรวจรหัสเดิม (ขั้นแรกของหน้าเปลี่ยนรหัส)
  *   POST /api/auth/password          { current, next }  เปลี่ยนรหัสของตัวเอง
  *   POST /api/users/:id/password     { next }           แอดมินตั้งรหัสให้คนอื่น
  *   POST  /api/users                 { username, name, role, password, overrideLimit }   แอดมินเพิ่มผู้ใช้
@@ -94,6 +95,24 @@ function registerAuth(app, { query, tx, branchId }) {
     }
 
     /** เปลี่ยนรหัสของตัวเอง — ต้องรู้รหัสเดิม กันคนที่เดินมาเจอหน้าจอที่ล็อกอินค้างไว้ */
+    /**
+     * ตรวจรหัสเดิมก่อน — หน้าเปลี่ยนรหัสผ่านโชว์ช่องรหัสใหม่หลังผ่านขั้นนี้เท่านั้น (ผู้ใช้ขอ 21/10/2569)
+     * ผิดซ้ำ = หน่วงเหมือนหน้าล็อกอิน (กันไล่เดารหัสจากเครื่องที่ล็อกอินค้างไว้) · ตอนบันทึกจริงยังตรวจซ้ำเสมอ
+     */
+    app.post('/api/auth/password/check', async (req, reply) => {
+        const u = await currentUser(query, req);
+        if (!u) return fail(reply, 401, 'ยังไม่ได้เข้าสู่ระบบ');
+        const key = 'pw|' + u.id;
+        const wait = penalty(key);
+        if (wait) await new Promise((r) => setTimeout(r, wait));
+        if (!(await argon2.verify(u.password_hash, String((req.body && req.body.current) || '')))) {
+            fails.set(key, (fails.get(key) || 0) + 1);
+            return fail(reply, 400, 'รหัสผ่านเดิมไม่ถูกต้อง');
+        }
+        fails.delete(key);
+        return { ok: true };
+    });
+
     app.post('/api/auth/password', async (req, reply) => {
         const u = await currentUser(query, req);
         if (!u) return fail(reply, 401, 'ยังไม่ได้เข้าสู่ระบบ');

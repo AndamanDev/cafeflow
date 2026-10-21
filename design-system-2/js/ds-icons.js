@@ -1,5 +1,5 @@
 /* ============================================================
-   MediCore Design System — ICONS
+   CafeFlow Design System (ต้นแบบจาก MediCore) — ICONS
    ------------------------------------------------------------
    ระบบไอคอน = Lucide เท่านั้น  ·  ห้ามใช้ emoji ใน UI
    (ยกเว้นเนื้อหาที่ผู้ใช้พิมพ์เอง เช่น ช่องข้อความ)
@@ -17,10 +17,10 @@
    ============================================================ */
 
 (function () {
-    // Lucide เก็บในเครื่อง (vendor/lucide.min.js · เวอร์ชันล็อกไว้ 1.53.0) — เดิมดึง unpkg@latest:
-    // ร้านไม่มีเน็ต ไอคอนหายทุกหน้า และ @latest อาจเปลี่ยนเองจนไอคอนบางตัวหาย
+    // Lucide เก็บในเครื่องที่ app/vendor/lucide.min.js (ทุกหน้าพนักงานโหลดเองก่อนไฟล์นี้อยู่แล้ว) — ห้ามดึง CDN: ร้านไม่มีเน็ตไอคอนหาย
+    // สำเนาใน design-system-2/vendor ลบแล้ว 21/10/2569 (ซ้ำกัน ไม่มีหน้าไหนโหลด) — ตัวนี้เป็นทางสำรองเผื่อหน้าใหม่ลืมใส่ <script>
     const SELF = document.currentScript && document.currentScript.src;
-    const CDN = SELF ? new URL('../vendor/lucide.min.js', SELF).href : '/design-system-2/vendor/lucide.min.js';
+    const CDN = SELF ? new URL('../../app/vendor/lucide.min.js', SELF).href : '/app/vendor/lucide.min.js';
     let loading = null;
 
     /** โหลด Lucide จาก CDN ถ้ายังไม่มี (คืน Promise) */

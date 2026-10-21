@@ -6,7 +6,7 @@
  * กดซ้ำได้เสมอ — ทุกขั้นตรวจก่อน ทำแล้วข้าม · ล้มตรงไหน แก้แล้วกดไฟล์ติดตั้งอีกครั้งจะทำต่อจากตรงนั้น
  * ไม่ seed ทับร้านที่มีเมนูแล้ว · ไม่แตะข้อมูลออเดอร์
  *
- * ขั้นตอนเหมือน INSTALL.md ข้อ 2–4 (+ไฟร์วอลล์ข้อ 5) · log: logs\install.log
+ * ขั้นตอนเหมือน INSTALL.md ข้อ 2 (ทำมือ: ภาคผนวก ก) · log: logs\install.log
  * ไม่เพิ่ม exclusion ให้แอนตี้ไวรัสเอง — สคริปต์ที่ทำแบบนั้นคือพฤติกรรมมัลแวร์ที่แอนตี้ไวรัสจับแน่
  */
 'use strict';
@@ -236,7 +236,7 @@ function stepFirewall() {
     // ทุกโปรไฟล์ — เครื่องร้านมักถูกตั้งเครือข่ายเป็น Public โดยไม่มีใครรู้ แล้วจอทั้งร้านต่อไม่ติด
     const r = run('netsh', ['advfirewall', 'firewall', 'add', 'rule', `name=${FW_RULE}`, 'dir=in', 'action=allow',
         'protocol=TCP', `localport=${API_PORT}`, 'profile=any']);
-    if (r.code !== 0) log('  ⚠ เปิดไฟร์วอลล์ไม่สำเร็จ (ต้องรันแบบ admin) — ทำเองตามคู่มือขั้นที่ 10.3');
+    if (r.code !== 0) log('  ⚠ เปิดไฟร์วอลล์ไม่สำเร็จ (ต้องรันแบบ admin) — ทำเองตาม INSTALL.md ภาคผนวก ก');
 }
 
 async function stepStart(restartOcr) {
@@ -299,7 +299,7 @@ async function main() {
     : !ocr.paddle ? '⚠ ยังไม่ได้ติดตั้ง — กดไฟล์ติดตั้งอีกครั้งเพื่อลองใหม่'
     : '⚠ ยังไม่ขึ้น — รีสตาร์ทเครื่อง 1 ครั้ง ถ้ายังไม่ขึ้นส่ง logs\\ocr.err.log ให้ช่าง'}
 
-  ยังต้องทำเอง (ดู docs\\INSTALL-EASY.md):
+  ยังต้องทำเอง (ดู INSTALL.md ข้อ 3–6):
    1. ให้ Windows login เอง — Win+R พิมพ์ netplwiz เอาติ๊กออก
    2. BIOS: Restore on AC Power Loss = Power On
    3. จอง IP เครื่องนี้ที่เราเตอร์
