@@ -1137,3 +1137,72 @@ table.dataTable td:has(> .sip-chip:only-child), table.dataTable td:has(> .status
 .cf-eqw { gap: 4px; }
 /* ซ่อนจากการตั้งค่าเมนู (CFMenuLayout) — ใช้ class แยกจาก role gate ที่ซ่อนด้วย style.display */
 .cf-menu-hidden { display: none !important; }
+
+/* drawer จอเล็ก/มือถือ — เต็มจอ ไม่เว้นขอบ (ความกว้างปกติมาจาก CFApp.DRAWER_W = min(880px, 100vw − 48px)) */
+@media (max-width: 640px) {
+    .drawer-panel { width: 100vw !important; }
+    .drawer-body { padding-left: 12px; padding-right: 12px; }
+    .drawer-footer { flex-wrap: wrap; gap: 8px; }
+}
+/* เนื้อหาใน drawer ห้ามดันให้ทั้งแผงเลื่อนแนวนอน — ตารางกว้างเลื่อนเฉพาะในกล่องของตัวเอง */
+.drawer-body { overflow-x: hidden; }
+.drawer-body .cf-set-card, .drawer-body .table-responsive { max-width: 100%; }
+.drawer-body .table-responsive { overflow-x: auto; }
+
+/* ══════════════════════════════════════════════════════════
+   ตาราง DataTables บนจอแคบ → การ์ดทีละแถว (ไม่ต้องเลื่อนซ้ายขวา · ผู้ใช้ขอ 21/10/2569)
+   ใน drawer: จอ ≤ 800 (แผงเหลือ ≤ 752) · ในหน้าปกติ: จอ ≤ 640
+   ชื่อคอลัมน์มาจาก data-label ที่ CFTable ใส่ให้ · คอลัมน์แรก (ชื่อ) เป็นหัวการ์ด · คอลัมน์ไม่มีชื่อ (ปุ่ม) ชิดขวา
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 800px) {
+    .drawer-body table.dataTable.data-table > thead { display: none; }
+    .drawer-body table.dataTable.data-table,
+    .drawer-body table.dataTable.data-table > tbody,
+    .drawer-body table.dataTable.data-table > tfoot,
+    .drawer-body table.dataTable.data-table tr { display: block; width: 100% !important; }
+    .drawer-body table.dataTable.data-table tr { padding: 10px 14px; border-top: var(--hairline) solid var(--brand-border); }
+    .drawer-body table.dataTable.data-table > tbody > tr:first-child { border-top: 0; }
+    .drawer-body table.dataTable.data-table > tbody > tr > td,
+    .drawer-body table.dataTable.data-table > tfoot > tr > td {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        width: 100% !important; padding: 4px 0 !important; border: 0; text-align: right !important; white-space: normal;
+    }
+    .drawer-body table.dataTable.data-table td::before {
+        content: attr(data-label); flex-shrink: 0; text-align: left;
+        font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    }
+    .drawer-body table.dataTable.data-table td:first-child { justify-content: flex-start; text-align: left !important; padding-bottom: 6px !important; }
+    .drawer-body table.dataTable.data-table td:first-child::before,
+    .drawer-body table.dataTable.data-table td[data-label=""]::before { display: none; }
+    .drawer-body table.dataTable.data-table td[data-label=""] { justify-content: flex-end; }
+    .drawer-body table.dataTable.data-table td > .sip-chip:only-child,
+    .drawer-body table.dataTable.data-table td > .status-badge:only-child { display: inline-flex; width: auto; }
+    .drawer-body table.dataTable.data-table td.dt-empty { justify-content: center; }
+    .drawer-body table.dataTable.data-table td.dt-empty::before { display: none; }
+}
+@media (max-width: 640px) {
+    table.dataTable.data-table > thead { display: none; }
+    table.dataTable.data-table, table.dataTable.data-table > tbody, table.dataTable.data-table > tfoot,
+    table.dataTable.data-table tr { display: block; width: 100% !important; }
+    table.dataTable.data-table tr { padding: 10px 14px; border-top: var(--hairline) solid var(--brand-border); }
+    table.dataTable.data-table > tbody > tr > td, table.dataTable.data-table > tfoot > tr > td {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        width: 100% !important; padding: 4px 0 !important; border: 0; text-align: right !important; white-space: normal;
+    }
+    table.dataTable.data-table td::before {
+        content: attr(data-label); flex-shrink: 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    }
+    table.dataTable.data-table td:first-child { justify-content: flex-start; text-align: left !important; }
+    table.dataTable.data-table td:first-child::before, table.dataTable.data-table td[data-label=""]::before { display: none; }
+    table.dataTable.data-table td[data-label=""] { justify-content: flex-end; }
+    table.dataTable.data-table td > .sip-chip:only-child, table.dataTable.data-table td > .status-badge:only-child { display: inline-flex; width: auto; }
+}
+@media (max-width: 640px) {
+    table.dataTable.data-table td .td-sub, table.dataTable.data-table td .td-name { white-space: normal; }
+    table.dataTable.data-table .cf-prod-cell { min-width: 0; }
+    .cf-menu-tools { flex-wrap: wrap; }
+}
+@media (max-width: 640px) {
+    div.dt-container .dt-search input { width: 100%; margin: 0; box-sizing: border-box; }
+    div.dt-container .dt-layout-cell { min-width: 0; }
+}

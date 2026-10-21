@@ -63,6 +63,13 @@ const CFTable = (() => {
             columnDefs: [{ targets: 'no-sort', orderable: false }],
         }, dtOpts));
 
+        // จอแคบ: CSS เรียงแถวเป็นการ์ด ชื่อคอลัมน์ซ้าย ค่าขวา — ช่องต้องรู้ชื่อคอลัมน์ของตัวเอง (data-label)
+        const labels = [...table.tHead.rows[0].cells].map((th) => th.textContent.trim());
+        const label = () => table.querySelectorAll('tbody tr, tfoot tr').forEach((tr) =>
+            [...tr.cells].forEach((td, i) => { if (!td.hasAttribute('data-label')) td.setAttribute('data-label', labels[i] || ''); }));
+        label();
+        dt.on('draw', label);
+
         if (id) {
             live.set(id, dt);
             dt.on('draw', () => {
