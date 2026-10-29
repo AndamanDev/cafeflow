@@ -7,7 +7,12 @@ rem    screen-edge.bat                 menu: pick kiosk / cashier / kitchen / qu
 rem    screen-edge.bat display         open the queue display straight away
 rem    screen-edge.bat kds             kitchen screen        (also: kiosk, cashier)
 rem    screen-edge.bat ip              change the server address
+rem    screen-edge.bat monitor         forget which monitor each screen opens on (asks again)
 rem    screen-edge.bat display autostart   also open this screen every time Windows starts
+rem
+rem  PC with 2+ monitors (e.g. cashier in front, kiosk facing customers): asked once
+rem  per screen which monitor to use, then remembered (CafeFlowScreen\monitor-<screen>.txt).
+rem  A kiosk-mode window cannot be dragged, so it is placed with --window-position.
 rem
 rem  Server address: on the server PC itself -> localhost, never asked.
 rem  Other machines: asked the first time, then remembered on THIS machine
@@ -38,6 +43,7 @@ if not exist "%CFG_DIR%" mkdir "%CFG_DIR%"
 
 set "ROLE=%~1"
 if /i "%ROLE%"=="ip" ( call :ask_ip & exit /b 0 )
+if /i "%ROLE%"=="monitor" ( call :forget_monitor & exit /b 0 )
 
 rem ---- server address -----------------------------------------------
 rem  This machine IS the server (API answers on localhost) -> use it, nothing to ask.
@@ -58,12 +64,14 @@ if "%ROLE%"=="" (
   echo    2  Cashier
   echo    3  Kitchen ^(KDS^)
   echo    4  Queue display   ^(TV^)
+  echo    8  Change which monitor each screen opens on
   echo    9  Change server address
   set /p PICK=  Choose 1-4:
   if "!PICK!"=="1" set "ROLE=kiosk"
   if "!PICK!"=="2" set "ROLE=cashier"
   if "!PICK!"=="3" set "ROLE=kds"
   if "!PICK!"=="4" set "ROLE=display"
+  if "!PICK!"=="8" ( call :forget_monitor & exit /b 0 )
   if "!PICK!"=="9" ( call :ask_ip & exit /b 0 )
 )
 if /i "%ROLE%"=="kiosk"   set "PAGE=kiosk.html"
@@ -92,7 +100,12 @@ if /i "%~2"=="autostart" (
   echo  ^(some antivirus removes Startup items - if it does not open after reboot, add it again^)
 )
 
+rem ---- which monitor (only asked on a PC with more than one) -----------
+set "POS="
+call :pick_monitor
+
 set "COMMON=--no-first-run --autoplay-policy=no-user-gesture-required --user-data-dir="%LOCALAPPDATA%\CafeFlow-%ROLE%" --unsafely-treat-insecure-origin-as-secure=%SERVER%"
+if defined POS set "COMMON=%COMMON% --window-position=%POS%"
 
 if /i "%ROLE%"=="kiosk" (
   start "" "%EDGE%" --kiosk "%SERVER%/app/%PAGE%" --edge-kiosk-type=fullscreen %COMMON% --use-fake-ui-for-media-stream --kiosk-printing
@@ -102,6 +115,41 @@ if /i "%ROLE%"=="kiosk" (
 ) else (
   start "" "%EDGE%" --kiosk "%SERVER%/app/%PAGE%" --edge-kiosk-type=fullscreen %COMMON%
 )
+exit /b 0
+
+rem ================================================================
+:pick_monitor
+rem  One line per monitor: number X Y width height main(1/0) - Windows' own order
+set "MONS=%CFG_DIR%\monitors.txt"
+powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $i=0; foreach($s in [System.Windows.Forms.Screen]::AllScreens){ $i++; $b=$s.Bounds; '{0} {1} {2} {3} {4} {5}' -f $i,$b.X,$b.Y,$b.Width,$b.Height,[int]$s.Primary }" > "%MONS%" 2>nul
+set "NMON=0"
+for /f %%a in ('type "%MONS%"') do set /a NMON+=1
+if %NMON% LSS 2 exit /b 0
+
+set "MONCFG=%CFG_DIR%\monitor-%ROLE%.txt"
+set "MON="
+if exist "%MONCFG%" set /p MON=<"%MONCFG%"
+if not defined MON (
+  echo.
+  echo  This PC has %NMON% monitors - which one shows the %ROLE% screen?
+  for /f "tokens=1-6" %%a in ('type "%MONS%"') do (
+    if "%%f"=="1" ( echo    %%a  %%dx%%e  ^(main monitor^) ) else ( echo    %%a  %%dx%%e )
+  )
+  set /p MON=  Choose 1-%NMON%:
+  > "%MONCFG%" echo !MON!
+)
+rem  A point just inside that monitor - Edge then goes full screen on the monitor it is on
+for /f "tokens=1-3" %%a in ('type "%MONS%"') do if "%%a"=="!MON!" (
+  set /a PX=%%b+100, PY=%%c+100
+  set "POS=!PX!,!PY!"
+)
+rem  Monitor unplugged / wrong number -> open on the main monitor, ask again next time
+if not defined POS del /q "%MONCFG%" 2>nul
+exit /b 0
+
+:forget_monitor
+del /q "%CFG_DIR%\monitor-*.txt" 2>nul
+echo  Monitor choice cleared - each screen asks again the next time it opens.
 exit /b 0
 
 rem ================================================================
