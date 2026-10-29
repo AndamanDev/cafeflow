@@ -48,20 +48,35 @@ if /i "%~1"=="install" set "READY=0"
 rem ---- ready: open the menu ----------------------------------------
 rem  The menu is in Thai. The old console window (Windows 10) has no Thai
 rem  font and shows boxes - reopen this file inside Windows Terminal.
+rem  Windows 10: "wt" may be installed but its folder missing from PATH -> look there too.
 if "%READY%"=="1" if not defined WT_SESSION (
+    set "WT="
     where wt >nul 2>&1
-    if not errorlevel 1 (
-        start "" wt -w new --title CafeFlow -d "%DIR%" cmd /c "%~f0"
-        exit /b 0
+    if not errorlevel 1 set "WT=wt"
+    if not defined WT if exist "%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe" set "WT=%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe"
+    if defined WT (
+        start "" "!WT!" -w new --title CafeFlow -d "%DIR%" cmd /c "%~f0"
+        if not errorlevel 1 exit /b 0
+        echo  [x] Windows Terminal did not open - showing the menu in this window.
     )
     echo  Thai text shows as boxes? Install Windows Terminal, then open this file again:
     echo    winget install -e --id Microsoft.WindowsTerminal
+    echo  Already installed? Settings ^> Apps ^> App execution aliases ^> turn on Windows Terminal ^(wt.exe^)
     echo.
 )
+rem  Menu crashed (e.g. broken install) -> keep the window open so the error can be read
 if "%READY%"=="1" (
     cd /d "%DIR%"
     node ops\tools\menu.js
-    exit /b !errorlevel!
+    set "RC=!errorlevel!"
+    if not "!RC!"=="0" (
+        echo.
+        echo  [x] The menu stopped with an error ^(code !RC!^) - send the message above to the technician.
+        echo      Repair: run "%~f0" install
+        echo.
+        pause
+    )
+    exit /b !RC!
 )
 
 rem ---- not ready: install / repair ---------------------------------

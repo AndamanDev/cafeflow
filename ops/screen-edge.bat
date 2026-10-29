@@ -9,6 +9,8 @@ rem    screen-edge.bat kds             kitchen screen        (also: kiosk, cashi
 rem    screen-edge.bat ip              change the server address
 rem    screen-edge.bat monitor         forget which monitor each screen opens on (asks again)
 rem    screen-edge.bat display autostart   also open this screen every time Windows starts
+rem    screen-edge.bat kiosk shortcut      also put a Desktop icon (Thai name) that opens this
+rem                                        screen - shop staff use that, not this file or the menu
 rem
 rem  PC with 2+ monitors (e.g. cashier in front, kiosk facing customers): asked once
 rem  per screen which monitor to use, then remembered (CafeFlowScreen\monitor-<screen>.txt).
@@ -104,6 +106,9 @@ rem ---- which monitor (only asked on a PC with more than one) -----------
 set "POS="
 call :pick_monitor
 
+rem ---- shortcut: after the monitor is chosen, so the icon never has to ask ----
+if /i "%~2"=="shortcut" call :make_shortcut "%~f0"
+
 set "COMMON=--no-first-run --autoplay-policy=no-user-gesture-required --user-data-dir="%LOCALAPPDATA%\CafeFlow-%ROLE%" --unsafely-treat-insecure-origin-as-secure=%SERVER%"
 if defined POS set "COMMON=%COMMON% --window-position=%POS%"
 
@@ -120,8 +125,9 @@ exit /b 0
 rem ================================================================
 :pick_monitor
 rem  One line per monitor: number X Y width height main(1/0) - Windows' own order
+rem  (Join, not '{0} {1} ...' -f - that format string makes powershell.exe hang when run from cmd)
 set "MONS=%CFG_DIR%\monitors.txt"
-powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $i=0; foreach($s in [System.Windows.Forms.Screen]::AllScreens){ $i++; $b=$s.Bounds; '{0} {1} {2} {3} {4} {5}' -f $i,$b.X,$b.Y,$b.Width,$b.Height,[int]$s.Primary }" > "%MONS%" 2>nul
+powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $i=0; foreach($s in [System.Windows.Forms.Screen]::AllScreens){ $i++; $b=$s.Bounds; [string]::Join(' ', @($i,$b.X,$b.Y,$b.Width,$b.Height,[int]$s.Primary)) }" <nul > "%MONS%" 2>nul
 set "NMON=0"
 for /f %%a in ('type "%MONS%"') do set /a NMON+=1
 if %NMON% LSS 2 exit /b 0
@@ -143,8 +149,25 @@ for /f "tokens=1-3" %%a in ('type "%MONS%"') do if "%%a"=="!MON!" (
   set /a PX=%%b+100, PY=%%c+100
   set "POS=!PX!,!PY!"
 )
-rem  Monitor unplugged / wrong number -> open on the main monitor, ask again next time
-if not defined POS del /q "%MONCFG%" 2>nul
+rem  Monitor unplugged / wrong number -> open on the main monitor. Not asked again here:
+rem  the Desktop icon runs minimised, a question would sit unseen. Change: "screen-edge.bat monitor"
+if not defined POS echo  [!] Monitor !MON! not found - opening on the main monitor ^(change: screen-edge.bat monitor^)
+exit /b 0
+
+:make_shortcut
+rem  Thai names as character codes - Thai typed into a .bat breaks on some Windows 10 code pages.
+rem  Minimised window: the icon just opens the screen, no black window in the way.
+set "SC_SELF=%~1"
+set "SC_ROLE=%ROLE%"
+powershell -NoProfile -Command "$th=@{ kiosk=@(0xE15,0xE39,0xE49,0xE2A,0xE31,0xE48,0xE07,0xE2D,0xE32,0xE2B,0xE32,0xE23); cashier=@(0xE41,0xE04,0xE0A,0xE40,0xE0A,0xE35,0xE22,0xE23,0xE4C); kds=@(0xE08,0xE2D,0xE04,0xE23,0xE31,0xE27); display=@(0xE08,0xE2D,0xE40,0xE23,0xE35,0xE22,0xE01,0xE04,0xE34,0xE27) }; $r=$env:SC_ROLE.ToLower(); $name='CafeFlow ' + (-join ($th[$r] | ForEach-Object { [char]$_ })); $lnk=Join-Path ([Environment]::GetFolderPath('Desktop')) ($name + '.lnk'); $s=(New-Object -ComObject WScript.Shell).CreateShortcut($lnk); $s.TargetPath=$env:SC_SELF; $s.Arguments=$r; $s.WorkingDirectory=(Split-Path $env:SC_SELF); $s.IconLocation=$env:EDGE + ',0'; $s.WindowStyle=7; $s.Description='CafeFlow ' + $r; $s.Save(); Write-Output $lnk" <nul > "%CFG_DIR%\shortcut.txt" 2>&1
+if errorlevel 1 (
+  echo  [x] Could not create the Desktop icon:
+  type "%CFG_DIR%\shortcut.txt"
+  timeout /t 6 >nul
+  exit /b 0
+)
+echo  Desktop icon created - staff double-click it to open the %ROLE% screen.
+echo  ^(it points to this file: %~1 - keep the file where it is^)
 exit /b 0
 
 :forget_monitor
