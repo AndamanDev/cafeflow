@@ -906,6 +906,8 @@ const DashPage = {
                         onclick="DashPage.kDine('${m.v}')">${m.label}</button>`)))}
                 ${tg('kioskUpsell', 'แนะนำเมนูเพิ่มก่อนชำระเงิน', 'ขึ้นครั้งเดียวต่อออเดอร์')}
                 ${tg('kioskImages', 'แสดงรูปภาพสินค้า')}
+                ${tg('kioskSound', 'เสียงจิ้มจอและเสียงแจ้งเตือน', 'เสียงคลิกเมื่อแตะปุ่ม · เสียงเตือนเมื่อสินค้าหมด/ชำระไม่ผ่าน · เสียงสำเร็จเมื่อสั่งเสร็จ')}
+                ${tg('kioskVoice', 'เสียงพูด “กรุณารับบัตรคิว”', 'พูดเมื่อเครื่องพิมพ์ออกบัตรคิว (ต้องเปิดเสียงด้านบนด้วย)')}
                 ${row('QR รับเงิน', 'พร้อมเพย์ / QR ร้านค้า ตั้งที่ข้อมูลร้าน',
                     `<button type="button" class="btn btn-outline btn-sm"
                         onclick="Drawer.close();setTimeout(()=>DashPage.openShop(),200)">ไปที่ข้อมูลร้าน <i data-lucide="chevron-right" class="icon-sm"></i></button>`)}

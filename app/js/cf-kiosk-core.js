@@ -46,14 +46,15 @@ const CFKiosk = {
 
         // คีออสก์ไม่โหลด ds-toast.js / ds-icons.js — ต่อสายให้ของที่ใช้ร่วมกันเรียกได้
         // (cf-orders.js เรียก showToast ตอนปฏิเสธ transition)
-        window.showToast = (msg) => this.toast(msg, 2400);
+        window.showToast = (msg) => this.toast(msg, 2400, 'warn');
         window.refreshIcons = () => {};
 
         CFKioskArt.mount();
         this.applyOrientation();
 
         this.stage = document.getElementById('cfkStage');
-        this.stage.addEventListener('pointerdown', () => this.bumpIdle());
+        this.stage.addEventListener('pointerdown', (e) => { this.tapSound(e); this.bumpIdle(); });
+        this.initSound();
         // เลื่อนจอ/ปัดนิ้ว = ยังใช้งานอยู่ (ไม่ได้แตะปุ่มก็นับ) — scroll ไม่ bubble จึงต้องดักแบบ capture
         // กันยิงถี่: ลากนิ้วครั้งเดียวเกิด touchmove/scroll หลายสิบครั้ง นับใหม่ไม่เกินครึ่งวินาทีละครั้ง
         const moved = () => {
@@ -271,6 +272,7 @@ const CFKiosk = {
                 </div>
             </div>`;
             this.stage.appendChild(el);
+            this.beep('warn');
         }
         document.getElementById('cfkStillNum').textContent = Math.max(0, left);
     },
@@ -284,13 +286,96 @@ const CFKiosk = {
         return `<span class="cfk-clock" id="cfkClock" hidden>${CFKioskArt.icon('timer')}<b></b></span>`;
     },
 
-    toast(msg, ms) {
+    /** kind: 'ok' = เสียงสำเร็จ · 'warn' = เสียงเตือน · ไม่ใส่ = เสียงแจ้งเบา ๆ */
+    toast(msg, ms, kind) {
         const el = document.getElementById('cfkToast');
         if (!el) return;
+        this.beep(kind || 'info');
         el.textContent = msg;
         el.classList.add('show');
         clearTimeout(this._toastT);
         this._toastT = setTimeout(() => el.classList.remove('show'), ms || 1600);
+    },
+
+    /* ══════════════════════════════════════════════════════
+       เสียง (02/11/2569) — เสียงจิ้มจอ + เสียงแจ้งเตือน
+       สังเคราะห์ด้วย Web Audio ในเครื่อง ไม่ใช้ไฟล์/เน็ต · เสียงพูด "กรุณารับบัตรคิว" มาจาก /voice/
+       เบราว์เซอร์ปลดล็อกเสียงหลังแตะจอครั้งแรก — ลูกค้าต้องแตะอยู่แล้วจึงไม่ต้องมีปุ่มเปิดเสียง
+       ปิดได้ที่ หน้าภาพรวม › ⚙ › คีออสก์ (kioskSound / kioskVoice)
+       ══════════════════════════════════════════════════════ */
+    initSound() {
+        try {
+            this._audio = this._audio || new (window.AudioContext || window.webkitAudioContext)();
+        } catch { return; }      // เครื่องไม่รองรับเสียงก็ขายได้ตามปกติ
+        this.loadVoice();
+    },
+
+    async loadVoice() {
+        if (this._voice || !this._audio) return;
+        this._voice = {};
+        try {
+            const res = await fetch('/voice/please_take_ticket.wav');
+            if (res.ok) this._voice.ticket = await this._audio.decodeAudioData(await res.arrayBuffer());
+        } catch { /* ไม่มีไฟล์ก็เหลือแค่เสียงสำเร็จ */ }
+    },
+
+    /** context ที่พร้อมเล่น — ยังไม่ปลดล็อกก็ resume (เรียกจาก pointerdown จึงนับเป็น gesture) */
+    soundCtx() {
+        if (this.cfg().kioskSound === false) return null;
+        const ctx = this._audio;
+        if (!ctx) return null;
+        if (ctx.state !== 'running') ctx.resume().catch(() => {});
+        return ctx;
+    },
+
+    /** เล่นโน้ตต่อกัน: [ความถี่, เริ่ม(วิ), ยาว(วิ)] */
+    tone(notes, vol, type) {
+        const ctx = this.soundCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime + 0.01;
+        notes.forEach(([freq, at, len]) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = type || 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, now + at);
+            gain.gain.exponentialRampToValueAtTime(vol, now + at + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + at + len);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + at);
+            osc.stop(now + at + len + 0.05);
+        });
+    },
+
+    /** เสียงจิ้มจอ — สั้นมาก ไม่ให้รำคาญเวลาแตะรัว ๆ */
+    tapSound(e) {
+        const t = e && e.target;
+        if (!t || !t.closest || !t.closest('button, a, input, label, [onclick], [role="button"]')) {
+            this.soundCtx();     // แตะพื้นที่ว่างก็ปลดล็อกเสียงไว้ก่อน
+            return;
+        }
+        if (t.closest('[disabled]')) return;
+        this.tone([[1400, 0, 0.05]], 0.12, 'triangle');
+    },
+
+    /** info = แจ้งเบา ๆ · ok = สำเร็จ (ขึ้น) · warn = เตือน (ลงต่ำ สองครั้ง) · done = ออเดอร์เสร็จ */
+    beep(kind) {
+        if (kind === 'ok') this.tone([[880, 0, 0.12], [1320, 0.09, 0.22]], 0.18);
+        else if (kind === 'warn') this.tone([[440, 0, 0.16], [330, 0.17, 0.26]], 0.2, 'triangle');
+        else if (kind === 'done') this.tone([[784, 0, 0.18], [988, 0.14, 0.18], [1319, 0.28, 0.4]], 0.2);
+        else this.tone([[990, 0, 0.12]], 0.12);
+    },
+
+    /** "กรุณารับบัตรคิว" — เล่นเมื่อเครื่องพิมพ์ออกบัตรจริงเท่านั้น */
+    sayTakeTicket() {
+        if (this.cfg().kioskVoice === false) return;
+        const ctx = this.soundCtx();
+        const buf = this._voice && this._voice.ticket;
+        if (!ctx || !buf) return;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(ctx.currentTime + 0.7);       // ให้เสียงสำเร็จจบก่อน
     },
 
     /* ══════════════════════════════════════════════════════
@@ -595,7 +680,7 @@ const CFKiosk = {
        ══════════════════════════════════════════════════════ */
     openItem(productId, editLineId) {
         const p = CFStore.byId('products', productId);
-        if (!p || p.soldOut) { this.toast(this.t('สินค้านี้หมดแล้ว', 'Sorry, this item is sold out')); return; }
+        if (!p || p.soldOut) { this.toast(this.t('สินค้านี้หมดแล้ว', 'Sorry, this item is sold out'), 0, 'warn'); return; }
 
         if (editLineId) {
             const l = this.state.cart.find((x) => x.lineId === editLineId);
@@ -734,7 +819,7 @@ const CFKiosk = {
             const max = g && g.maxSelect;
             if (!has && max && L.mods.filter((m) => m.groupId === groupId).length >= max) {
                 this.toast(this.t('เลือกได้สูงสุด ' + max + ' อย่าง — แตะตัวที่เลือกไว้เพื่อเอาออกก่อน',
-                                  'Up to ' + max + ' only — tap a chosen one to remove it first'), 2600);
+                                  'Up to ' + max + ' only — tap a chosen one to remove it first'), 2600, 'warn');
                 return;
             }
             L.mods = has ? L.mods.filter((m) => m.optionId !== optionId) : L.mods.concat([rec]);
@@ -757,7 +842,7 @@ const CFKiosk = {
         const p = CFStore.byId('products', L.productId);
 
         // ผู้จัดการอาจปิดขายกลางคัน แล้ว sync เข้ามาระหว่างลูกค้าเลือกอยู่
-        if (!p || p.soldOut) { this.toast(this.t('สินค้านี้เพิ่งหมด', 'This item just sold out')); this.go('menu'); return; }
+        if (!p || p.soldOut) { this.toast(this.t('สินค้านี้เพิ่งหมด', 'This item just sold out'), 0, 'warn'); this.go('menu'); return; }
 
         const missing = CFRules.groupsFor(L.serveType, p.categoryId)
             .filter((g) => g.required && !L.mods.some((m) => m.groupId === g.id));
@@ -766,7 +851,7 @@ const CFKiosk = {
             this.render();
             const el = this.stage.querySelector('.cfk-optgroup.is-missing');
             if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            this.toast(this.t('กรุณาเลือก ', 'Please choose ') + missing.map((g) => this.nm(g)).join(this.t(' และ ', ' and ')), 2400);
+            this.toast(this.t('กรุณาเลือก ', 'Please choose ') + missing.map((g) => this.nm(g)).join(this.t(' และ ', ' and ')), 2400, 'warn');
             return;
         }
 
@@ -778,7 +863,7 @@ const CFKiosk = {
         }
         this._missing = null;
         this.go('menu');
-        this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)));
+        this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)), 0, 'ok');
     },
 
     /* ══════════════════════════════════════════════════════
@@ -984,7 +1069,7 @@ const CFKiosk = {
             mods: CFRules.defaultsFor(sv, p.categoryId), upsell: true,
         });
         this.render();
-        this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)));
+        this.toast(this.t('เพิ่ม ' + p.nameTh + ' แล้ว', 'Added ' + this.nm(p)), 0, 'ok');
     },
 
     /* ══════════════════════════════════════════════════════
@@ -1056,7 +1141,7 @@ const CFKiosk = {
             // บอกเหตุผลจากเซิร์ฟเวอร์ด้วย (เช่น เมนูหมด ราคาเปลี่ยน) — คีออสก์ไม่มี showToast ของหน้าพนักงาน
             if (!orderId) {
                 const why = CFOrders.lastError;
-                this.toast(this.t('สร้างออเดอร์ไม่สำเร็จ', 'Could not place your order') + (why ? ' — ' + why : ''), 5000);
+                this.toast(this.t('สร้างออเดอร์ไม่สำเร็จ', 'Could not place your order') + (why ? ' — ' + why : ''), 5000, 'warn');
                 return;
             }
 
@@ -1065,7 +1150,7 @@ const CFKiosk = {
             const cur = CFStore.byId('orders', orderId);
             const ok = (cur && cur.status === target) ? true
                 : await CFOrders.transition(orderId, target, { byId: 'KIOSK', device: this.state.deviceId });
-            if (ok === false) { this.toast(this.t('ส่งออเดอร์ไม่สำเร็จ', 'Could not send your order')); return; }
+            if (ok === false) { this.toast(this.t('ส่งออเดอร์ไม่สำเร็จ', 'Could not send your order'), 0, 'warn'); return; }
 
             this._orderCart = { orderId, cart: this.state.cart };
             this.state.cart = [];
@@ -1197,7 +1282,7 @@ const CFKiosk = {
             this._qrLeft = left;
             const el = document.getElementById('cfkLeft');
             if (el) el.textContent = Math.max(0, left);
-            if (left <= 0) { clearInterval(this._qr); this.go('qrexpired'); }
+            if (left <= 0) { clearInterval(this._qr); this.beep('warn'); this.go('qrexpired'); }
         }, 1000);
     },
 
@@ -1557,6 +1642,7 @@ const CFKiosk = {
                 // ใบเดิมไม่ผ่านครบ 3 ครั้ง → ส่งให้แคชเชียร์ตัดสิน (ออเดอร์รอตรวจอยู่แล้ว) ไม่ให้วนอยู่หน้าเครื่อง
                 this._rejectedN = r.ref === this._rejectedRef ? (this._rejectedN || 1) + 1 : 1;
                 this._rejectedRef = r.ref;
+                this.beep('warn');
                 this._rejectedAt = Date.now();
                 const why = (res.notes || []).filter((n, i) =>
                     (i === 0 && res.checks.amount === 'FAIL') || (i === 1 && res.checks.date === 'FAIL') ||
@@ -1789,7 +1875,7 @@ const CFKiosk = {
             try {
                 await CFApi.post('/api/orders/' + encodeURIComponent(id) + '/kiosk-cancel', {});
             } catch (err) {
-                this.toast(err.message || this.t('แก้รายการไม่ได้ กรุณาแจ้งพนักงาน', 'Cannot edit — please call staff'), 3000);
+                this.toast(err.message || this.t('แก้รายการไม่ได้ กรุณาแจ้งพนักงาน', 'Cannot edit — please call staff'), 3000, 'warn');
                 return;
             }
             clearInterval(this._qr);
@@ -1826,7 +1912,7 @@ const CFKiosk = {
         try {
             const ok = await CFOrders.transition(this.state.orderId, 'WAITING_CASH',
                 { byId: 'KIOSK', device: this.state.deviceId, reason: 'ลูกค้าเปลี่ยนเป็นจ่ายเงินสดที่คีออสก์' });
-            if (ok === false) { this.toast(this.t('เปลี่ยนไม่สำเร็จ กรุณาแจ้งพนักงาน', 'Could not switch — please ask our staff'), 2400); return; }
+            if (ok === false) { this.toast(this.t('เปลี่ยนไม่สำเร็จ กรุณาแจ้งพนักงาน', 'Could not switch — please ask our staff'), 2400, 'warn'); return; }
             this.go('done', { kind: 'CASH' });
         } finally {
             this._submitting = false;
@@ -1883,6 +1969,11 @@ const CFKiosk = {
         const kind = (params && params.kind) || 'CASH';
         const sec = this.cfg().kioskDoneSec || 12;
         setTimeout(() => this.startDone(sec), 0);
+        // จ่ายแล้ว = เสียงสำเร็จ · ยังต้องไปเคาน์เตอร์ = เสียงเตือน ให้ลูกค้ารู้ว่ายังไม่จบ
+        if (this._doneBeeped !== this.state.orderId) {
+            this._doneBeeped = this.state.orderId;
+            this.beep(kind === 'PAID' || kind === 'REVIEW' ? 'done' : 'warn');
+        }
         this.printTicket(this.state.orderId, kind);
 
         // หัวข้อบอกสิ่งที่ลูกค้าต้องทำต่อ ไม่ใช่ "เรียบร้อย" ทุกกรณี —
@@ -1937,6 +2028,7 @@ const CFKiosk = {
         CFApi.post('/api/orders/' + encodeURIComponent(orderId) + '/kiosk-ticket',
             { kind, kioskId: this.state.deviceId })
             .then((r) => {
+                if (r && r.printed) this.sayTakeTicket();
                 if (r && r.local && r.image) this.printLocal(r.image, r.dots);
                 else if (r && r.reason === 'no-printer') {
                     console.info('[kiosk] ตู้ ' + this.state.deviceId + ' ยังไม่ได้ผูกเครื่องพิมพ์บัตรคิว — ตั้งที่ หน้าภาพรวม › เครื่องพิมพ์');

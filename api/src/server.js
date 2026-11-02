@@ -80,6 +80,10 @@ async function registerStatic() {
     await app.register(staticPlugin, {
         root: path.join(ROOT, 'design-system-2'), prefix: '/design-system-2/', decorateReply: false,
     });
+    // ไฟล์เสียงพูดเรียกคิว (ขอเชิญหมายเลข + เลข 0–9) — จอคิวโหลดจากเซิร์ฟเวอร์ร้าน ไม่ใช้เน็ต
+    await app.register(staticPlugin, {
+        root: path.join(ROOT, 'voice'), prefix: '/voice/', decorateReply: false,
+    });
     // รูปสินค้าที่อัปโหลดไว้ — ชื่อไฟล์เป็น sha256 ของเนื้อไฟล์
     // เนื้อไม่มีวันเปลี่ยนภายใต้ชื่อเดิม จึงให้เบราว์เซอร์ cache ได้ยาว ๆ
     const mediaRoot = path.join(ROOT, 'data', 'media');

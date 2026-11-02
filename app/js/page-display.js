@@ -148,6 +148,7 @@ const DisplayPage = {
         if (fresh.length && this._booted) {
             fresh.forEach((x) => this.flash(x.orderNo));
             this.ding();
+            this.say(fresh.map((x) => x.orderNo), 0.7);
         }
         if (recalled.length && this._booted) {
             recalled.forEach((x) => this.flash(x.orderNo));
@@ -155,6 +156,7 @@ const DisplayPage = {
             // กริ่งสองรอบ — ต่างจากเรียกครั้งแรก คนที่ยังไม่มาจะรู้ว่าเรียกซ้ำ
             this.ding();
             setTimeout(() => this.ding(), 1100);
+            this.say(recalled.map((x) => x.orderNo), 1.8);
         }
         this._booted = true;
     },
@@ -218,6 +220,74 @@ const DisplayPage = {
     },
 
     /**
+     * เสียงพูดเรียกคิว (30/10/2569) — "ขอเชิญหมายเลข" + อ่านเลขทีละตัว จากไฟล์ใน /voice/
+     * A012 → "ขอเชิญหมายเลข หนึ่ง สอง" (ไม่อ่านตัว A และศูนย์นำหน้า)
+     * ไฟล์มาจากเซิร์ฟเวอร์ร้านในวง LAN ไม่ใช้เน็ต · โหลดไม่ได้ก็เหลือแค่กริ่งเหมือนเดิม
+     */
+    VOICE_FILES: ['please_number', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+
+    async loadVoice() {
+        if (this._voice || !this._audio) return;
+        this._voice = {};
+        await Promise.all(this.VOICE_FILES.map(async (name) => {
+            try {
+                const res = await fetch('/voice/' + name + '.wav');
+                if (!res.ok) return;
+                const buf = await this._audio.decodeAudioData(await res.arrayBuffer());
+                this._voice[name] = this.trimSilence(buf);
+            } catch { /* ไฟล์นี้หายก็ข้าม — say() จะเงียบเฉพาะคำนั้น */ }
+        }));
+    },
+
+    /** ตัดความเงียบหัวท้ายไฟล์ ไม่งั้นต่อคำกันแล้วเว้นช่วงยาวจนฟังเป็นคำ ๆ */
+    trimSilence(buf) {
+        const data = buf.getChannelData(0);
+        let peak = 0;
+        for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+        const th = peak * 0.03;
+        let a = 0, b = data.length - 1;
+        while (a < b && Math.abs(data[a]) < th) a++;
+        while (b > a && Math.abs(data[b]) < th) b--;
+        const pad = Math.round(buf.sampleRate * 0.04);
+        a = Math.max(0, a - pad);
+        b = Math.min(data.length, b + pad);
+        if (b - a <= 0) return buf;
+        const out = this._audio.createBuffer(buf.numberOfChannels, b - a, buf.sampleRate);
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+            out.copyToChannel(buf.getChannelData(c).subarray(a, b), c);
+        }
+        return out;
+    },
+
+    /**
+     * พูดเลขคิว เริ่มหลังจากนี้ delay วินาที (ให้กริ่งดังจบก่อน)
+     * ต่อคิวกับประโยคที่ยังพูดไม่จบ — สองคิวพร้อมกันจะไม่พูดทับกัน
+     */
+    say(nos, delay) {
+        if (!this.state.cfg.sound) return;
+        const ctx = this._audio;
+        const v = this._voice;
+        if (!ctx || ctx.state !== 'running' || !v || !v.please_number) return;
+        let t = Math.max(ctx.currentTime + delay, this._sayEnd || 0);
+        const play = (name, gap) => {
+            const buf = v[name];
+            if (!buf) return;
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(ctx.destination);
+            src.start(t);
+            t += buf.duration + gap;
+        };
+        play('please_number', 0.15);
+        nos.forEach((no) => {
+            const digits = String(no).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+            [...digits].forEach((d) => play(d, 0.02));
+            t += 0.35;                               // เว้นระหว่างเลขคิว
+        });
+        this._sayEnd = t;
+    },
+
+    /**
      * เปิดเสียงเองถ้าเบราว์เซอร์อนุญาต (19/10/2569)
      * เปิดด้วย ops/screen-edge.bat (Edge --autoplay-policy=no-user-gesture-required) → AudioContext ทำงานทันที
      * ไม่ต้องมีคนกด แม้รีเฟรช/อัปเดต/ไฟดับ · ปุ่ม "เปิดเสียงเรียกคิว" ไม่ขึ้น (render ซ่อนเมื่อ running)
@@ -231,6 +301,7 @@ const DisplayPage = {
             // ปลดล็อกทีหลัง (แตะจอ) → ซ่อนปุ่มเปิดเสียงเอง
             this._audio.onstatechange = () => { if (this._booted) this.render(); };
         } catch { return; }
+        this.loadVoice();   // decode ได้แม้ยังไม่ปลดล็อกเสียง
         const unlock = () => {
             if (this._audio.state === 'running') return;
             this._audio.resume().then(() => this.render()).catch(() => {});
@@ -243,6 +314,7 @@ const DisplayPage = {
         try {
             this._audio = this._audio || new (window.AudioContext || window.webkitAudioContext)();
             await this._audio.resume();
+            await this.loadVoice();
             this.ding();
             this.render();
         } catch { /* เครื่องไม่รองรับเสียงก็ยังแสดงคิวได้ */ }

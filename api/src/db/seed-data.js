@@ -274,6 +274,8 @@ function seedData() {
         kioskDiningMode: 'ASK',         // ASK = ถามลูกค้า · DINE_IN/TAKE_AWAY = ข้ามหน้าถาม
         kioskUpsell: true,              // หน้าแนะนำเมนูก่อนชำระ (ครั้งเดียวต่อออเดอร์)
         kioskImages: true,              // แสดงรูปสินค้า
+        kioskSound: true,               // เสียงจิ้มจอ + เสียงแจ้งเตือน
+        kioskVoice: true,               // พูด "กรุณารับบัตรคิว" เมื่อพิมพ์บัตรออก
         kioskIdleSec: 90,               // ไม่มีการใช้งานแล้วกลับหน้าแรก
         kioskDoneSec: 12,               // ปิดหน้าสรุปออเดอร์อัตโนมัติ
     };
