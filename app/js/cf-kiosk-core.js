@@ -2060,6 +2060,15 @@ const CFKiosk = {
         d.close();
         const img = d.getElementById('t');
         img.onload = () => {
+            // ตั้งความสูงหน้าให้เท่าภาพ (02/11/2569) — ไม่งั้นใช้ขนาดกระดาษในไดรเวอร์ (เช่น 80×200 มม.)
+            // บัตรเงินสดยาวกว่านั้น → เบราว์เซอร์ตัดเป็น 2 หน้า ออกมาเหมือนพิมพ์ 2 ใบ ใบหลังมีแต่ข้อความ "ชำระที่เคาน์เตอร์"
+            // ตัดทศนิยมลง + ซ่อนส่วนเกิน กันปัดเศษแล้วล้นเป็นหน้าเปล่าใบที่สาม
+            const h = Math.floor(mm * img.naturalHeight / img.naturalWidth * 10) / 10;
+            const st = d.createElement('style');
+            st.textContent = `@page { size: ${mm}mm ${h}mm; margin: 0; }
+                html, body { width: ${mm}mm; height: ${h}mm; overflow: hidden; }
+                img { height: ${h}mm; }`;
+            d.head.appendChild(st);
             try { f.contentWindow.focus(); f.contentWindow.print(); }
             catch (err) { console.warn('[kiosk] สั่งพิมพ์ไม่ได้', err); }
         };
