@@ -1073,17 +1073,19 @@ function registerOrders(app, { pool, tx, query, branchId }) {
             const doc = kioskTicket({ order: o, items, branch, kind, width, dots: printer.print_dots,
                                       settings: await settingsOf(c, branchId()) });
 
-            // USB = เสียบที่ตัวตู้ — เซิร์ฟเวอร์ส่งไม่ถึง ส่งภาพกลับให้เบราว์เซอร์บนตู้พิมพ์เอง
-            // (Edge เปิดด้วย --kiosk-printing → ออกเครื่องพิมพ์หลักของ Windows ไม่ถามซ้ำ)
+            // USB ไม่ได้เลือกเครื่อง = เสียบที่ตัวตู้ — เซิร์ฟเวอร์ส่งไม่ถึง ส่งภาพกลับให้เบราว์เซอร์บนตู้พิมพ์เอง
+            // (เบราว์เซอร์เปิดด้วย --kiosk-printing → ออกเครื่องพิมพ์หลักของ Windows ไม่ถามซ้ำ)
             // บันทึกเป็น DONE ไว้กันพิมพ์ซ้ำ — worker ไม่หยิบ เพราะไม่ใช่ QUEUED
-            if (printer.printer_conn === 'USB') {
-                const { bitsToPng } = require('../print/raster');
+            // เลือกเครื่องไว้ (ตู้อยู่บนเครื่องเซิร์ฟเวอร์) → ลงคิวแบบ ESC/POS ด้านล่าง ได้ขนาดจริง ไม่โดนไดรเวอร์ย่อ
+            if (printer.printer_conn === 'USB' && !printer.printer_usb) {
+                const { bitsToPng, mmOf } = require('../print/raster');
                 const png = bitsToPng(doc.bitmap, doc.width, doc.height);
+                // mm = กว้างเท่าที่เครื่องพิมพ์ตัวนี้พิมพ์ภาพนี้ได้จริง — 512 จุดที่ 180 dpi = 72 มม. ไม่ใช่ 512/8 = 64 มม.
                 const r = await c.query(
                     `INSERT INTO print_job (branch_id, order_id, device_id, doc_type, paper_width, status, printed_at)
                      VALUES ($1,$2,$3,'PAYMENT_TICKET',$4,'DONE',now()) RETURNING id`,
                     [branchId(), o.id, printer.id, width]);
-                return { printed: true, local: true, jobId: r.rows[0].id, dots: doc.width,
+                return { printed: true, local: true, jobId: r.rows[0].id, dots: doc.width, mm: mmOf(doc.width),
                          image: 'data:image/png;base64,' + png.toString('base64') };
             }
 

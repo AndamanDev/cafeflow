@@ -42,8 +42,7 @@
 .cf-rc-mod    { padding-left: 10px; font-size: .88em; overflow-wrap: anywhere; }
 .ds-paper-58 .cf-rc-mod { padding-left: 6px; }
 .cf-rc-lg     { font-size: 1.35em; font-weight: 800; }
-.cf-rc-xl     { font-size: 30px; font-weight: 800; letter-spacing: 1px; line-height: 1.1; }
-.ds-paper-58 .cf-rc-xl { font-size: 24px; }
+.cf-rc-xl     { font-size: 24px; font-weight: 800; letter-spacing: 1px; line-height: 1.1; }
 .cf-rc-sm     { font-size: .85em; }
 
 .cf-rc-sp     { margin-top: 5px; }
@@ -75,8 +74,8 @@
         font-family: var(--font-receipt);
         color: #000 !important;
     }
-    body.ds-printing.print-80 #dsPrintStage { font-size: 11pt; }
-    body.ds-printing.print-58 #dsPrintStage { font-size: 9pt; }   /* 48mm ใส่ 11pt ไม่พอ */
+    /* 58 และ 80 มม. ใช้ขนาดเดียวกัน ต่างกันแค่ความกว้าง — ตรงกับ PAPER_FONT ใน api/src/print/raster.js */
+    body.ds-printing.print-roll #dsPrintStage { font-size: 9pt; }
 
     /* สูตร A pin .ds-print-footer ด้วย position:fixed;bottom:0
        ถูกสำหรับ A4 แต่ผิดสำหรับม้วนกระดาษที่ต่อเนื่อง */

@@ -15,6 +15,12 @@ const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 
 const WIDTH = { '58mm': 384, '80mm': 576 };
 
+/** ความละเอียดจากจำนวนจุด — 512/360 = เครื่อง 180 dpi (Epson รุ่นใหญ่) · นอกนั้น 203 dpi */
+const dpiOf = (dots) => (dots === 512 || dots === 360 ? 180 : 203);
+
+/** ความกว้างจริงบนกระดาษ (มม.) ของภาพกว้าง dots จุด — ใช้ตอนเบราว์เซอร์พิมพ์ภาพแทนเครื่องพิมพ์ */
+const mmOf = (dots) => Math.round(dots / dpiOf(dots) * 25.4 * 10) / 10;
+
 /** ฟอนต์ไทยที่ใช้ได้ เรียงตามความชอบ — เลือกตัวแรกที่เครื่องมีจริง */
 const THAI_FONTS = ['Leelawadee UI', 'TH SarabunPSK', 'Tahoma', 'Leelawadee', 'Angsana New'];
 let FONT = null;
@@ -36,12 +42,19 @@ function fontFamily() {
 const SEGMENTER = new Intl.Segmenter('th', { granularity: 'word' });
 const GRAPHEMES = new Intl.Segmenter('th', { granularity: 'grapheme' });
 
-function createSheet(widthDots) {
+/**
+ * ตัวเลขขนาดในเอกสารทุกใบคิดเป็นจุดที่ 180 dpi แล้วขยายตาม dpi ของเครื่องตอนวาด
+ * ไม่งั้นตัวอักษร 25 จุดบนเครื่อง 203 dpi จะเล็กกว่าเครื่อง 180 dpi ~11% แม้กระดาษเท่ากัน
+ * native = วาดตามจุดจริงไม่ขยาย (ใบทดสอบ — กรอบกับไม้บรรทัดต้องตรงจุดของหัวพิมพ์)
+ */
+function createSheet(widthDots, { native = false } = {}) {
     const measure = createCanvas(1, 1).getContext('2d');    // วัดความกว้างตอนจัดบรรทัด
     let y = 0;
     const ops = [];
-    const pad = Math.round(widthDots * 0.03);
-    const inner = widthDots - pad * 2;
+    const k = native ? 1 : dpiOf(widthDots) / 180;
+    const sheetW = widthDots / k;
+    const pad = Math.round(sheetW * 0.03);
+    const inner = sheetW - pad * 2;
 
     const api = {
         get y() { return y; },
@@ -121,20 +134,26 @@ function createSheet(widthDots) {
          * มองจากระยะแขนเห็นทันที (มาตรฐานสลิปครัวของ POS ทั่วไป)
          */
         banner(text, o = {}) {
-            const size = o.size || 24;
+            let size = o.size || 24;
+            const weight = o.bold === false ? '' : '700 ';
+            // แถบตัดบรรทัดไม่ได้ — ข้อความยาวเกินแถบ ลดขนาดลงจนพอดี ไม่ให้หัวท้ายหาย
+            measure.font = `${weight}${size}px "${fontFamily()}"`;
+            const tw = measure.measureText(String(text)).width;
+            if (tw > inner - 12) size = Math.floor(size * (inner - 12) / tw);
             const h = Math.round(size * 1.55);
-            ops.push({ t: 'banner', text: String(text), size, weight: o.bold === false ? '' : '700 ', y, h, pad, inner });
+            ops.push({ t: 'banner', text: String(text), size, weight, y, h, pad, inner });
             y += h + (o.after != null ? o.after : 8);
             return api;
         },
 
         render() {
-            const height = Math.max(8, y + pad);
+            const height = Math.ceil(Math.max(8, y + pad) * k);
             // ปัดความสูงขึ้นให้ลงตัว เผื่อการซอยแถบของ GS v 0
             const canvas = createCanvas(widthDots, height);
             const c = canvas.getContext('2d');
             c.fillStyle = '#fff';
             c.fillRect(0, 0, widthDots, height);
+            c.scale(k, k);
             c.fillStyle = '#000';
             c.textBaseline = 'top';
             const fam = fontFamily();
@@ -249,15 +268,14 @@ const diningTh = (o) => (pick(o, 'diningOption', 'dining_option') === 'TAKE_AWAY
    ══════════════════════════════════════════════════════════════════ */
 function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots }) {
     const W = dots || WIDTH[width] || WIDTH['58mm'];
-    const narrow = W < 500;
     const s = createSheet(W);
-    const big = narrow ? 26 : 30;
+    const big = 26;
     const when = pick(order, 'sentAt', 'sent_at', 'createdAt', 'created_at') || Date.now();
     const kiosk = pick(order, 'kioskId', 'kiosk_id');
 
-    s.banner(stationLabel || station, { size: narrow ? 22 : 24 });
+    s.banner(stationLabel || station, { size: 22 });
     s.line('คิว ' + (pick(order, 'orderNo', 'order_no') || '—'),
-           { size: narrow ? 46 : 56, bold: true, align: 'center', lh: 1.2 });
+           { size: 46, bold: true, align: 'center', lh: 1.2 });
     if (diningTh(order) === 'กลับบ้าน') s.banner('กลับบ้าน', { size: big });
     else s.line('กินที่ร้าน', { size: big - 4, bold: true, align: 'center' });
     s.row(kiosk ? 'สั่งที่ ' + kiosk : '', 'เวลา ' + clock(when), { size: 18 });
@@ -269,7 +287,7 @@ function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots
         count += Number(it.qty) || 0;
         s.wrap(qty + itemName(it), { size: big, bold: true, hang: qty, lh: 1.25 });
         for (const m of modsOf(it)) {
-            s.wrap('- ' + m.label, { size: narrow ? 21 : 23, indent: Math.round(big * 1.2), hang: '- ', lh: 1.3 });
+            s.wrap('- ' + m.label, { size: 21, indent: Math.round(big * 1.2), hang: '- ', lh: 1.3 });
         }
         if (i < items.length - 1) { s.gap(2); s.rule({ dashed: true }); }
     });
@@ -280,20 +298,30 @@ function kitchenSlip({ order, items, station, stationLabel, width = '58mm', dots
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
 }
 
+/**
+ * ขนาดตัวอักษรของใบที่ลูกค้าถือ (ใบเสร็จ · บัตรคิว) หน่วยเป็นจุดที่ 180 dpi (ดู createSheet)
+ * base 25 จุด ≈ 10pt บนกระดาษทุกเครื่อง
+ * small = บรรทัดรอง (ตัวเลือก · ที่อยู่ · ภาษี) — เดิม 16–18 จุด เล็กจนอ่านยากบนกระดาษจริง
+ * 58 และ 80 มม. ใช้ขนาดเดียวกันทุกใบในไฟล์นี้ ต่างกันแค่ความกว้างของใบ
+ */
+const PAPER_FONT = { title: 32, base: 25, small: 21 };
+
 /** หัวร้าน — ชื่อ · ที่อยู่ · โทร · เลขผู้เสียภาษี (บรรทัดที่ไม่มีข้อมูลไม่พิมพ์) */
-function shopHeader(s, branch, settings, narrow) {
-    s.wrap(branch.name_th || '', { size: narrow ? 28 : 32, bold: true, align: 'center', lh: 1.3 });
-    if (branch.address) s.wrap(branch.address, { size: narrow ? 16 : 18, align: 'center', lh: 1.25 });
-    if (settings && settings.shopPhone) s.line('โทร ' + settings.shopPhone, { size: narrow ? 16 : 18, align: 'center', lh: 1.35 });
-    if (branch.tax_id) s.line('เลขประจำตัวผู้เสียภาษี ' + branch.tax_id, { size: narrow ? 16 : 17, align: 'center', lh: 1.35 });
+function shopHeader(s, branch, settings) {
+    const f = PAPER_FONT;
+    s.wrap(branch.name_th || '', { size: f.title, bold: true, align: 'center', lh: 1.3 });
+    if (branch.address) s.wrap(branch.address, { size: f.small, align: 'center', lh: 1.25 });
+    if (settings && settings.shopPhone) s.wrap('โทร ' + settings.shopPhone, { size: f.small, align: 'center', lh: 1.35 });
+    if (branch.tax_id) s.wrap('เลขประจำตัวผู้เสียภาษี ' + branch.tax_id, { size: f.small, align: 'center', lh: 1.35 });
 }
 
 /** ท้ายใบ — ขอบคุณ + ข้อความที่ร้านตั้ง (Wi-Fi / LINE / IG) */
-function shopFooter(s, settings, narrow) {
-    s.line('ขอบคุณที่ใช้บริการ', { size: narrow ? 21 : 23, bold: true, align: 'center' });
+function shopFooter(s, settings) {
+    const f = PAPER_FONT;
+    s.line('ขอบคุณที่ใช้บริการ', { size: f.base, bold: true, align: 'center' });
     const foot = String((settings && settings.receiptFooter) || '').trim();
     for (const ln of foot.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 4)) {
-        s.wrap(ln, { size: narrow ? 16 : 18, align: 'center', lh: 1.3 });
+        s.wrap(ln, { size: f.small, align: 'center', lh: 1.3 });
     }
 }
 
@@ -305,14 +333,13 @@ function shopFooter(s, settings, narrow) {
    ══════════════════════════════════════════════════════════════════ */
 function receipt({ order, items, payment, branch, width = '80mm', cashier, dots, settings }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
-    const narrow = W < 500;           // 58 มม. (360–384 จุด) — 80 มม. ที่ 180 dpi ได้ 512 ยังนับเป็นกว้าง
     const s = createSheet(W);
-    const base = narrow ? 20 : 22;
+    const { base, small } = PAPER_FONT;
     const vat = !!branch.vat_registered;
 
-    shopHeader(s, branch, settings, narrow);
+    shopHeader(s, branch, settings);
     s.gap(4);
-    s.line(vat ? 'ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน',
+    s.wrap(vat ? 'ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน',
            { size: base + 2, bold: true, align: 'center' });
     s.rule();
 
@@ -329,7 +356,7 @@ function receipt({ order, items, payment, branch, width = '80mm', cashier, dots,
         s.wrap(qty + itemName(it), { size: base, hang: qty, right: money(it.qty * pick(it, 'unitPrice', 'unit_price')), lh: 1.3 });
         for (const m of modsOf(it)) {
             s.wrap('- ' + m.label + (m.delta ? ` (+${whole(m.delta)})` : ''),
-                   { size: narrow ? 16 : 18, indent: Math.round(base * 1.4), hang: '- ', lh: 1.3 });
+                   { size: small, indent: Math.round(base * 1.4), hang: '- ', lh: 1.3 });
         }
     }
     s.rule({ dashed: true });
@@ -342,8 +369,8 @@ function receipt({ order, items, payment, branch, width = '80mm', cashier, dots,
         // ?? ไม่ใช่ || — ร้านที่ตั้ง 0% (อัตราศูนย์) ต้องพิมพ์ 0% ไม่ใช่ 7%
         const rate = Number(branch.vat_percent ?? 7);
         const v = Number(order.total) - Number(order.total) / (1 + rate / 100);
-        s.row(`มูลค่าก่อนภาษี`, money(Number(order.total) - v), { size: narrow ? 17 : 18 });
-        s.row(`ภาษีมูลค่าเพิ่ม ${rate}%`, money(v), { size: narrow ? 17 : 18 });
+        s.row(`มูลค่าก่อนภาษี`, money(Number(order.total) - v), { size: small });
+        s.row(`ภาษีมูลค่าเพิ่ม ${rate}%`, money(v), { size: small });
     }
     s.rule();
     s.row('ยอดสุทธิ', '฿' + money(order.total), { size: base + 8, bold: true, lh: 1.4 });
@@ -355,13 +382,13 @@ function receipt({ order, items, payment, branch, width = '80mm', cashier, dots,
             s.row('รับเงิน', money(payment.received), { size: base });
             s.row('เงินทอน', money(pick(payment, 'change', 'change_amount')), { size: base, bold: true });
         }
-        if (payment.ref) s.line('อ้างอิง ' + payment.ref, { size: 16 });
+        if (payment.ref) s.wrap('อ้างอิง ' + payment.ref, { size: small });
         s.rule({ dashed: true });
     }
 
-    shopFooter(s, settings, narrow);
+    shopFooter(s, settings);
     const rp = pick(order, 'reprintCount', 'reprint_count');
-    if (rp > 0) s.line(`สำเนา — พิมพ์ซ้ำครั้งที่ ${rp}`, { size: 16, align: 'center' });
+    if (rp > 0) s.line(`สำเนา — พิมพ์ซ้ำครั้งที่ ${rp}`, { size: small, align: 'center' });
     s.gap(4);
 
     const { canvas, height } = s.render();
@@ -384,34 +411,35 @@ const TICKET_STATUS = {
 
 function kioskTicket({ order, items, branch, kind, width = '80mm', dots, settings, copy }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
-    const narrow = W < 500;
     const s = createSheet(W);
-    const base = narrow ? 20 : 22;
+    const { title, base, small } = PAPER_FONT;
 
-    s.wrap(branch.name_th || '', { size: narrow ? 26 : 30, bold: true, align: 'center', lh: 1.3 });
+    s.wrap(branch.name_th || '', { size: title, bold: true, align: 'center', lh: 1.3 });
     s.line(copy ? 'บัตรคิว (สำเนา)' : 'บัตรคิว', { size: base, align: 'center', bold: !!copy });
     s.rule();
     s.line('หมายเลขคิว', { size: base, align: 'center' });
-    s.line(pick(order, 'orderNo', 'order_no') || '—', { size: narrow ? 80 : 104, bold: true, align: 'center', lh: 1.12 });
-    s.line(diningTh(order) + ' · ' + dateTime(pick(order, 'createdAt', 'created_at') || Date.now()),
-           { size: 18, align: 'center' });
+    s.line(pick(order, 'orderNo', 'order_no') || '—', { size: 96, bold: true, align: 'center', lh: 1.12 });
+    s.wrap(diningTh(order) + ' · ' + dateTime(pick(order, 'createdAt', 'created_at') || Date.now()),
+           { size: small, align: 'center' });
     s.rule({ dashed: true });
 
+    // รายการขนาดเดียวกับสลิปบาร์/ครัว (kitchenSlip) — ลูกค้ากับครัวเห็นตัวหนังสือเท่ากัน
+    const itemSize = 26;
     for (const it of items) {
         const qty = `${it.qty} x `;
-        s.wrap(qty + itemName(it), { size: base, hang: qty, right: money(it.qty * pick(it, 'unitPrice', 'unit_price')), lh: 1.3 });
+        s.wrap(qty + itemName(it), { size: itemSize, bold: true, hang: qty, right: money(it.qty * pick(it, 'unitPrice', 'unit_price')), lh: 1.25 });
         for (const m of modsOf(it)) {
-            s.wrap('- ' + m.label, { size: narrow ? 16 : 17, indent: Math.round(base * 1.4), hang: '- ', lh: 1.25 });
+            s.wrap('- ' + m.label, { size: small, indent: Math.round(itemSize * 1.2), hang: '- ', lh: 1.3 });
         }
     }
     s.rule();
     s.row('ยอดรวม', '฿' + money(order.total), { size: base + 6, bold: true, lh: 1.4 });
     s.gap(6);
     const [head, sub] = TICKET_STATUS[kind] || TICKET_STATUS.CASH;
-    s.banner(head, { size: narrow ? 20 : 22 });
-    s.line(sub, { size: 18, align: 'center' });
+    s.banner(head, { size: 23 });
+    s.wrap(sub, { size: small, align: 'center' });
     const foot = String((settings && settings.receiptFooter) || '').trim().split(/\r?\n/)[0];
-    if (foot) { s.gap(4); s.wrap(foot, { size: 16, align: 'center' }); }
+    if (foot) { s.gap(4); s.wrap(foot, { size: small, align: 'center' }); }
     s.gap(4);
 
     const { canvas, height } = s.render();
@@ -425,12 +453,11 @@ function kioskTicket({ order, items, branch, kind, width = '80mm', dots, setting
    ══════════════════════════════════════════════════════════════════ */
 function closingSlip({ shift, summary: k, cash: cc, branch, staff, width = '80mm', dots }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
-    const narrow = W < 500;
     const s = createSheet(W);
-    const base = narrow ? 21 : 23;
+    const base = 21;
     const blank = '________';
 
-    s.line(branch.name_th, { size: narrow ? 26 : 30, bold: true, align: 'center' });
+    s.line(branch.name_th, { size: 26, bold: true, align: 'center' });
     s.line('ใบสรุปปิดรอบการขาย', { size: base, align: 'center' });
     if (shift.status === 'OPEN') s.line('(ยังไม่ปิดรอบ — ฉบับตัวอย่าง)', { size: 17, align: 'center' });
     s.rule();
@@ -458,7 +485,7 @@ function closingSlip({ shift, summary: k, cash: cc, branch, staff, width = '80mm
     s.row('นับได้จริง', cc.actual == null ? blank : money(cc.actual), { size: base });
     s.row('ผลต่าง', cc.difference == null ? blank : money(cc.difference), { size: base + 2, bold: true });
     // หมายเหตุตอนปิดรอบ (migration 015) — เหตุผลของเงินขาด/เกิน
-    if (shift && shift.close_note) s.wrap('หมายเหตุ: ' + shift.close_note, { size: narrow ? 17 : 18, lh: 1.35 });
+    if (shift && shift.close_note) s.wrap('หมายเหตุ: ' + shift.close_note, { size: 17, lh: 1.35 });
     s.rule();
 
     s.gap(10);
@@ -500,13 +527,12 @@ function bitsToPng(bits, width, height) {
    ══════════════════════════════════════════════════════════════════ */
 function testPage({ name, conn, width = '80mm', dots }) {
     const W = dots || WIDTH[width] || WIDTH['80mm'];
-    const narrow = W < 500;
-    const dpi = (W === 512 || W === 360) ? 180 : 203;
-    const base = narrow ? 19 : 22;
-    const s = createSheet(W);
+    const dpi = dpiOf(W);
+    const base = 19;
+    const s = createSheet(W, { native: true });
 
-    s.gap(46);                                               // ที่ของไม้บรรทัด
-    s.line('ทดสอบเครื่องพิมพ์', { size: narrow ? 26 : 30, bold: true, align: 'center' });
+    s.gap(46);                                              // ที่ของไม้บรรทัด
+    s.line('ทดสอบเครื่องพิมพ์', { size: 26, bold: true, align: 'center' });
     s.line(name || '—', { size: base, align: 'center' });
     s.rule();
     s.row('กระดาษ', width === '58mm' ? '58 มม.' : '80 มม.', { size: base });
@@ -543,5 +569,5 @@ function testPage({ name, conn, width = '80mm', dots }) {
     return { bitmap: toBits(canvas, W, height), width: W, height, canvas };
 }
 
-module.exports = { WIDTH, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket, testPage,
+module.exports = { WIDTH, dpiOf, mmOf, createSheet, toBits, bitsToPng, kitchenSlip, receipt, kioskTicket, testPage,
                    closingSlip, fontFamily };

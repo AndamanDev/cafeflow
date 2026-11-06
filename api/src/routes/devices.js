@@ -128,7 +128,9 @@ async function printerFields(c, branchId, body, cur) {
 
     const conn = pick('conn', (cur && cur.printer_conn) || 'NETWORK');
     if (!['NETWORK', 'USB'].includes(conn)) throw new ApiError(400, 'การเชื่อมต่อต้องเป็น LAN หรือ USB');
-    // USB + ผูกคีออสก์ = เสียบที่ตัวตู้ — เบราว์เซอร์บนตู้พิมพ์เอง เซิร์ฟเวอร์ไม่ต้องรู้ชื่อเครื่อง
+    // USB + ผูกคีออสก์ ไม่เลือกเครื่อง = เสียบที่ตัวตู้ — เบราว์เซอร์บนตู้พิมพ์เอง
+    // USB + ผูกคีออสก์ + เลือกเครื่อง = ตู้อยู่บนเครื่องเซิร์ฟเวอร์ — เซิร์ฟเวอร์ส่ง ESC/POS ตรง (02/11/2569)
+    //   ไม่ผ่านเบราว์เซอร์ จึงไม่โดนไดรเวอร์ย่อบัตรให้ลงกระดาษสั้น (เช่น TC3580D ตั้ง 72 × 50 มม.)
     const kioskPick = pick('kiosk', cur ? cur.serves_kiosk : null) || null;
 
     let host = null, port = 9100, usb = null;
@@ -139,10 +141,10 @@ async function printerFields(c, branchId, body, cur) {
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
             throw new ApiError(400, 'พอร์ตต้องเป็นตัวเลข 1–65535 (ปกติคือ 9100)');
         }
-    } else if (!kioskPick) {
-        usb = String(pick('usb', cur && cur.printer_usb) || '').trim();
-        if (!usb) throw new ApiError(400, 'ต้องเลือกเครื่องพิมพ์ USB');
-        if (process.platform !== 'win32' && !isLinuxDevice(usb)) {
+    } else {
+        usb = String(pick('usb', cur && cur.printer_usb) || '').trim() || null;
+        if (!usb && !kioskPick) throw new ApiError(400, 'ต้องเลือกเครื่องพิมพ์ USB');
+        if (usb && process.platform !== 'win32' && !isLinuxDevice(usb)) {
             throw new ApiError(400, 'เครื่องพิมพ์ USB ต้องเป็นอุปกรณ์เช่น /dev/usb/lp0');
         }
     }
@@ -391,7 +393,7 @@ function registerDevices(app, deps) {
         const body = Object.assign({}, req.body || {});
         if (!String(body.name || '').trim()) body.name = 'เครื่องพิมพ์';
         const f = await tx((c) => printerFields(c, branchId(), body, null));
-        if (f.conn === 'USB' && f.kiosk) {
+        if (f.conn === 'USB' && f.kiosk && !f.usb) {
             throw new ApiError(400, 'เครื่องนี้เสียบที่ตู้คีออสก์ — เซิร์ฟเวอร์สั่งพิมพ์ไม่ถึง ทดสอบโดยสั่งออเดอร์ที่ตู้');
         }
 

@@ -503,7 +503,7 @@ const DashPage = {
     },
 
     printerConnText(p) {
-        if (p.conn === 'USB' && p.kioskId) return 'USB · เสียบที่ตู้คีออสก์';
+        if (p.conn === 'USB' && p.kioskId && !p.printerUsb) return 'USB · เสียบที่ตู้คีออสก์';
         if (p.conn === 'USB') return 'USB · ' + (p.printerUsb || 'ยังไม่ได้เลือก');
         return p.printerHost ? 'LAN · ' + p.printerHost + ':' + (p.printerPort || 9100) : 'LAN · ยังไม่ได้ใส่ IP';
     },
@@ -675,8 +675,8 @@ const DashPage = {
                 </div>
                 <div id="pUsb">
                     <div class="ds-note" id="pUsbKiosk" hidden>
-                        เสียบเครื่องพิมพ์ที่ <strong>ตัวตู้คีออสก์</strong> แล้วตั้งเป็นเครื่องพิมพ์หลักของเครื่องตู้นั้น
-                        · ตู้จะพิมพ์บัตรคิวเองโดยไม่ต้องกดอะไร
+                        ตู้อยู่คนละเครื่องกับเซิร์ฟเวอร์: เลือก <strong>เสียบที่ตัวตู้</strong> แล้วตั้งเป็นเครื่องพิมพ์หลักของเครื่องตู้นั้น
+                        · ตู้อยู่บนเครื่องเซิร์ฟเวอร์: เลือกชื่อเครื่องพิมพ์ — บัตรออกขนาดจริง ไม่โดนไดรเวอร์ย่อ และกดพิมพ์ทดสอบได้
                     </div>
                     <div class="sip-field" id="pUsbServer">
                         <label class="sip-label">เลือกเครื่องพิมพ์ USB</label>
@@ -739,11 +739,9 @@ const DashPage = {
         CFApp.markBox('pConn', v);
         document.getElementById('pNet').hidden = v !== 'NETWORK';
         document.getElementById('pUsb').hidden = v !== 'USB';
-        // USB + คีออสก์ = เสียบที่ตัวตู้ ไม่ต้องเลือกเครื่องจากเซิร์ฟเวอร์
+        // USB + คีออสก์ = เลือกได้ว่าเสียบที่ตัวตู้ (ค่าว่าง) หรือเครื่องพิมพ์บนเครื่องเซิร์ฟเวอร์
         const atKiosk = /^KIOSK:/.test((document.getElementById('pStation') || {}).value || '');
         document.getElementById('pUsbKiosk').hidden = !atKiosk;
-        document.getElementById('pUsbServer').hidden = atKiosk;
-        if (atKiosk) return;
         if (v === 'USB' && this._pd.usbList === null) this.loadUsb();
         else this.renderUsb();
     },
@@ -774,9 +772,10 @@ const DashPage = {
         const list = this._pd.usbList.slice().sort((a, b) => (b.usb ? 1 : 0) - (a.usb ? 1 : 0));
         const cur = this._pd.usb;
         if (cur && !list.some((x) => x.id === cur)) list.unshift({ id: cur, label: cur + ' (ไม่พบตอนนี้)' });
-        sel.innerHTML = '<option value="">— เลือกเครื่องพิมพ์ —</option>' +
+        const atKiosk = /^KIOSK:/.test((document.getElementById('pStation') || {}).value || '');
+        sel.innerHTML = `<option value="">${atKiosk ? '— เสียบที่ตัวตู้ (ตู้พิมพ์เอง) —' : '— เลือกเครื่องพิมพ์ —'}</option>` +
             list.map((x) => `<option value="${e(x.id)}" ${x.id === cur ? 'selected' : ''}>${e(x.label)}</option>`).join('');
-        if (!this._pd.usbList.length) {
+        if (!this._pd.usbList.length && !atKiosk) {
             sel.innerHTML = '<option value="">ไม่พบเครื่องพิมพ์ในเครื่องเซิร์ฟเวอร์</option>';
         }
     },
@@ -834,9 +833,9 @@ const DashPage = {
             body.host = (val('pHost') || '').trim();
             body.port = parseInt(val('pPort'), 10) || 9100;
             if (!body.host) { showToast('ต้องใส่ IP ของเครื่องพิมพ์', 'error'); return null; }
-        } else if (!body.kiosk) {
-            body.usb = d.usb;
-            if (!body.usb) { showToast('ต้องเลือกเครื่องพิมพ์ USB', 'error'); return null; }
+        } else {
+            body.usb = d.usb || '';           // คีออสก์ + ค่าว่าง = เสียบที่ตัวตู้ (ล้างค่าเดิมทิ้ง)
+            if (!body.usb && !body.kiosk) { showToast('ต้องเลือกเครื่องพิมพ์ USB', 'error'); return null; }
         }
         return body;
     },
