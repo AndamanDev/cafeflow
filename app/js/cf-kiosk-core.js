@@ -422,6 +422,7 @@ const CFKiosk = {
      * หน้าถามยืนยันแบบแผ่นล่าง — ปุ่มที่กดแล้วย้อนไม่ได้ (ล้างตะกร้า · เรียกพนักงาน · เปลี่ยนเป็นเงินสด)
      * onOk เป็นชื่อเมธอดของ CFKiosk (ใส่ใน onclick ได้)
      */
+    /** text = ข้อความเดียว หรืออาร์เรย์ — แต่ละตัวขึ้นบรรทัดของตัวเอง */
     confirmSheet({ title, text, ok, onOk }) {
         this.closeSheet();
         const e = CFApp.esc;
@@ -430,7 +431,7 @@ const CFKiosk = {
             <div class="cfk-sheet-box">
                 <div class="cfk-sheet-body">
                     <b>${e(title)}</b>
-                    <p>${e(text)}</p>
+                    ${[].concat(text).map((l) => `<p>${e(l)}</p>`).join('')}
                 </div>
                 <div class="cfk-actionbar">
                     <button class="cfk-btn cfk-btn-ghost cfk-btn-grow" onclick="CFKiosk.closeSheet()">${this.t('ยกเลิก', 'Cancel')}</button>
@@ -1076,8 +1077,8 @@ const CFKiosk = {
        หน้า 7 — ชำระเงิน
        ══════════════════════════════════════════════════════ */
     /**
-     * แบบตู้ฟาสต์ฟู้ด (KFC): บน = รายการสั่งซื้อพร้อมตัวเลือก (เลื่อนได้) · ล่าง = ยอดรวม + วิธีชำระเป็นแถวใหญ่
-     * วิธีชำระติดล่างจอเสมอ (ใกล้มือ · รายการยาวแค่ไหนปุ่มจ่ายก็ไม่ตกจอ) · แตะแถวไหนจ่ายแบบนั้นเลย ไม่ต้องกดยืนยันซ้ำ
+     * แบบตู้ฟาสต์ฟู้ด (KFC): บน = รายการสั่งซื้อพร้อมตัวเลือก (เลื่อนได้) · ล่าง = ยอดรวม + ปุ่มวิธีชำระใหญ่ 2 ปุ่มในแถวเดียว
+     * ทุกแนวจอเรียงแบบเดียวกัน · ทั้งก้อนจัดกลางจอ (cf-kiosk.css · .cfk-pay) — รายการยาวแค่ไหนปุ่มจ่ายก็ไม่ตกจอ · แตะแถวไหนจ่ายแบบนั้นเลย ไม่ต้องกดยืนยันซ้ำ
      */
     screen_pay() {
         const e = CFApp.esc, cart = this.state.cart, n = this.cartCount();
@@ -1093,7 +1094,6 @@ const CFKiosk = {
             <button class="cfk-paymethod" onclick="CFKiosk.submit('${key}')">
                 <span class="cfk-paymethod-ico">${CFKioskArt.icon(icon)}</span>
                 <span class="cfk-paymethod-txt"><b>${title}</b><small>${sub}</small></span>
-                ${CFKioskArt.icon('next')}
             </button>`;
         return `
         ${this.topHtml({ title: this.t('ชำระเงิน', 'Payment'), back: 'cart' })}
@@ -1109,8 +1109,10 @@ const CFKiosk = {
                 <div class="cfk-paytotal-row"><span>${this.t('ยอดที่ต้องชำระ', 'Amount due')}</span>
                     <strong>฿${CFApp.money(this.cartTotal())}</strong></div>
                 <div class="cfk-pay-label">${this.t('เลือกวิธีชำระเงิน', 'Choose how to pay')}</div>
-                ${method('QR', 'qr', this.t('QR พร้อมเพย์', 'PromptPay QR'), this.t('สแกนจ่ายด้วยแอปธนาคาร', 'Scan with your banking app'))}
-                ${method('CASH', 'cash', this.t('เงินสด', 'Cash'), this.t('ชำระที่เคาน์เตอร์', 'Pay at the counter'))}
+                <div class="cfk-paymethods">
+                    ${method('QR', 'qr', this.t('QR พร้อมเพย์', 'PromptPay QR'), this.t('สแกนจ่ายด้วยแอปธนาคาร', 'Scan with your banking app'))}
+                    ${method('CASH', 'cash', this.t('เงินสด', 'Cash'), this.t('ชำระที่เคาน์เตอร์', 'Pay at the counter'))}
+                </div>
             </div>
         </div>`;
     },
@@ -1845,8 +1847,8 @@ const CFKiosk = {
     askStaff() {
         this.confirmSheet({
             title: this.t('เรียกพนักงานช่วย?', 'Call our staff?'),
-            text: this.t('พนักงานที่เคาน์เตอร์จะตรวจการชำระเงินให้ — ถ้ายังไม่ได้โอน กด "ยกเลิก" แล้วชำระต่อได้',
-                         'Our staff at the counter will check your payment — if you have not paid yet, tap "Cancel" to continue'),
+            text: this.t(['พนักงานที่เคาน์เตอร์จะตรวจการชำระเงินให้', 'ถ้ายังไม่ได้โอน กด "ยกเลิก" แล้วชำระต่อได้'],
+                         ['Our staff at the counter will check your payment', 'If you have not paid yet, tap "Cancel" to continue']),
             ok: this.t('เรียกพนักงาน', 'Call staff'), onOk: 'qrTimeout',
         });
     },
@@ -1860,8 +1862,8 @@ const CFKiosk = {
     askEditOrder() {
         this.confirmSheet({
             title: this.t('ยังไม่ได้โอนเงินใช่ไหม?', 'You have not paid yet?'),
-            text: this.t('ออเดอร์นี้และ QR จะถูกยกเลิก แล้วกลับไปแก้รายการในตะกร้า — ถ้าโอนไปแล้ว อย่ากด ให้สแกนสลิปหรือแจ้งพนักงาน',
-                         'This order and its QR will be cancelled and you go back to your cart — if you already paid, do not continue: scan your slip or call staff'),
+            text: this.t(['ออเดอร์นี้และ QR จะถูกยกเลิก แล้วกลับไปแก้รายการในตะกร้า', 'ถ้าโอนไปแล้ว อย่ากด ให้สแกนสลิปหรือแจ้งพนักงาน'],
+                         ['This order and QR will be cancelled and you return to your cart','If you already paid, do not continue: scan your slip or call staff']),
             ok: this.t('ยังไม่โอน · แก้รายการ', 'Not paid · edit order'), onOk: 'editOrder',
         });
     },
@@ -1897,8 +1899,8 @@ const CFKiosk = {
         const o = CFStore.byId('orders', this.state.orderId);
         this.confirmSheet({
             title: this.t('เปลี่ยนเป็นจ่ายเงินสด?', 'Pay cash instead?'),
-            text: this.t('QR นี้จะใช้ไม่ได้ แล้วไปชำระ ฿' + CFApp.money(o.total) + ' ที่เคาน์เตอร์ — ถ้าโอนไปแล้ว อย่าเปลี่ยน ให้กด "โอนแล้ว · สแกนสลิป"',
-                         'This QR will stop working and you pay ฿' + CFApp.money(o.total) + ' at the counter — if you already transferred, tap "Paid · scan slip" instead'),
+            text: this.t(['QR นี้จะใช้ไม่ได้ แล้วไปชำระ ฿' + CFApp.money(o.total) + ' ที่เคาน์เตอร์', 'ถ้าโอนไปแล้ว อย่าเปลี่ยน ให้กด "โอนแล้ว · สแกนสลิป"'],
+                         ['This QR will stop working and you pay ฿' + CFApp.money(o.total) + ' at the counter', 'If you already transferred, tap "Paid · scan slip" instead']),
             ok: this.t('จ่ายเงินสด', 'Pay cash'), onOk: 'switchToCash',
         });
     },
@@ -2029,7 +2031,7 @@ const CFKiosk = {
             { kind, kioskId: this.state.deviceId })
             .then((r) => {
                 if (r && r.printed) this.sayTakeTicket();
-                if (r && r.local && r.image) this.printLocal(r.image, r.dots);
+                if (r && r.local && r.image) this.printLocal(r.image, r.dots, r.mm);
                 else if (r && r.reason === 'no-printer') {
                     console.info('[kiosk] ตู้ ' + this.state.deviceId + ' ยังไม่ได้ผูกเครื่องพิมพ์บัตรคิว — ตั้งที่ หน้าภาพรวม › เครื่องพิมพ์');
                 }
@@ -2039,17 +2041,19 @@ const CFKiosk = {
 
     /**
      * เครื่องพิมพ์ USB ที่เสียบตัวตู้ — เบราว์เซอร์พิมพ์ภาพที่เซิร์ฟเวอร์วาดให้
-     * ต้องเปิด Edge ด้วย --kiosk-printing (ops/screen-edge.bat) ไม่งั้นหน้าต่างพิมพ์จะโผล่บังลูกค้า
-     * ภาพวาดที่ 203 dpi ≈ 8 จุด/มม. → กว้างเท่ากระดาษจริง ไม่ย่อขยาย
+     * ต้องเปิดเบราว์เซอร์ด้วย --kiosk-printing (ops/screen-edge.bat) ไม่งั้นหน้าต่างพิมพ์จะโผล่บังลูกค้า
+     * mm = ความกว้างจริงที่เซิร์ฟเวอร์คิดจาก dpi ของเครื่อง (02/11/2569) — เดิมใช้ dots/8 ซึ่งถูกแค่ 203 dpi
+     * เครื่อง 180 dpi (512 จุด) จึงออกกว้าง 64 มม. แทน 72 มม. บัตรเล็กลง ~11% เหลือที่ว่างด้านขวา
+     * ⚠️ ไดรเวอร์ต้องตั้งกระดาษเป็นม้วนยาว (เช่น 80 × 3276 มม.) — กระดาษสั้นกว่าบัตร เบราว์เซอร์จะย่อทั้งใบให้ลงหน้าเดียว
      */
-    printLocal(src, dots) {
+    printLocal(src, dots, mmWide) {
         const old = document.getElementById('cfkPrintFrame');
         if (old) old.remove();
         const f = document.createElement('iframe');
         f.id = 'cfkPrintFrame';
         f.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden';
         document.body.appendChild(f);
-        const mm = Math.round((dots || 576) / 8);
+        const mm = mmWide || Math.round((dots || 576) / 8);      // เซิร์ฟเวอร์เก่าไม่ส่ง mm
         const d = f.contentDocument;
         d.open();
         d.write(`<!doctype html><html><head><style>

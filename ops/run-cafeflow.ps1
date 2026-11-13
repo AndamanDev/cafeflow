@@ -132,6 +132,22 @@ Retry 'API' {
     return $false
 } | Out-Null
 
+# ── 3b. เปิดจอบนเครื่องนี้ (แคชเชียร์ · คีออสก์ …) ─────────────────────
+# รายชื่อจอมาจาก "screen-edge.bat <จอ> autostart" → CafeFlowScreen\autostart.txt
+# เปิดก่อนตัวอ่านสลิป (โหลดโมเดลนาน) · จอที่เปิดอยู่แล้วข้าม กันเปิดซ้อนตอนสั่งเปิดระบบซ้ำจากเมนู
+$autoFile = Join-Path $env:LOCALAPPDATA 'CafeFlowScreen\autostart.txt'
+function ApiHealthy { try { (Invoke-WebRequest 'http://localhost:8080/api/health' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200 } catch { $false } }
+if ((Test-Path $autoFile) -and (WaitFor { ApiHealthy } 90)) {
+    # คีออสก์/แคชเชียร์เปิดใน Chrome (โปรไฟล์ CafeFlowChrome-<จอ>) จออื่นใน Edge (CafeFlow-<จอ>)
+    $edgeCmds = @(Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" -ErrorAction SilentlyContinue | ForEach-Object { $_.CommandLine })
+    foreach ($role in (Get-Content $autoFile | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+        if ($edgeCmds | Where-Object { $_ -like "*CafeFlow-$role*" -or $_ -like "*CafeFlowChrome-$role*" }) { Log "จอ $role เปิดอยู่แล้ว — ข้าม"; continue }
+        Log "เปิดจอ $role"
+        Start-Process cmd -ArgumentList "/c `"`"$PSScriptRoot\screen-edge.bat`" $role`"" -WindowStyle Hidden
+        Start-Sleep -Seconds 3
+    }
+} elseif (Test-Path $autoFile) { Log '!! API ไม่ตอบ /api/health — ไม่ได้เปิดจอ' }
+
 # ── 4. ตัวอ่านสลิป OCR (พอร์ต 5101) ──────────────────────────────
 # ตัวรัน: openvino (.venv-ov — เร็วกว่า ~3 เท่า) ถ้าติดตั้งไว้ ไม่งั้น paddle (.venv)
 # บังคับใช้ตัวเดิม: ใส่ CF_OCR_ENGINE=paddle ใน .env · openvino เปิดไม่ขึ้น 2 ครั้ง → สลับเป็น paddle เอง
